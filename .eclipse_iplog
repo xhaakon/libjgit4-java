@@ -1,0 +1,30 @@
+[project "technology.jgit"]
+	name = JGit
+	license = Eclipse Distribution License v1.0
+
+	skipCommit = 1a6964c8274c50f0253db75f010d78ef0e739343
+
+[CQ "3454"]
+	description = args4j Version: 2.0.12
+	license = BSD License
+	use = unmodified binary
+	state = approved
+
+[CQ "3565"]
+	description = Java Servlet API Version: 2.5 (PB CQ2075)
+	license = Apache License, 2.0
+	use = unmodified binary
+	state = approved
+
+[CQ "3654"]
+	description = JSch Version: 0.1.41 (PB CQ3040)
+	license = New BSD license
+	use = unmodified binary
+	state = approved
+
+[CQ "3655"]
+	description = Junit Version: 3.8.2 (PB CQ2206)
+	license = Common Public License 1.0
+	use = unmodified binary
+	state = approved
+
