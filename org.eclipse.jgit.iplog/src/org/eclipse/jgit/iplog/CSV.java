@@ -45,6 +45,7 @@ package org.eclipse.jgit.iplog;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -108,13 +109,15 @@ class CSV {
 					}
 				}
 				if (p < line.length() && line.charAt(p) != ',')
-					throw new IOException("CSV parsing error: " + line);
+					throw new IOException(MessageFormat.format(IpLogText.get().CSVParsingError, line));
 				row.add(b.toString());
 				p++; // skip the trailing comma (if present)
 
 			} else if (line.charAt(p) == ',') {
 				row.add("");
 				p++;
+				if (p == line.length())
+					row.add("");
 
 			} else {
 				int comma = line.indexOf(',', p);

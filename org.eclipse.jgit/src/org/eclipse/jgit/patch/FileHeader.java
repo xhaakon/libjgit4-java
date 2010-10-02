@@ -54,10 +54,13 @@ import static org.eclipse.jgit.util.RawParseUtils.parseBase10;
 import java.io.IOException;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.eclipse.jgit.JGitText;
+import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.lib.AbbreviatedObjectId;
 import org.eclipse.jgit.lib.Constants;
@@ -67,10 +70,7 @@ import org.eclipse.jgit.util.RawParseUtils;
 import org.eclipse.jgit.util.TemporaryBuffer;
 
 /** Patch header describing an action for a single file path. */
-public class FileHeader {
-	/** Magical file name used for file adds or deletes. */
-	public static final String DEV_NULL = "/dev/null";
-
+public class FileHeader extends DiffEntry {
 	private static final byte[] OLD_MODE = encodeASCII("old mode ");
 
 	private static final byte[] NEW_MODE = encodeASCII("new mode ");
@@ -101,24 +101,6 @@ public class FileHeader {
 
 	static final byte[] NEW_NAME = encodeASCII("+++ ");
 
-	/** General type of change a single file-level patch describes. */
-	public static enum ChangeType {
-		/** Add a new file to the project */
-		ADD,
-
-		/** Modify an existing file in the project (content and/or mode) */
-		MODIFY,
-
-		/** Delete an existing file from the project */
-		DELETE,
-
-		/** Rename an existing file to a new location */
-		RENAME,
-
-		/** Copy an existing file to a new location, keeping the original */
-		COPY;
-	}
-
 	/** Type of patch used by this file. */
 	public static enum PatchType {
 		/** A traditional unified diff style patch of a text file. */
@@ -140,30 +122,6 @@ public class FileHeader {
 	/** Position 1 past the end of this file within {@link #buf}. */
 	int endOffset;
 
-	/** File name of the old (pre-image). */
-	private String oldName;
-
-	/** File name of the new (post-image). */
-	private String newName;
-
-	/** Old mode of the file, if described by the patch, else null. */
-	private FileMode oldMode;
-
-	/** New mode of the file, if described by the patch, else null. */
-	protected FileMode newMode;
-
-	/** General type of change indicated by the patch. */
-	protected ChangeType changeType;
-
-	/** Similarity score if {@link #changeType} is a copy or rename. */
-	private int score;
-
-	/** ObjectId listed on the index line for the old (pre-image) */
-	private AbbreviatedObjectId oldId;
-
-	/** ObjectId listed on the index line for the new (post-image) */
-	protected AbbreviatedObjectId newId;
-
 	/** Type of patch used to modify this file */
 	PatchType patchType;
 
@@ -175,6 +133,25 @@ public class FileHeader {
 
 	/** If {@link #patchType} is {@link PatchType#GIT_BINARY}, the old image */
 	BinaryHunk reverseBinaryHunk;
+
+	/**
+	 * Constructs a new FileHeader
+	 *
+	 * @param headerLines
+	 *            buffer holding the diff header for this file
+	 * @param edits
+	 *            the edits for this file
+	 * @param type
+	 *            the type of patch used to modify this file
+	 */
+	public FileHeader(final byte[] headerLines, EditList edits, PatchType type) {
+		this(headerLines, 0);
+		endOffset = headerLines.length;
+		int ptr = parseGitFileName(Patch.DIFF_GIT.length, headerLines.length);
+		ptr = parseGitHeaders(ptr, headerLines.length);
+		this.patchType = type;
+		addHunk(new HunkHeader(this, edits));
+	}
 
 	FileHeader(final byte[] b, final int offset) {
 		buf = b;
@@ -241,8 +218,7 @@ public class FileHeader {
 		}
 
 		if (charsetGuess != null && charsetGuess.length != getParentCount() + 1)
-			throw new IllegalArgumentException("Expected "
-					+ (getParentCount() + 1) + " character encoding guesses");
+			throw new IllegalArgumentException(MessageFormat.format(JGitText.get().expectedCharacterEncodingGuesses, (getParentCount() + 1)));
 
 		if (trySimpleConversion(charsetGuess)) {
 			Charset cs = charsetGuess != null ? charsetGuess[0] : null;
@@ -302,93 +278,13 @@ public class FileHeader {
 			}
 			return r;
 		} catch (IOException ioe) {
-			throw new RuntimeException("Cannot convert script to text", ioe);
+			throw new RuntimeException(JGitText.get().cannotConvertScriptToText, ioe);
 		} finally {
 			for (final TemporaryBuffer b : tmp) {
 				if (b != null)
 					b.destroy();
 			}
 		}
-	}
-
-	/**
-	 * Get the old name associated with this file.
-	 * <p>
-	 * The meaning of the old name can differ depending on the semantic meaning
-	 * of this patch:
-	 * <ul>
-	 * <li><i>file add</i>: always <code>/dev/null</code></li>
-	 * <li><i>file modify</i>: always {@link #getNewName()}</li>
-	 * <li><i>file delete</i>: always the file being deleted</li>
-	 * <li><i>file copy</i>: source file the copy originates from</li>
-	 * <li><i>file rename</i>: source file the rename originates from</li>
-	 * </ul>
-	 *
-	 * @return old name for this file.
-	 */
-	public String getOldName() {
-		return oldName;
-	}
-
-	/**
-	 * Get the new name associated with this file.
-	 * <p>
-	 * The meaning of the new name can differ depending on the semantic meaning
-	 * of this patch:
-	 * <ul>
-	 * <li><i>file add</i>: always the file being created</li>
-	 * <li><i>file modify</i>: always {@link #getOldName()}</li>
-	 * <li><i>file delete</i>: always <code>/dev/null</code></li>
-	 * <li><i>file copy</i>: destination file the copy ends up at</li>
-	 * <li><i>file rename</i>: destination file the rename ends up at/li>
-	 * </ul>
-	 *
-	 * @return new name for this file.
-	 */
-	public String getNewName() {
-		return newName;
-	}
-
-	/** @return the old file mode, if described in the patch */
-	public FileMode getOldMode() {
-		return oldMode;
-	}
-
-	/** @return the new file mode, if described in the patch */
-	public FileMode getNewMode() {
-		return newMode;
-	}
-
-	/** @return the type of change this patch makes on {@link #getNewName()} */
-	public ChangeType getChangeType() {
-		return changeType;
-	}
-
-	/**
-	 * @return similarity score between {@link #getOldName()} and
-	 *         {@link #getNewName()} if {@link #getChangeType()} is
-	 *         {@link ChangeType#COPY} or {@link ChangeType#RENAME}.
-	 */
-	public int getScore() {
-		return score;
-	}
-
-	/**
-	 * Get the old object id from the <code>index</code>.
-	 *
-	 * @return the object id; null if there is no index line
-	 */
-	public AbbreviatedObjectId getOldId() {
-		return oldId;
-	}
-
-	/**
-	 * Get the new object id from the <code>index</code>.
-	 *
-	 * @return the object id; null if there is no index line
-	 */
-	public AbbreviatedObjectId getNewId() {
-		return newId;
 	}
 
 	/** @return style of patch used to modify this file */
@@ -410,7 +306,7 @@ public class FileHeader {
 
 	void addHunk(final HunkHeader h) {
 		if (h.getFileHeader() != this)
-			throw new IllegalArgumentException("Hunk belongs to another file");
+			throw new IllegalArgumentException(JGitText.get().hunkBelongsToAnotherFile);
 		if (hunks == null)
 			hunks = new ArrayList<HunkHeader>();
 		hunks.add(h);
@@ -489,12 +385,12 @@ public class FileHeader {
 					if (buf[sp - 2] != '"') {
 						return eol;
 					}
-					oldName = QuotedString.GIT_PATH.dequote(buf, bol, sp - 1);
-					oldName = p1(oldName);
+					oldPath = QuotedString.GIT_PATH.dequote(buf, bol, sp - 1);
+					oldPath = p1(oldPath);
 				} else {
-					oldName = decode(Constants.CHARSET, buf, aStart, sp - 1);
+					oldPath = decode(Constants.CHARSET, buf, aStart, sp - 1);
 				}
-				newName = oldName;
+				newPath = oldPath;
 				return eol;
 			}
 
@@ -535,27 +431,27 @@ public class FileHeader {
 				parseNewFileMode(ptr, eol);
 
 			} else if (match(buf, ptr, COPY_FROM) >= 0) {
-				oldName = parseName(oldName, ptr + COPY_FROM.length, eol);
+				oldPath = parseName(oldPath, ptr + COPY_FROM.length, eol);
 				changeType = ChangeType.COPY;
 
 			} else if (match(buf, ptr, COPY_TO) >= 0) {
-				newName = parseName(newName, ptr + COPY_TO.length, eol);
+				newPath = parseName(newPath, ptr + COPY_TO.length, eol);
 				changeType = ChangeType.COPY;
 
 			} else if (match(buf, ptr, RENAME_OLD) >= 0) {
-				oldName = parseName(oldName, ptr + RENAME_OLD.length, eol);
+				oldPath = parseName(oldPath, ptr + RENAME_OLD.length, eol);
 				changeType = ChangeType.RENAME;
 
 			} else if (match(buf, ptr, RENAME_NEW) >= 0) {
-				newName = parseName(newName, ptr + RENAME_NEW.length, eol);
+				newPath = parseName(newPath, ptr + RENAME_NEW.length, eol);
 				changeType = ChangeType.RENAME;
 
 			} else if (match(buf, ptr, RENAME_FROM) >= 0) {
-				oldName = parseName(oldName, ptr + RENAME_FROM.length, eol);
+				oldPath = parseName(oldPath, ptr + RENAME_FROM.length, eol);
 				changeType = ChangeType.RENAME;
 
 			} else if (match(buf, ptr, RENAME_TO) >= 0) {
-				newName = parseName(newName, ptr + RENAME_TO.length, eol);
+				newPath = parseName(newPath, ptr + RENAME_TO.length, eol);
 				changeType = ChangeType.RENAME;
 
 			} else if (match(buf, ptr, SIMILARITY_INDEX) >= 0) {
@@ -578,14 +474,14 @@ public class FileHeader {
 	}
 
 	void parseOldName(int ptr, final int eol) {
-		oldName = p1(parseName(oldName, ptr + OLD_NAME.length, eol));
-		if (oldName == DEV_NULL)
+		oldPath = p1(parseName(oldPath, ptr + OLD_NAME.length, eol));
+		if (oldPath == DEV_NULL)
 			changeType = ChangeType.ADD;
 	}
 
 	void parseNewName(int ptr, final int eol) {
-		newName = p1(parseName(newName, ptr + NEW_NAME.length, eol));
-		if (newName == DEV_NULL)
+		newPath = p1(parseName(newPath, ptr + NEW_NAME.length, eol));
+		if (newPath == DEV_NULL)
 			changeType = ChangeType.DELETE;
 	}
 

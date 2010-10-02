@@ -52,22 +52,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.security.MessageDigest;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.zip.CRC32;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.AnyObjectId;
-import org.eclipse.jgit.lib.BinaryDelta;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.CoreConfig;
 import org.eclipse.jgit.lib.InflaterCache;
 import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectChecker;
@@ -75,20 +74,21 @@ import org.eclipse.jgit.lib.ObjectDatabase;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectIdSubclassMap;
 import org.eclipse.jgit.lib.ObjectLoader;
-import org.eclipse.jgit.lib.PackIndexWriter;
-import org.eclipse.jgit.lib.PackLock;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.WindowCursor;
+import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.storage.file.PackIndexWriter;
+import org.eclipse.jgit.storage.file.PackLock;
+import org.eclipse.jgit.storage.pack.BinaryDelta;
 import org.eclipse.jgit.util.NB;
 
 /** Indexes Git pack files for local use. */
 public class IndexPack {
 	/** Progress message when reading raw data from the pack. */
-	public static final String PROGRESS_DOWNLOAD = "Receiving objects";
+	public static final String PROGRESS_DOWNLOAD = JGitText.get().receivingObjects;
 
 	/** Progress message when computing names of delta compressed objects. */
-	public static final String PROGRESS_RESOLVE_DELTA = "Resolving deltas";
+	public static final String PROGRESS_RESOLVE_DELTA = JGitText.get().resolvingDeltas;
 
 	/**
 	 * Size of the internal stream buffer.
@@ -128,8 +128,22 @@ public class IndexPack {
 
 		base = new File(objdir, n.substring(0, n.length() - suffix.length()));
 		final IndexPack ip = new IndexPack(db, is, base);
-		ip.setIndexVersion(db.getConfig().getCore().getPackIndexVersion());
+		ip.setIndexVersion(db.getConfig().get(CoreConfig.KEY)
+				.getPackIndexVersion());
 		return ip;
+	}
+
+	private static enum Source {
+		/** Data is read from the incoming stream. */
+		INPUT,
+
+		/**
+		 * Data is read from the spooled pack file.
+		 * <p>
+		 * During streaming, some (or all) data might be saved into the spooled
+		 * pack file so it can be randomly accessed later.
+		 */
+		FILE;
 	}
 
 	private final Repository repo;
@@ -173,7 +187,14 @@ public class IndexPack {
 
 	private PackedObjectInfo[] entries;
 
-	private Set<ObjectId> newObjectIds;
+	/**
+	 * Every object contained within the incoming pack.
+	 * <p>
+	 * This is a subset of {@link #entries}, as thin packs can add additional
+	 * objects to {@code entries} by copying already existing objects from the
+	 * repository onto the end of the thin pack to make it self-contained.
+	 */
+	private ObjectIdSubclassMap<ObjectId> newObjectIds;
 
 	private int deltaCount;
 
@@ -183,11 +204,18 @@ public class IndexPack {
 
 	private ObjectIdSubclassMap<DeltaChain> baseById;
 
-	private Set<ObjectId> baseIds;
+	/**
+	 * Objects referenced by their name from deltas, that aren't in this pack.
+	 * <p>
+	 * This is the set of objects that were copied onto the end of this pack to
+	 * make it complete. These objects were not transmitted by the remote peer,
+	 * but instead were assumed to already exist in the local repository.
+	 */
+	private ObjectIdSubclassMap<ObjectId> baseObjectIds;
 
 	private LongMap<UnresolvedDelta> baseByPos;
 
-	private byte[] objectData;
+	private byte[] skipBuffer;
 
 	private MessageDigest packDigest;
 
@@ -198,7 +226,7 @@ public class IndexPack {
 	/** If {@link #fixThin} this is the last byte of the original checksum. */
 	private long originalEOF;
 
-	private WindowCursor readCurs;
+	private ObjectReader readCurs;
 
 	/**
 	 * Create a new pack indexer utility.
@@ -217,9 +245,9 @@ public class IndexPack {
 		objectDatabase = db.getObjectDatabase().newCachedDatabase();
 		in = src;
 		inflater = InflaterCache.get();
-		readCurs = new WindowCursor();
+		readCurs = objectDatabase.newReader();
 		buf = new byte[BUFFER_SIZE];
-		objectData = new byte[BUFFER_SIZE];
+		skipBuffer = new byte[512];
 		objectDigest = Constants.newMessageDigest();
 		tempObjectId = new MutableObjectId();
 		packDigest = Constants.newMessageDigest();
@@ -287,7 +315,7 @@ public class IndexPack {
 	 */
 	public void setNeedNewObjectIds(boolean b) {
 		if (b)
-			newObjectIds = new HashSet<ObjectId>();
+			newObjectIds = new ObjectIdSubclassMap<ObjectId>();
 		else
 			newObjectIds = null;
 	}
@@ -311,17 +339,17 @@ public class IndexPack {
 	}
 
 	/** @return the new objects that were sent by the user */
-	public Set<ObjectId> getNewObjectIds() {
-		return newObjectIds == null ?
-				Collections.<ObjectId>emptySet() : newObjectIds;
+	public ObjectIdSubclassMap<ObjectId> getNewObjectIds() {
+		if (newObjectIds != null)
+			return newObjectIds;
+		return new ObjectIdSubclassMap<ObjectId>();
 	}
 
-	/**
-	 *  @return the set of objects the incoming pack assumed for delta purposes
-	 */
-	public Set<ObjectId> getBaseObjectIds() {
-		return baseIds == null ?
-				Collections.<ObjectId>emptySet() : baseIds;
+	/** @return set of objects the incoming pack assumed for delta purposes */
+	public ObjectIdSubclassMap<ObjectId> getBaseObjectIds() {
+		if (baseObjectIds != null)
+			return baseObjectIds;
+		return new ObjectIdSubclassMap<ObjectId>();
 	}
 
 	/**
@@ -381,26 +409,19 @@ public class IndexPack {
 					indexOneObject();
 					progress.update(1);
 					if (progress.isCancelled())
-						throw new IOException("Download cancelled");
+						throw new IOException(JGitText.get().downloadCancelled);
 				}
 				readPackFooter();
 				endInput();
 				progress.endTask();
 				if (deltaCount > 0) {
 					if (packOut == null)
-						throw new IOException("need packOut");
+						throw new IOException(JGitText.get().needPackOut);
 					resolveDeltas(progress);
-					if (needBaseObjectIds) {
-						baseIds = new HashSet<ObjectId>();
-						for (DeltaChain c : baseById) {
-							baseIds.add(c);
-						}
-					}
 					if (entryCount < objectCount) {
 						if (!fixThin) {
-							throw new IOException("pack has "
-									+ (objectCount - entryCount)
-									+ " unresolved deltas");
+							throw new IOException(MessageFormat.format(
+									JGitText.get().packHasUnresolvedDeltas, (objectCount - entryCount)));
 						}
 						fixThinPack(progress);
 					}
@@ -417,12 +438,18 @@ public class IndexPack {
 
 			} finally {
 				try {
+					if (readCurs != null)
+						readCurs.release();
+				} finally {
+					readCurs = null;
+				}
+
+				try {
 					InflaterCache.release(inflater);
 				} finally {
 					inflater = null;
 					objectDatabase.close();
 				}
-				readCurs = WindowCursor.release(readCurs);
 
 				progress.endTask();
 				if (packOut != null)
@@ -453,7 +480,7 @@ public class IndexPack {
 			resolveDeltas(entries[i]);
 			progress.update(entryCount - before);
 			if (progress.isCancelled())
-				throw new IOException("Download cancelled during indexing");
+				throw new IOException(JGitText.get().downloadCancelledDuringIndexing);
 		}
 		progress.endTask();
 	}
@@ -468,12 +495,12 @@ public class IndexPack {
 			byte[] data, PackedObjectInfo oe) throws IOException {
 		crc.reset();
 		position(pos);
-		int c = readFromFile();
+		int c = readFrom(Source.FILE);
 		final int typeCode = (c >> 4) & 7;
 		long sz = c & 15;
 		int shift = 4;
 		while ((c & 0x80) != 0) {
-			c = readFromFile();
+			c = readFrom(Source.FILE);
 			sz += (c & 0x7f) << shift;
 			shift += 7;
 		}
@@ -484,28 +511,28 @@ public class IndexPack {
 		case Constants.OBJ_BLOB:
 		case Constants.OBJ_TAG:
 			type = typeCode;
-			data = inflateFromFile((int) sz);
+			data = inflateAndReturn(Source.FILE, sz);
 			break;
 		case Constants.OBJ_OFS_DELTA: {
-			c = readFromFile() & 0xff;
+			c = readFrom(Source.FILE) & 0xff;
 			while ((c & 128) != 0)
-				c = readFromFile() & 0xff;
-			data = BinaryDelta.apply(data, inflateFromFile((int) sz));
+				c = readFrom(Source.FILE) & 0xff;
+			data = BinaryDelta.apply(data, inflateAndReturn(Source.FILE, sz));
 			break;
 		}
 		case Constants.OBJ_REF_DELTA: {
-			crc.update(buf, fillFromFile(20), 20);
+			crc.update(buf, fill(Source.FILE, 20), 20);
 			use(20);
-			data = BinaryDelta.apply(data, inflateFromFile((int) sz));
+			data = BinaryDelta.apply(data, inflateAndReturn(Source.FILE, sz));
 			break;
 		}
 		default:
-			throw new IOException("Unknown object type " + typeCode + ".");
+			throw new IOException(MessageFormat.format(JGitText.get().unknownObjectType, typeCode));
 		}
 
 		final int crc32 = (int) crc.getValue();
 		if (oldCRC != crc32)
-			throw new IOException("Corruption detected re-reading at " + pos);
+			throw new IOException(MessageFormat.format(JGitText.get().corruptionDetectedReReadingAt, pos));
 		if (oe == null) {
 			objectDigest.update(Constants.encodedTypeString(type));
 			objectDigest.update((byte) ' ');
@@ -566,6 +593,9 @@ public class IndexPack {
 	private void fixThinPack(final ProgressMonitor progress) throws IOException {
 		growEntries();
 
+		if (needBaseObjectIds)
+			baseObjectIds = new ObjectIdSubclassMap<ObjectId>();
+
 		packDigest.reset();
 		originalEOF = packOut.length() - 20;
 		final Deflater def = new Deflater(Deflater.DEFAULT_COMPRESSION, false);
@@ -574,12 +604,16 @@ public class IndexPack {
 		for (final DeltaChain baseId : baseById) {
 			if (baseId.head == null)
 				continue;
-			final ObjectLoader ldr = repo.openObject(readCurs, baseId);
-			if (ldr == null) {
+			if (needBaseObjectIds)
+				baseObjectIds.add(baseId);
+			final ObjectLoader ldr;
+			try {
+				ldr = readCurs.open(baseId);
+			} catch (MissingObjectException notFound) {
 				missing.add(baseId);
 				continue;
 			}
-			final byte[] data = ldr.getCachedBytes();
+			final byte[] data = ldr.getCachedBytes(Integer.MAX_VALUE);
 			final int typeCode = ldr.getType();
 			final PackedObjectInfo oe;
 
@@ -592,13 +626,21 @@ public class IndexPack {
 
 			resolveChildDeltas(oe.getOffset(), typeCode, data, oe);
 			if (progress.isCancelled())
-				throw new IOException("Download cancelled during indexing");
+				throw new IOException(JGitText.get().downloadCancelledDuringIndexing);
 		}
 		def.end();
 
 		for (final DeltaChain base : missing) {
 			if (base.head != null)
 				throw new MissingObjectException(base, "delta base");
+		}
+
+		if (end - originalEOF < 20) {
+			// Ugly corner case; if what we appended on to complete deltas
+			// doesn't completely cover the SHA-1 we have to truncate off
+			// we need to shorten the file, otherwise we will include part
+			// of the old footer as object content.
+			packOut.setLength(end);
 		}
 
 		fixHeaderFooter(packcsum, packDigest.digest());
@@ -638,7 +680,7 @@ public class IndexPack {
 		packOut.seek(0);
 		bAvail = 0;
 		bOffset = 0;
-		fillFromFile(12);
+		fill(Source.FILE, 12);
 
 		{
 			final int origCnt = (int) Math.min(bAvail, origRemaining);
@@ -673,7 +715,7 @@ public class IndexPack {
 
 		if (!Arrays.equals(origDigest.digest(), origcsum)
 				|| !Arrays.equals(tailDigest.digest(), tailcsum))
-			throw new IOException("Pack corrupted while writing to filesystem");
+			throw new IOException(JGitText.get().packCorruptedWhileWritingToFilesystem);
 
 		packcsum = packDigest.digest();
 		packOut.write(packcsum);
@@ -709,14 +751,14 @@ public class IndexPack {
 
 	private void readPackHeader() throws IOException {
 		final int hdrln = Constants.PACK_SIGNATURE.length + 4 + 4;
-		final int p = fillFromInput(hdrln);
+		final int p = fill(Source.INPUT, hdrln);
 		for (int k = 0; k < Constants.PACK_SIGNATURE.length; k++)
 			if (buf[p + k] != Constants.PACK_SIGNATURE[k])
-				throw new IOException("Not a PACK file.");
+				throw new IOException(JGitText.get().notAPACKFile);
 
 		final long vers = NB.decodeUInt32(buf, p + 4);
 		if (vers != 2 && vers != 3)
-			throw new IOException("Unsupported pack version " + vers + ".");
+			throw new IOException(MessageFormat.format(JGitText.get().unsupportedPackVersion, vers));
 		objectCount = NB.decodeUInt32(buf, p + 8);
 		use(hdrln);
 	}
@@ -724,7 +766,7 @@ public class IndexPack {
 	private void readPackFooter() throws IOException {
 		sync();
 		final byte[] cmpcsum = packDigest.digest();
-		final int c = fillFromInput(20);
+		final int c = fill(Source.INPUT, 20);
 		packcsum = new byte[20];
 		System.arraycopy(buf, c, packcsum, 0, 20);
 		use(20);
@@ -732,13 +774,13 @@ public class IndexPack {
 			packOut.write(packcsum);
 
 		if (!Arrays.equals(cmpcsum, packcsum))
-			throw new CorruptObjectException("Packfile checksum incorrect.");
+			throw new CorruptObjectException(JGitText.get().corruptObjectPackfileChecksumIncorrect);
 	}
 
 	// Cleanup all resources associated with our input parsing.
 	private void endInput() {
 		in = null;
-		objectData = null;
+		skipBuffer = null;
 	}
 
 	// Read one entire object or delta from the input.
@@ -746,12 +788,12 @@ public class IndexPack {
 		final long pos = position();
 
 		crc.reset();
-		int c = readFromInput();
+		int c = readFrom(Source.INPUT);
 		final int typeCode = (c >> 4) & 7;
 		long sz = c & 15;
 		int shift = 4;
 		while ((c & 0x80) != 0) {
-			c = readFromInput();
+			c = readFrom(Source.INPUT);
 			sz += (c & 0x7f) << shift;
 			shift += 7;
 		}
@@ -764,24 +806,24 @@ public class IndexPack {
 			whole(typeCode, pos, sz);
 			break;
 		case Constants.OBJ_OFS_DELTA: {
-			c = readFromInput();
+			c = readFrom(Source.INPUT);
 			long ofs = c & 127;
 			while ((c & 128) != 0) {
 				ofs += 1;
-				c = readFromInput();
+				c = readFrom(Source.INPUT);
 				ofs <<= 7;
 				ofs += (c & 127);
 			}
 			final long base = pos - ofs;
 			final UnresolvedDelta n;
-			skipInflateFromInput(sz);
+			inflateAndSkip(Source.INPUT, sz);
 			n = new UnresolvedDelta(pos, (int) crc.getValue());
 			n.next = baseByPos.put(base, n);
 			deltaCount++;
 			break;
 		}
 		case Constants.OBJ_REF_DELTA: {
-			c = fillFromInput(20);
+			c = fill(Source.INPUT, 20);
 			crc.update(buf, c, 20);
 			final ObjectId base = ObjectId.fromRaw(buf, c);
 			use(20);
@@ -790,19 +832,19 @@ public class IndexPack {
 				r = new DeltaChain(base);
 				baseById.add(r);
 			}
-			skipInflateFromInput(sz);
+			inflateAndSkip(Source.INPUT, sz);
 			r.add(new UnresolvedDelta(pos, (int) crc.getValue()));
 			deltaCount++;
 			break;
 		}
 		default:
-			throw new IOException("Unknown object type " + typeCode + ".");
+			throw new IOException(MessageFormat.format(JGitText.get().unknownObjectType, typeCode));
 		}
 	}
 
 	private void whole(final int type, final long pos, final long sz)
 			throws IOException {
-		final byte[] data = inflateFromInput(sz);
+		final byte[] data = inflateAndReturn(Source.INPUT, sz);
 		objectDigest.update(Constants.encodedTypeString(type));
 		objectDigest.update((byte) ' ');
 		objectDigest.update(Constants.encodeASCII(sz));
@@ -821,18 +863,21 @@ public class IndexPack {
 			try {
 				objCheck.check(type, data);
 			} catch (CorruptObjectException e) {
-				throw new IOException("Invalid "
-						+ Constants.typeString(type) + " " + id.name()
-						+ ":" + e.getMessage());
+				throw new IOException(MessageFormat.format(JGitText.get().invalidObject
+						, Constants.typeString(type) , id.name() , e.getMessage()));
 			}
 		}
 
-		final ObjectLoader ldr = objectDatabase.openObject(readCurs, id);
-		if (ldr != null) {
-			final byte[] existingData = ldr.getCachedBytes();
-			if (ldr.getType() != type || !Arrays.equals(data, existingData)) {
-				throw new IOException("Collision on " + id.name());
+		try {
+			final ObjectLoader ldr = readCurs.open(id, type);
+			final byte[] existingData = ldr.getCachedBytes(Integer.MAX_VALUE);
+			if (!Arrays.equals(data, existingData)) {
+				throw new IOException(MessageFormat.format(JGitText.get().collisionOn, id.name()));
 			}
+		} catch (MissingObjectException notLocal) {
+			// This is OK, we don't have a copy of the object locally
+			// but the API throws when we try to read it as usually its
+			// an error to read something that doesn't exist.
 		}
 	}
 
@@ -849,19 +894,9 @@ public class IndexPack {
 	}
 
 	// Consume exactly one byte from the buffer and return it.
-	private int readFromInput() throws IOException {
+	private int readFrom(final Source src) throws IOException {
 		if (bAvail == 0)
-			fillFromInput(1);
-		bAvail--;
-		final int b = buf[bOffset++] & 0xff;
-		crc.update(b);
-		return b;
-	}
-
-	// Consume exactly one byte from the buffer and return it.
-	private int readFromFile() throws IOException {
-		if (bAvail == 0)
-			fillFromFile(1);
+			fill(src, 1);
 		bAvail--;
 		final int b = buf[bOffset++] & 0xff;
 		crc.update(b);
@@ -875,38 +910,34 @@ public class IndexPack {
 	}
 
 	// Ensure at least need bytes are available in in {@link #buf}.
-	private int fillFromInput(final int need) throws IOException {
+	private int fill(final Source src, final int need) throws IOException {
 		while (bAvail < need) {
 			int next = bOffset + bAvail;
 			int free = buf.length - next;
 			if (free + bAvail < need) {
-				sync();
+				switch(src){
+				case INPUT:
+					sync();
+					break;
+				case FILE:
+					if (bAvail > 0)
+						System.arraycopy(buf, bOffset, buf, 0, bAvail);
+					bOffset = 0;
+					break;
+				}
 				next = bAvail;
 				free = buf.length - next;
 			}
-			next = in.read(buf, next, free);
-			if (next <= 0)
-				throw new EOFException("Packfile is truncated.");
-			bAvail += next;
-		}
-		return bOffset;
-	}
-
-	// Ensure at least need bytes are available in in {@link #buf}.
-	private int fillFromFile(final int need) throws IOException {
-		if (bAvail < need) {
-			int next = bOffset + bAvail;
-			int free = buf.length - next;
-			if (free + bAvail < need) {
-				if (bAvail > 0)
-					System.arraycopy(buf, bOffset, buf, 0, bAvail);
-				bOffset = 0;
-				next = bAvail;
-				free = buf.length - next;
+			switch(src){
+			case INPUT:
+				next = in.read(buf, next, free);
+				break;
+			case FILE:
+				next = packOut.read(buf, next, free);
+				break;
 			}
-			next = packOut.read(buf, next, free);
 			if (next <= 0)
-				throw new EOFException("Packfile is truncated.");
+				throw new EOFException(JGitText.get().packfileIsTruncated);
 			bAvail += next;
 		}
 		return bOffset;
@@ -923,110 +954,67 @@ public class IndexPack {
 		bOffset = 0;
 	}
 
-	private void skipInflateFromInput(long sz) throws IOException {
+	private void inflateAndSkip(final Source src, final long inflatedSize)
+			throws IOException {
+		inflate(src, inflatedSize, skipBuffer, false /* do not keep result */);
+	}
+
+	private byte[] inflateAndReturn(final Source src, final long inflatedSize)
+			throws IOException {
+		final byte[] dst = new byte[(int) inflatedSize];
+		inflate(src, inflatedSize, dst, true /* keep result in dst */);
+		return dst;
+	}
+
+	private void inflate(final Source src, final long inflatedSize,
+			final byte[] dst, final boolean keep) throws IOException {
 		final Inflater inf = inflater;
 		try {
-			final byte[] dst = objectData;
-			int n = 0;
-			int p = -1;
-			while (!inf.finished()) {
-				if (inf.needsInput()) {
-					if (p >= 0) {
-						crc.update(buf, p, bAvail);
-						use(bAvail);
-					}
-					p = fillFromInput(1);
-					inf.setInput(buf, p, bAvail);
-				}
+			int off = 0;
+			long cnt = 0;
+			int p = fill(src, 24);
+			inf.setInput(buf, p, bAvail);
 
-				int free = dst.length - n;
-				if (free < 8) {
-					sz -= n;
-					n = 0;
-					free = dst.length;
+			for (;;) {
+				int r = inf.inflate(dst, off, dst.length - off);
+				if (r == 0) {
+					if (inf.finished())
+						break;
+					if (inf.needsInput()) {
+						if (p >= 0) {
+							crc.update(buf, p, bAvail);
+							use(bAvail);
+						}
+						p = fill(src, 24);
+						inf.setInput(buf, p, bAvail);
+					} else {
+						throw new CorruptObjectException(MessageFormat.format(
+								JGitText.get().packfileCorruptionDetected,
+								JGitText.get().unknownZlibError));
+					}
 				}
-				n += inf.inflate(dst, n, free);
+				cnt += r;
+				if (keep)
+					off += r;
 			}
-			if (n != sz)
-				throw new DataFormatException("wrong decompressed length");
-			n = bAvail - inf.getRemaining();
-			if (n > 0) {
-				crc.update(buf, p, n);
-				use(n);
+
+			if (cnt != inflatedSize) {
+				throw new CorruptObjectException(MessageFormat.format(JGitText
+						.get().packfileCorruptionDetected,
+						JGitText.get().wrongDecompressedLength));
+			}
+
+			int left = bAvail - inf.getRemaining();
+			if (left > 0) {
+				crc.update(buf, p, left);
+				use(left);
 			}
 		} catch (DataFormatException dfe) {
-			throw corrupt(dfe);
+			throw new CorruptObjectException(MessageFormat.format(JGitText
+					.get().packfileCorruptionDetected, dfe.getMessage()));
 		} finally {
 			inf.reset();
 		}
-	}
-
-	private byte[] inflateFromInput(final long sz) throws IOException {
-		final byte[] dst = new byte[(int) sz];
-		final Inflater inf = inflater;
-		try {
-			int n = 0;
-			int p = -1;
-			while (!inf.finished()) {
-				if (inf.needsInput()) {
-					if (p >= 0) {
-						crc.update(buf, p, bAvail);
-						use(bAvail);
-					}
-					p = fillFromInput(1);
-					inf.setInput(buf, p, bAvail);
-				}
-
-				n += inf.inflate(dst, n, dst.length - n);
-			}
-			if (n != sz)
-				throw new DataFormatException("wrong decompressed length");
-			n = bAvail - inf.getRemaining();
-			if (n > 0) {
-				crc.update(buf, p, n);
-				use(n);
-			}
-			return dst;
-		} catch (DataFormatException dfe) {
-			throw corrupt(dfe);
-		} finally {
-			inf.reset();
-		}
-	}
-
-	private byte[] inflateFromFile(final int sz) throws IOException {
-		final Inflater inf = inflater;
-		try {
-			final byte[] dst = new byte[sz];
-			int n = 0;
-			int p = -1;
-			while (!inf.finished()) {
-				if (inf.needsInput()) {
-					if (p >= 0) {
-						crc.update(buf, p, bAvail);
-						use(bAvail);
-					}
-					p = fillFromFile(1);
-					inf.setInput(buf, p, bAvail);
-				}
-				n += inf.inflate(dst, n, sz - n);
-			}
-			n = bAvail - inf.getRemaining();
-			if (n > 0) {
-				crc.update(buf, p, n);
-				use(n);
-			}
-			return dst;
-		} catch (DataFormatException dfe) {
-			throw corrupt(dfe);
-		} finally {
-			inf.reset();
-		}
-	}
-
-	private static CorruptObjectException corrupt(final DataFormatException dfe) {
-		return new CorruptObjectException("Packfile corruption detected: "
-				+ dfe.getMessage());
 	}
 
 	private static class DeltaChain extends ObjectId {
@@ -1113,14 +1101,14 @@ public class IndexPack {
 		final File packDir = new File(repo.getObjectsDirectory(), "pack");
 		final File finalPack = new File(packDir, "pack-" + name + ".pack");
 		final File finalIdx = new File(packDir, "pack-" + name + ".idx");
-		final PackLock keep = new PackLock(finalPack);
+		final PackLock keep = new PackLock(finalPack, repo.getFS());
 
 		if (!packDir.exists() && !packDir.mkdir() && !packDir.exists()) {
 			// The objects/pack directory isn't present, and we are unable
 			// to create it. There is no way to move this pack in.
 			//
 			cleanupTemporaryFiles();
-			throw new IOException("Cannot create " + packDir.getAbsolutePath());
+			throw new IOException(MessageFormat.format(JGitText.get().cannotCreateDirectory, packDir.getAbsolutePath()));
 		}
 
 		if (finalPack.exists()) {
@@ -1136,7 +1124,7 @@ public class IndexPack {
 			//
 			try {
 				if (!keep.lock(lockMessage))
-					throw new IOException("Cannot lock pack in " + finalPack);
+					throw new IOException(MessageFormat.format(JGitText.get().cannotLockPackIn, finalPack));
 			} catch (IOException e) {
 				cleanupTemporaryFiles();
 				throw e;
@@ -1146,7 +1134,7 @@ public class IndexPack {
 		if (!dstPack.renameTo(finalPack)) {
 			cleanupTemporaryFiles();
 			keep.unlock();
-			throw new IOException("Cannot move pack to " + finalPack);
+			throw new IOException(MessageFormat.format(JGitText.get().cannotMovePackTo, finalPack));
 		}
 
 		if (!dstIdx.renameTo(finalIdx)) {
@@ -1154,7 +1142,7 @@ public class IndexPack {
 			keep.unlock();
 			if (!finalPack.delete())
 				finalPack.deleteOnExit();
-			throw new IOException("Cannot move index to " + finalIdx);
+			throw new IOException(MessageFormat.format(JGitText.get().cannotMoveIndexTo, finalIdx));
 		}
 
 		try {

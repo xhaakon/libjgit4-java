@@ -46,6 +46,7 @@ package org.eclipse.jgit.diff;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 import org.eclipse.jgit.util.IO;
@@ -64,7 +65,10 @@ import org.eclipse.jgit.util.RawParseUtils;
  * line number 1. Callers may need to subtract 1 prior to invoking methods if
  * they are converting from "line number" to "element index".
  */
-public class RawText implements Sequence {
+public class RawText extends Sequence {
+	/** Number of bytes to check for heuristics in {@link #isBinary(byte[])} */
+	private static final int FIRST_FEW_BYTES = 8000;
+
 	/** The file content for this sequence. */
 	protected final byte[] content;
 
@@ -72,7 +76,7 @@ public class RawText implements Sequence {
 	protected final IntList lines;
 
 	/** Hash code for each line, for fast equality elimination. */
-	protected final IntList hashes;
+	protected final int[] hashes;
 
 	/**
 	 * Create a new sequence from an existing content byte array.
@@ -84,9 +88,24 @@ public class RawText implements Sequence {
 	 *            through cached arrays is safe.
 	 */
 	public RawText(final byte[] input) {
+		this(RawTextComparator.DEFAULT, input);
+	}
+
+	/**
+	 * Create a new sequence from an existing content byte array.
+	 *
+	 * The entire array (indexes 0 through length-1) is used as the content.
+	 *
+	 * @param cmp
+	 *            comparator that will later be used to compare texts.
+	 * @param input
+	 *            the content array. The array is never modified, so passing
+	 *            through cached arrays is safe.
+	 */
+	public RawText(RawTextComparator cmp, byte[] input) {
 		content = input;
 		lines = RawParseUtils.lineMap(content, 0, content.length);
-		hashes = computeHashes();
+		hashes = computeHashes(cmp);
 	}
 
 	/**
@@ -96,42 +115,20 @@ public class RawText implements Sequence {
 	 *
 	 * @param file
 	 *            the text file.
-	 * @throws IOException if Exceptions occur while reading the file
+	 * @throws IOException
+	 *             if Exceptions occur while reading the file
 	 */
 	public RawText(File file) throws IOException {
 		this(IO.readFully(file));
 	}
 
+	/** @return total number of items in the sequence. */
 	public int size() {
 		// The line map is always 2 entries larger than the number of lines in
 		// the file. Index 0 is padded out/unused. The last index is the total
 		// length of the buffer, and acts as a sentinel.
 		//
 		return lines.size() - 2;
-	}
-
-	public boolean equals(final int i, final Sequence other, final int j) {
-		return equals(this, i + 1, (RawText) other, j + 1);
-	}
-
-	private static boolean equals(final RawText a, final int ai,
-			final RawText b, final int bi) {
-		if (a.hashes.get(ai) != b.hashes.get(bi))
-			return false;
-
-		int as = a.lines.get(ai);
-		int bs = b.lines.get(bi);
-		final int ae = a.lines.get(ai + 1);
-		final int be = b.lines.get(bi + 1);
-
-		if (ae - as != be - bs)
-			return false;
-
-		while (as < ae) {
-			if (a.content[as++] != b.content[bs++])
-				return false;
-		}
-		return true;
 	}
 
 	/**
@@ -173,33 +170,75 @@ public class RawText implements Sequence {
 		return content[end - 1] != '\n';
 	}
 
-	private IntList computeHashes() {
-		final IntList r = new IntList(lines.size());
-		r.add(0);
+	private int[] computeHashes(RawTextComparator cmp) {
+		final int[] r = new int[lines.size()];
 		for (int lno = 1; lno < lines.size() - 1; lno++) {
 			final int ptr = lines.get(lno);
 			final int end = lines.get(lno + 1);
-			r.add(hashLine(content, ptr, end));
+			r[lno] = cmp.hashRegion(content, ptr, end);
 		}
-		r.add(0);
 		return r;
 	}
 
 	/**
-	 * Compute a hash code for a single line.
+	 * Determine heuristically whether a byte array represents binary (as
+	 * opposed to text) content.
 	 *
 	 * @param raw
 	 *            the raw file content.
-	 * @param ptr
-	 *            first byte of the content line to hash.
-	 * @param end
-	 *            1 past the last byte of the content line.
-	 * @return hash code for the region <code>[ptr, end)</code> of raw.
+	 * @return true if raw is likely to be a binary file, false otherwise
 	 */
-	protected int hashLine(final byte[] raw, int ptr, final int end) {
-		int hash = 5381;
-		for (; ptr < end; ptr++)
-			hash = (hash << 5) ^ (raw[ptr] & 0xff);
-		return hash;
+	public static boolean isBinary(byte[] raw) {
+		return isBinary(raw, raw.length);
+	}
+
+	/**
+	 * Determine heuristically whether the bytes contained in a stream
+	 * represents binary (as opposed to text) content.
+	 *
+	 * Note: Do not further use this stream after having called this method! The
+	 * stream may not be fully read and will be left at an unknown position
+	 * after consuming an unknown number of bytes. The caller is responsible for
+	 * closing the stream.
+	 *
+	 * @param raw
+	 *            input stream containing the raw file content.
+	 * @return true if raw is likely to be a binary file, false otherwise
+	 * @throws IOException
+	 *             if input stream could not be read
+	 */
+	public static boolean isBinary(InputStream raw) throws IOException {
+		final byte[] buffer = new byte[FIRST_FEW_BYTES];
+		int cnt = 0;
+		while (cnt < buffer.length) {
+			final int n = raw.read(buffer, cnt, buffer.length - cnt);
+			if (n == -1)
+				break;
+			cnt += n;
+		}
+		return isBinary(buffer, cnt);
+	}
+
+	/**
+	 * Determine heuristically whether a byte array represents binary (as
+	 * opposed to text) content.
+	 *
+	 * @param raw
+	 *            the raw file content.
+	 * @param length
+	 *            number of bytes in {@code raw} to evaluate. This should be
+	 *            {@code raw.length} unless {@code raw} was over-allocated by
+	 *            the caller.
+	 * @return true if raw is likely to be a binary file, false otherwise
+	 */
+	public static boolean isBinary(byte[] raw, int length) {
+		// Same heuristic as C Git
+		if (length > FIRST_FEW_BYTES)
+			length = FIRST_FEW_BYTES;
+		for (int ptr = 0; ptr < length; ptr++)
+			if (raw[ptr] == '\0')
+				return true;
+
+		return false;
 	}
 }

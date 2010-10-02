@@ -112,7 +112,7 @@ public class CommitGraphPane extends JTable {
 	@Override
 	public void setModel(final TableModel dataModel) {
 		if (dataModel != null && !(dataModel instanceof CommitTableModel))
-			throw new ClassCastException("Must be special table model.");
+			throw new ClassCastException(UIText.get().mustBeSpecialTableModel);
 		super.setModel(dataModel);
 	}
 
@@ -130,8 +130,8 @@ public class CommitGraphPane extends JTable {
 		final TableColumn date = cols.getColumn(2);
 
 		graph.setHeaderValue("");
-		author.setHeaderValue("Author");
-		date.setHeaderValue("Date");
+		author.setHeaderValue(UIText.get().author);
+		date.setHeaderValue(UIText.get().date);
 
 		graph.setCellRenderer(new GraphCellRender());
 		author.setCellRenderer(new NameCellRender());
@@ -176,7 +176,7 @@ public class CommitGraphPane extends JTable {
 		}
 	}
 
-	class NameCellRender extends DefaultTableCellRenderer {
+	static class NameCellRender extends DefaultTableCellRenderer {
 		private static final long serialVersionUID = 1L;
 
 		public Component getTableCellRendererComponent(final JTable table,
@@ -194,7 +194,7 @@ public class CommitGraphPane extends JTable {
 		}
 	}
 
-	class DateCellRender extends DefaultTableCellRenderer {
+	static class DateCellRender extends DefaultTableCellRenderer {
 		private static final long serialVersionUID = 1L;
 
 		private final DateFormat fmt = new SimpleDateFormat(
@@ -215,7 +215,7 @@ public class CommitGraphPane extends JTable {
 		}
 	}
 
-	class GraphCellRender extends DefaultTableCellRenderer {
+	static class GraphCellRender extends DefaultTableCellRenderer {
 		private static final long serialVersionUID = 1L;
 
 		private final AWTPlotRenderer renderer = new AWTPlotRenderer(this);

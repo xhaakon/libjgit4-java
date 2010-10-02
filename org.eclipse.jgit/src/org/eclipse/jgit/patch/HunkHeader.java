@@ -49,7 +49,9 @@ import static org.eclipse.jgit.util.RawParseUtils.parseBase10;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.text.MessageFormat;
 
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.lib.AbbreviatedObjectId;
@@ -114,6 +116,8 @@ public class HunkHeader {
 	/** Total number of lines of context appearing in this hunk */
 	int nContext;
 
+	private EditList editList;
+
 	HunkHeader(final FileHeader fh, final int offset) {
 		this(fh, offset, new OldImage() {
 			@Override
@@ -127,6 +131,21 @@ public class HunkHeader {
 		file = fh;
 		startOffset = offset;
 		old = oi;
+	}
+
+	HunkHeader(final FileHeader fh, final EditList editList) {
+		this(fh, fh.buf.length);
+		this.editList = editList;
+		endOffset = startOffset;
+		nContext = 0;
+		if (editList.isEmpty()) {
+			newStartLine = 0;
+			newLineCount = 0;
+		} else {
+			newStartLine = editList.get(0).getBeginB();
+			Edit last = editList.get(editList.size() - 1);
+			newLineCount = last.getEndB() - newStartLine;
+		}
 	}
 
 	/** @return header for the file this hunk applies to */
@@ -171,48 +190,50 @@ public class HunkHeader {
 
 	/** @return a list describing the content edits performed within the hunk. */
 	public EditList toEditList() {
-		final EditList r = new EditList();
-		final byte[] buf = file.buf;
-		int c = nextLF(buf, startOffset);
-		int oLine = old.startLine;
-		int nLine = newStartLine;
-		Edit in = null;
+		if (editList == null) {
+			editList = new EditList();
+			final byte[] buf = file.buf;
+			int c = nextLF(buf, startOffset);
+			int oLine = old.startLine;
+			int nLine = newStartLine;
+			Edit in = null;
 
-		SCAN: for (; c < endOffset; c = nextLF(buf, c)) {
-			switch (buf[c]) {
-			case ' ':
-			case '\n':
-				in = null;
-				oLine++;
-				nLine++;
-				continue;
+			SCAN: for (; c < endOffset; c = nextLF(buf, c)) {
+				switch (buf[c]) {
+				case ' ':
+				case '\n':
+					in = null;
+					oLine++;
+					nLine++;
+					continue;
 
-			case '-':
-				if (in == null) {
-					in = new Edit(oLine - 1, nLine - 1);
-					r.add(in);
+				case '-':
+					if (in == null) {
+						in = new Edit(oLine - 1, nLine - 1);
+						editList.add(in);
+					}
+					oLine++;
+					in.extendA();
+					continue;
+
+				case '+':
+					if (in == null) {
+						in = new Edit(oLine - 1, nLine - 1);
+						editList.add(in);
+					}
+					nLine++;
+					in.extendB();
+					continue;
+
+				case '\\': // Matches "\ No newline at end of file"
+					continue;
+
+				default:
+					break SCAN;
 				}
-				oLine++;
-				in.extendA();
-				continue;
-
-			case '+':
-				if (in == null) {
-					in = new Edit(oLine - 1, nLine - 1);
-					r.add(in);
-				}
-				nLine++;
-				in.extendB();
-				continue;
-
-			case '\\': // Matches "\ No newline at end of file"
-				continue;
-
-			default:
-				break SCAN;
 			}
 		}
-		return r;
+		return editList;
 	}
 
 	void parseHeader() {
@@ -278,21 +299,21 @@ public class HunkHeader {
 
 		if (nContext + old.nDeleted < old.lineCount) {
 			final int missingCount = old.lineCount - (nContext + old.nDeleted);
-			script.error(buf, startOffset, "Truncated hunk, at least "
-					+ missingCount + " old lines is missing");
+			script.error(buf, startOffset, MessageFormat.format(
+					JGitText.get().truncatedHunkOldLinesMissing, missingCount));
 
 		} else if (nContext + old.nAdded < newLineCount) {
 			final int missingCount = newLineCount - (nContext + old.nAdded);
-			script.error(buf, startOffset, "Truncated hunk, at least "
-					+ missingCount + " new lines is missing");
+			script.error(buf, startOffset, MessageFormat.format(
+					JGitText.get().truncatedHunkNewLinesMissing, missingCount));
 
 		} else if (nContext + old.nDeleted > old.lineCount
 				|| nContext + old.nAdded > newLineCount) {
 			final String oldcnt = old.lineCount + ":" + newLineCount;
 			final String newcnt = (nContext + old.nDeleted) + ":"
 					+ (nContext + old.nAdded);
-			script.warn(buf, startOffset, "Hunk header " + oldcnt
-					+ " does not match body line count of " + newcnt);
+			script.warn(buf, startOffset, MessageFormat.format(
+					JGitText.get().hunkHeaderDoesNotMatchBodyLineCountOf, oldcnt, newcnt));
 		}
 
 		return c;

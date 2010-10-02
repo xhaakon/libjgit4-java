@@ -45,22 +45,28 @@
 package org.eclipse.jgit.revwalk;
 
 import java.io.IOException;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.List;
 
+import org.eclipse.jgit.JGitText;
+import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
+import org.eclipse.jgit.errors.LargeObjectException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.RevWalkException;
 import org.eclipse.jgit.lib.AnyObjectId;
+import org.eclipse.jgit.lib.AsyncObjectLoaderQueue;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectIdSubclassMap;
 import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.WindowCursor;
 import org.eclipse.jgit.revwalk.filter.RevFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 
@@ -89,6 +95,8 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
  * {@link #next()} does not.
  */
 public class RevWalk implements Iterable<RevCommit> {
+	private static final int MB = 1 << 20;
+
 	/**
 	 * Set on objects whose important header data has been loaded.
 	 * <p>
@@ -155,9 +163,10 @@ public class RevWalk implements Iterable<RevCommit> {
 
 	private static final int APP_FLAGS = -1 & ~((1 << RESERVED_FLAGS) - 1);
 
-	final Repository db;
+	/** Exists <b>ONLY</b> to support legacy Tag and Commit objects. */
+	final Repository repository;
 
-	final WindowCursor curs;
+	final ObjectReader reader;
 
 	final MutableObjectId idBuffer;
 
@@ -169,7 +178,7 @@ public class RevWalk implements Iterable<RevCommit> {
 
 	int carryFlags = UNINTERESTING;
 
-	private final ArrayList<RevCommit> roots;
+	final ArrayList<RevCommit> roots;
 
 	AbstractRevQueue queue;
 
@@ -187,11 +196,29 @@ public class RevWalk implements Iterable<RevCommit> {
 	 * Create a new revision walker for a given repository.
 	 *
 	 * @param repo
-	 *            the repository the walker will obtain data from.
+	 *            the repository the walker will obtain data from. An
+	 *            ObjectReader will be created by the walker, and must be
+	 *            released by the caller.
 	 */
 	public RevWalk(final Repository repo) {
-		db = repo;
-		curs = new WindowCursor();
+		this(repo, repo.newObjectReader());
+	}
+
+	/**
+	 * Create a new revision walker for a given repository.
+	 *
+	 * @param or
+	 *            the reader the walker will obtain data from. The reader should
+	 *            be released by the caller when the walker is no longer
+	 *            required.
+	 */
+	public RevWalk(ObjectReader or) {
+		this(null, or);
+	}
+
+	private RevWalk(final Repository repo, final ObjectReader or) {
+		repository = repo;
+		reader = or;
 		idBuffer = new MutableObjectId();
 		objects = new ObjectIdSubclassMap<RevObject>();
 		roots = new ArrayList<RevCommit>();
@@ -203,13 +230,19 @@ public class RevWalk implements Iterable<RevCommit> {
 		retainBody = true;
 	}
 
+	/** @return the reader this walker is using to load objects. */
+	public ObjectReader getObjectReader() {
+		return reader;
+	}
+
 	/**
-	 * Get the repository this walker loads objects from.
-	 *
-	 * @return the repository this walker was created to read.
+	 * Release any resources used by this walker's reader.
+	 * <p>
+	 * A walker that has been released can be used again, but may need to be
+	 * released after the subsequent usage.
 	 */
-	public Repository getRepository() {
-		return db;
+	public void release() {
+		reader.release();
 	}
 
 	/**
@@ -602,6 +635,25 @@ public class RevWalk implements Iterable<RevCommit> {
 	}
 
 	/**
+	 * Locate a reference to a tag without loading it.
+	 * <p>
+	 * The tag may or may not exist in the repository. It is impossible to tell
+	 * from this method's return value.
+	 *
+	 * @param id
+	 *            name of the tag object.
+	 * @return reference to the tag object. Never null.
+	 */
+	public RevTag lookupTag(final AnyObjectId id) {
+		RevTag c = (RevTag) objects.get(id);
+		if (c == null) {
+			c = new RevTag(id);
+			objects.add(c);
+		}
+		return c;
+	}
+
+	/**
 	 * Locate a reference to any object without loading it.
 	 * <p>
 	 * The object may or may not exist in the repository. It is impossible to
@@ -630,11 +682,23 @@ public class RevWalk implements Iterable<RevCommit> {
 				r = new RevTag(id);
 				break;
 			default:
-				throw new IllegalArgumentException("invalid git type: " + type);
+				throw new IllegalArgumentException(MessageFormat.format(JGitText.get().invalidGitType, type));
 			}
 			objects.add(r);
 		}
 		return r;
+	}
+
+	/**
+	 * Locate an object that was previously allocated in this walk.
+	 *
+	 * @param id
+	 *            name of the object.
+	 * @return reference to the object if it has been previously located;
+	 *         otherwise null.
+	 */
+	public RevObject lookupOrNull(AnyObjectId id) {
+		return objects.get(id);
 	}
 
 	/**
@@ -657,11 +721,7 @@ public class RevWalk implements Iterable<RevCommit> {
 	public RevCommit parseCommit(final AnyObjectId id)
 			throws MissingObjectException, IncorrectObjectTypeException,
 			IOException {
-		RevObject c = parseAny(id);
-		while (c instanceof RevTag) {
-			c = ((RevTag) c).getObject();
-			parseHeaders(c);
-		}
+		RevObject c = peel(parseAny(id));
 		if (!(c instanceof RevCommit))
 			throw new IncorrectObjectTypeException(id.toObjectId(),
 					Constants.TYPE_COMMIT);
@@ -688,11 +748,7 @@ public class RevWalk implements Iterable<RevCommit> {
 	public RevTree parseTree(final AnyObjectId id)
 			throws MissingObjectException, IncorrectObjectTypeException,
 			IOException {
-		RevObject c = parseAny(id);
-		while (c instanceof RevTag) {
-			c = ((RevTag) c).getObject();
-			parseHeaders(c);
-		}
+		RevObject c = peel(parseAny(id));
 
 		final RevTree t;
 		if (c instanceof RevCommit)
@@ -704,6 +760,32 @@ public class RevWalk implements Iterable<RevCommit> {
 			t = (RevTree) c;
 		parseHeaders(t);
 		return t;
+	}
+
+	/**
+	 * Locate a reference to an annotated tag and immediately parse its content.
+	 * <p>
+	 * Unlike {@link #lookupTag(AnyObjectId)} this method only returns
+	 * successfully if the tag object exists, is verified to be a tag, and was
+	 * parsed without error.
+	 *
+	 * @param id
+	 *            name of the tag object.
+	 * @return reference to the tag object. Never null.
+	 * @throws MissingObjectException
+	 *             the supplied tag does not exist.
+	 * @throws IncorrectObjectTypeException
+	 *             the supplied id is not a tag or an annotated tag.
+	 * @throws IOException
+	 *             a pack file or loose object could not be read.
+	 */
+	public RevTag parseTag(final AnyObjectId id) throws MissingObjectException,
+			IncorrectObjectTypeException, IOException {
+		RevObject c = parseAny(id);
+		if (!(c instanceof RevTag))
+			throw new IncorrectObjectTypeException(id.toObjectId(),
+					Constants.TYPE_TAG);
+		return (RevTag) c;
 	}
 
 	/**
@@ -725,42 +807,142 @@ public class RevWalk implements Iterable<RevCommit> {
 	public RevObject parseAny(final AnyObjectId id)
 			throws MissingObjectException, IOException {
 		RevObject r = objects.get(id);
-		if (r == null) {
-			final ObjectLoader ldr = db.openObject(curs, id);
-			if (ldr == null)
-				throw new MissingObjectException(id.toObjectId(), "unknown");
-			final byte[] data = ldr.getCachedBytes();
-			final int type = ldr.getType();
-			switch (type) {
-			case Constants.OBJ_COMMIT: {
-				final RevCommit c = createCommit(id);
-				c.parseCanonical(this, data);
-				r = c;
-				break;
-			}
-			case Constants.OBJ_TREE: {
-				r = new RevTree(id);
-				r.flags |= PARSED;
-				break;
-			}
-			case Constants.OBJ_BLOB: {
-				r = new RevBlob(id);
-				r.flags |= PARSED;
-				break;
-			}
-			case Constants.OBJ_TAG: {
-				final RevTag t = new RevTag(id);
-				t.parseCanonical(this, data);
-				r = t;
-				break;
-			}
-			default:
-				throw new IllegalArgumentException("Bad object type: " + type);
-			}
-			objects.add(r);
-		} else
+		if (r == null)
+			r = parseNew(id, reader.open(id));
+		else
 			parseHeaders(r);
 		return r;
+	}
+
+	private RevObject parseNew(AnyObjectId id, ObjectLoader ldr)
+			throws LargeObjectException, CorruptObjectException,
+			MissingObjectException, IOException {
+		RevObject r;
+		int type = ldr.getType();
+		switch (type) {
+		case Constants.OBJ_COMMIT: {
+			final RevCommit c = createCommit(id);
+			c.parseCanonical(this, getCachedBytes(c, ldr));
+			r = c;
+			break;
+		}
+		case Constants.OBJ_TREE: {
+			r = new RevTree(id);
+			r.flags |= PARSED;
+			break;
+		}
+		case Constants.OBJ_BLOB: {
+			r = new RevBlob(id);
+			r.flags |= PARSED;
+			break;
+		}
+		case Constants.OBJ_TAG: {
+			final RevTag t = new RevTag(id);
+			t.parseCanonical(this, getCachedBytes(t, ldr));
+			r = t;
+			break;
+		}
+		default:
+			throw new IllegalArgumentException(MessageFormat.format(JGitText
+					.get().badObjectType, type));
+		}
+		objects.add(r);
+		return r;
+	}
+
+	byte[] getCachedBytes(RevObject obj) throws LargeObjectException,
+			MissingObjectException, IncorrectObjectTypeException, IOException {
+		return getCachedBytes(obj, reader.open(obj, obj.getType()));
+	}
+
+	byte[] getCachedBytes(RevObject obj, ObjectLoader ldr)
+			throws LargeObjectException, MissingObjectException, IOException {
+		try {
+			return ldr.getCachedBytes(5 * MB);
+		} catch (LargeObjectException tooBig) {
+			tooBig.setObjectId(obj);
+			throw tooBig;
+		}
+	}
+
+	/**
+	 * Asynchronous object parsing.
+	 *
+	 * @param <T>
+	 *            any ObjectId type.
+	 * @param objectIds
+	 *            objects to open from the object store. The supplied collection
+	 *            must not be modified until the queue has finished.
+	 * @param reportMissing
+	 *            if true missing objects are reported by calling failure with a
+	 *            MissingObjectException. This may be more expensive for the
+	 *            implementation to guarantee. If false the implementation may
+	 *            choose to report MissingObjectException, or silently skip over
+	 *            the object with no warning.
+	 * @return queue to read the objects from.
+	 */
+	public <T extends ObjectId> AsyncRevObjectQueue parseAny(
+			Iterable<T> objectIds, boolean reportMissing) {
+		List<T> need = new ArrayList<T>();
+		List<RevObject> have = new ArrayList<RevObject>();
+		for (T id : objectIds) {
+			RevObject r = objects.get(id);
+			if (r != null && (r.flags & PARSED) != 0)
+				have.add(r);
+			else
+				need.add(id);
+		}
+
+		final Iterator<RevObject> objItr = have.iterator();
+		if (need.isEmpty()) {
+			return new AsyncRevObjectQueue() {
+				public RevObject next() {
+					return objItr.hasNext() ? objItr.next() : null;
+				}
+
+				public boolean cancel(boolean mayInterruptIfRunning) {
+					return true;
+				}
+
+				public void release() {
+					// In-memory only, no action required.
+				}
+			};
+		}
+
+		final AsyncObjectLoaderQueue<T> lItr = reader.open(need, reportMissing);
+		return new AsyncRevObjectQueue() {
+			public RevObject next() throws MissingObjectException,
+					IncorrectObjectTypeException, IOException {
+				if (objItr.hasNext())
+					return objItr.next();
+				if (!lItr.next())
+					return null;
+
+				ObjectId id = lItr.getObjectId();
+				ObjectLoader ldr = lItr.open();
+				RevObject r = objects.get(id);
+				if (r == null)
+					r = parseNew(id, ldr);
+				else if (r instanceof RevCommit) {
+					byte[] raw = ldr.getCachedBytes();
+					((RevCommit) r).parseCanonical(RevWalk.this, raw);
+				} else if (r instanceof RevTag) {
+					byte[] raw = ldr.getCachedBytes();
+					((RevTag) r).parseCanonical(RevWalk.this, raw);
+				} else
+					r.flags |= PARSED;
+				return r;
+			}
+
+			public boolean cancel(boolean mayInterruptIfRunning) {
+				return lItr.cancel(mayInterruptIfRunning);
+			}
+
+			public void release() {
+				lItr.release();
+			}
+		};
 	}
 
 	/**
@@ -801,6 +983,29 @@ public class RevWalk implements Iterable<RevCommit> {
 	}
 
 	/**
+	 * Peel back annotated tags until a non-tag object is found.
+	 *
+	 * @param obj
+	 *            the starting object.
+	 * @return If {@code obj} is not an annotated tag, {@code obj}. Otherwise
+	 *         the first non-tag object that {@code obj} references. The
+	 *         returned object's headers have been parsed.
+	 * @throws MissingObjectException
+	 *             a referenced object cannot be found.
+	 * @throws IOException
+	 *             a pack file or loose object could not be read.
+	 */
+	public RevObject peel(RevObject obj) throws MissingObjectException,
+			IOException {
+		while (obj instanceof RevTag) {
+			parseHeaders(obj);
+			obj = ((RevTag) obj).getObject();
+		}
+		parseHeaders(obj);
+		return obj;
+	}
+
+	/**
 	 * Create a new flag for application use during walking.
 	 * <p>
 	 * Applications are only assured to be able to create 24 unique flags on any
@@ -820,8 +1025,8 @@ public class RevWalk implements Iterable<RevCommit> {
 
 	int allocFlag() {
 		if (freeFlags == 0)
-			throw new IllegalArgumentException(32 - RESERVED_FLAGS
-					+ " flags already created.");
+			throw new IllegalArgumentException(MessageFormat.format(
+					JGitText.get().flagsAlreadyCreated, 32 - RESERVED_FLAGS));
 		final int m = Integer.lowestOneBit(freeFlags);
 		freeFlags &= ~m;
 		return m;
@@ -838,9 +1043,9 @@ public class RevWalk implements Iterable<RevCommit> {
 	 */
 	public void carry(final RevFlag flag) {
 		if ((freeFlags & flag.mask) != 0)
-			throw new IllegalArgumentException(flag.name + " is disposed.");
+			throw new IllegalArgumentException(MessageFormat.format(JGitText.get().flagIsDisposed, flag.name));
 		if (flag.walker != this)
-			throw new IllegalArgumentException(flag.name + " not from this.");
+			throw new IllegalArgumentException(MessageFormat.format(JGitText.get().flagNotFromThis, flag.name));
 		carryFlags |= flag.mask;
 	}
 
@@ -976,7 +1181,7 @@ public class RevWalk implements Iterable<RevCommit> {
 			}
 		}
 
-		curs.release();
+		reader.release();
 		roots.clear();
 		queue = new DateRevQueue();
 		pending = new StartGenerator(this);
@@ -991,11 +1196,12 @@ public class RevWalk implements Iterable<RevCommit> {
 	 * All RevFlag instances are also invalidated, and must not be reused.
 	 */
 	public void dispose() {
+		reader.release();
 		freeFlags = APP_FLAGS;
 		delayFreeFlags = 0;
 		carryFlags = UNINTERESTING;
 		objects.clear();
-		curs.release();
+		reader.release();
 		roots.clear();
 		queue = new DateRevQueue();
 		pending = new StartGenerator(this);
@@ -1059,7 +1265,7 @@ public class RevWalk implements Iterable<RevCommit> {
 	protected void assertNotStarted() {
 		if (isNotStarted())
 			return;
-		throw new IllegalStateException("Output has already been started.");
+		throw new IllegalStateException(JGitText.get().outputHasAlreadyBeenStarted);
 	}
 
 	private boolean isNotStarted() {

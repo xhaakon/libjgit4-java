@@ -47,7 +47,10 @@
 package org.eclipse.jgit.errors;
 
 import java.io.IOException;
+import java.text.MessageFormat;
 
+import org.eclipse.jgit.JGitText;
+import org.eclipse.jgit.lib.AbbreviatedObjectId;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 
@@ -57,6 +60,8 @@ import org.eclipse.jgit.lib.ObjectId;
 public class MissingObjectException extends IOException {
 	private static final long serialVersionUID = 1L;
 
+	private final ObjectId missing;
+
 	/**
 	 * Construct a MissingObjectException for the specified object id.
 	 * Expected type is reported to simplify tracking down the problem.
@@ -65,7 +70,8 @@ public class MissingObjectException extends IOException {
 	 * @param type object type
 	 */
 	public MissingObjectException(final ObjectId id, final String type) {
-		super("Missing " + type + " " + id.name());
+		super(MessageFormat.format(JGitText.get().missingObject, type, id.name()));
+		missing = id.copy();
 	}
 
 	/**
@@ -77,5 +83,25 @@ public class MissingObjectException extends IOException {
 	 */
 	public MissingObjectException(final ObjectId id, final int type) {
 		this(id, Constants.typeString(type));
+	}
+
+	/**
+	 * Construct a MissingObjectException for the specified object id. Expected
+	 * type is reported to simplify tracking down the problem.
+	 *
+	 * @param id
+	 *            SHA-1
+	 * @param type
+	 *            object type
+	 */
+	public MissingObjectException(final AbbreviatedObjectId id, final int type) {
+		super(MessageFormat.format(JGitText.get().missingObject, Constants
+				.typeString(type), id.name()));
+		missing = null;
+	}
+
+	/** @return the ObjectId that was not found. */
+	public ObjectId getObjectId() {
+		return missing;
 	}
 }

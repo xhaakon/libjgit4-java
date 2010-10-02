@@ -49,6 +49,7 @@ import java.io.IOException;
 import junit.framework.TestCase;
 
 import org.eclipse.jgit.diff.RawText;
+import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.Constants;
 
 public class MergeAlgorithmTest extends TestCase {
@@ -105,7 +106,7 @@ public class MergeAlgorithmTest extends TestCase {
 	 * @throws IOException
 	 */
 	public void testTwoConflictingModifications() throws IOException {
-		assertEquals(A + XXX_0 + B + Z + XXX_1 + Z + Z + XXX_2 + D + E + F + G
+		assertEquals(A + XXX_0 + B + XXX_1 + Z + XXX_2 + Z + D + E + F + G
 				+ H + I + J,
 				merge(base, replace_C_by_Z, replace_BC_by_ZZ));
 	}
@@ -118,7 +119,7 @@ public class MergeAlgorithmTest extends TestCase {
 	 * @throws IOException
 	 */
 	public void testOneAgainstTwoConflictingModifications() throws IOException {
-		assertEquals(A + XXX_0 + Z + Z + Z + XXX_1 + Z + C + Z + XXX_2 + E + F
+		assertEquals(A + Z + XXX_0 + Z + XXX_1 + C + XXX_2 + Z + E + F
 				+ G + H + I + J,
 				merge(base, replace_BCD_by_ZZZ, replace_BD_by_ZZ));
 	}
@@ -178,8 +179,19 @@ public class MergeAlgorithmTest extends TestCase {
 		assertEquals(A+B+C+D+E+F+G+H+I+XXX_0+Z+XXX_1+Y+XXX_2, merge(base, replace_J_by_Z, replace_J_by_Y));
 	}
 
+	/**
+	 * Check for a conflict where the second text was changed similar to the
+	 * first one, but the second texts modification covers one more line.
+	 *
+	 * @throws IOException
+	 */
+	public void testSameModification() throws IOException {
+		assertEquals(replace_C_by_Z,
+				merge(base, replace_C_by_Z, replace_C_by_Z));
+	}
+
 	private String merge(String commonBase, String ours, String theirs) throws IOException {
-		MergeResult r=MergeAlgorithm.merge(new RawText(Constants.encode(commonBase)), new RawText(Constants.encode(ours)), new RawText(Constants.encode(theirs)));
+		MergeResult r=MergeAlgorithm.merge(RawTextComparator.DEFAULT, new RawText(Constants.encode(commonBase)), new RawText(Constants.encode(ours)), new RawText(Constants.encode(theirs)));
 		ByteArrayOutputStream bo=new ByteArrayOutputStream(50);
 		fmt.formatMerge(bo, r, "B", "O", "T", Constants.CHARACTER_ENCODING);
 		return new String(bo.toByteArray(), Constants.CHARACTER_ENCODING);

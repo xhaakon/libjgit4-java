@@ -45,18 +45,20 @@
 package org.eclipse.jgit.pgm;
 
 import java.io.File;
+import java.text.MessageFormat;
 
+import org.eclipse.jgit.errors.RepositoryNotFoundException;
+import org.eclipse.jgit.lib.RepositoryCache.FileKey;
+import org.eclipse.jgit.util.FS;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.Option;
-import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.Repository;
 
-@Command(common = false, usage = "Server side backend for 'jgit fetch'")
+@Command(common = false, usage = "usage_ServerSideBackendForJgitFetch")
 class UploadPack extends TextBuiltin {
-	@Option(name = "--timeout", metaVar = "SECONDS", usage = "abort connection if no activity")
+	@Option(name = "--timeout", metaVar = "metaVar_seconds", usage = "usage_abortConnectionIfNoActivity")
 	int timeout = -1;
 
-	@Argument(index = 0, required = true, metaVar = "DIRECTORY", usage = "Repository to read from")
+	@Argument(index = 0, required = true, metaVar = "metaVar_directory", usage = "usage_RepositoryToReadFrom")
 	File srcGitdir;
 
 	@Override
@@ -66,16 +68,19 @@ class UploadPack extends TextBuiltin {
 
 	@Override
 	protected void run() throws Exception {
-		final org.eclipse.jgit.transport.UploadPack rp;
+		final org.eclipse.jgit.transport.UploadPack up;
 
-		if (new File(srcGitdir, Constants.DOT_GIT).isDirectory())
-			srcGitdir = new File(srcGitdir, Constants.DOT_GIT);
-		db = new Repository(srcGitdir);
-		if (!db.getObjectsDirectory().isDirectory())
-			throw die("'" + srcGitdir.getPath() + "' not a git repository");
-		rp = new org.eclipse.jgit.transport.UploadPack(db);
+		try {
+			FileKey key = FileKey.lenient(srcGitdir, FS.DETECTED);
+			db = key.open(true /* must exist */);
+		} catch (RepositoryNotFoundException notFound) {
+			throw die(MessageFormat.format(CLIText.get().notAGitRepository,
+					srcGitdir.getPath()));
+		}
+
+		up = new org.eclipse.jgit.transport.UploadPack(db);
 		if (0 <= timeout)
-			rp.setTimeout(timeout);
-		rp.upload(System.in, System.out, System.err);
+			up.setTimeout(timeout);
+		up.upload(System.in, System.out, System.err);
 	}
 }

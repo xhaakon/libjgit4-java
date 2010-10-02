@@ -49,6 +49,7 @@ import java.security.MessageDigest;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.RepositoryTestCase;
 import org.eclipse.jgit.util.RawParseUtils;
 
@@ -77,7 +78,8 @@ public class FileTreeIteratorTest extends RepositoryTestCase {
 	public void testEmptyIfRootIsFile() throws Exception {
 		final File r = new File(trash, paths[0]);
 		assertTrue(r.isFile());
-		final FileTreeIterator fti = new FileTreeIterator(r);
+		final FileTreeIterator fti = new FileTreeIterator(r, db.getFS(),
+				WorkingTreeOptions.createConfigurationInstance(db.getConfig()));
 		assertTrue(fti.first());
 		assertTrue(fti.eof());
 	}
@@ -85,7 +87,8 @@ public class FileTreeIteratorTest extends RepositoryTestCase {
 	public void testEmptyIfRootDoesNotExist() throws Exception {
 		final File r = new File(trash, "not-existing-file");
 		assertFalse(r.exists());
-		final FileTreeIterator fti = new FileTreeIterator(r);
+		final FileTreeIterator fti = new FileTreeIterator(r, db.getFS(),
+				WorkingTreeOptions.createConfigurationInstance(db.getConfig()));
 		assertTrue(fti.first());
 		assertTrue(fti.eof());
 	}
@@ -96,13 +99,15 @@ public class FileTreeIteratorTest extends RepositoryTestCase {
 		r.mkdir();
 		assertTrue(r.isDirectory());
 
-		final FileTreeIterator fti = new FileTreeIterator(r);
+		final FileTreeIterator fti = new FileTreeIterator(r, db.getFS(),
+				WorkingTreeOptions.createConfigurationInstance(db.getConfig()));
 		assertTrue(fti.first());
 		assertTrue(fti.eof());
 	}
 
 	public void testSimpleIterate() throws Exception {
-		final FileTreeIterator top = new FileTreeIterator(trash);
+		final FileTreeIterator top = new FileTreeIterator(trash, db.getFS(),
+				WorkingTreeOptions.createConfigurationInstance(db.getConfig()));
 
 		assertTrue(top.first());
 		assertFalse(top.eof());
@@ -124,7 +129,8 @@ public class FileTreeIteratorTest extends RepositoryTestCase {
 		assertFalse(top.eof());
 		assertEquals(FileMode.TREE.getBits(), top.mode);
 
-		final AbstractTreeIterator sub = top.createSubtreeIterator(db);
+		final ObjectReader reader = db.newObjectReader();
+		final AbstractTreeIterator sub = top.createSubtreeIterator(reader);
 		assertTrue(sub instanceof FileTreeIterator);
 		final FileTreeIterator subfti = (FileTreeIterator) sub;
 		assertTrue(sub.first());
@@ -149,7 +155,8 @@ public class FileTreeIteratorTest extends RepositoryTestCase {
 	}
 
 	public void testComputeFileObjectId() throws Exception {
-		final FileTreeIterator top = new FileTreeIterator(trash);
+		final FileTreeIterator top = new FileTreeIterator(trash, db.getFS(),
+				WorkingTreeOptions.createConfigurationInstance(db.getConfig()));
 
 		final MessageDigest md = Constants.newMessageDigest();
 		md.update(Constants.encodeASCII(Constants.TYPE_BLOB));

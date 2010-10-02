@@ -46,40 +46,46 @@ package org.eclipse.jgit.pgm;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.kohsuke.args4j.Argument;
-import org.kohsuke.args4j.Option;
+import org.eclipse.jgit.errors.IncorrectObjectTypeException;
+import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.TransportException;
-import org.eclipse.jgit.lib.Commit;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.GitIndex;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefComparator;
 import org.eclipse.jgit.lib.RefUpdate;
-import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.lib.Tree;
 import org.eclipse.jgit.lib.WorkDirCheckout;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.storage.file.FileRepository;
 import org.eclipse.jgit.transport.FetchResult;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.URIish;
+import org.kohsuke.args4j.Argument;
+import org.kohsuke.args4j.Option;
 
-@Command(common = true, usage = "Clone a repository into a new directory")
+@Command(common = true, usage = "usage_cloneRepositoryIntoNewDir")
 class Clone extends AbstractFetchCommand {
-	@Option(name = "--origin", aliases = { "-o" }, metaVar = "name", usage = "use <name> instead of 'origin' to track upstream")
+	@Option(name = "--origin", aliases = { "-o" }, metaVar = "metaVar_remoteName", usage = "usage_useNameInsteadOfOriginToTrackUpstream")
 	private String remoteName = Constants.DEFAULT_REMOTE_NAME;
 
-	@Argument(index = 0, required = true, metaVar = "uri-ish")
+	@Argument(index = 0, required = true, metaVar = "metaVar_uriish")
 	private String sourceUri;
 
-	@Argument(index = 1, metaVar = "directory")
+	@Argument(index = 1, metaVar = "metaVar_directory")
 	private String localName;
+
+	private FileRepository dst;
 
 	@Override
 	protected final boolean requiresRepository() {
@@ -89,26 +95,29 @@ class Clone extends AbstractFetchCommand {
 	@Override
 	protected void run() throws Exception {
 		if (localName != null && gitdir != null)
-			throw die("conflicting usage of --git-dir and arguments");
+			throw die(CLIText.get().conflictingUsageOf_git_dir_andArguments);
 
 		final URIish uri = new URIish(sourceUri);
 		if (localName == null) {
 			try {
 				localName = uri.getHumanishName();
 			} catch (IllegalArgumentException e) {
-				throw die("cannot guess local name from " + sourceUri);
+				throw die(MessageFormat.format(CLIText.get().cannotGuessLocalNameFrom, sourceUri));
 			}
 		}
 		if (gitdir == null)
 			gitdir = new File(localName, Constants.DOT_GIT);
 
-		db = new Repository(gitdir);
-		db.create();
-		db.getConfig().setBoolean("core", null, "bare", false);
-		db.getConfig().save();
+		dst = new FileRepository(gitdir);
+		dst.create();
+		dst.getConfig().setBoolean("core", null, "bare", false);
+		dst.getConfig().save();
+		db = dst;
 
-		out.println("Initialized empty Git repository in "
-				+ gitdir.getAbsolutePath());
+		out.print(MessageFormat.format(
+				CLIText.get().initializedEmptyGitRepositoryIn, gitdir
+						.getAbsolutePath()));
+		out.println();
 		out.flush();
 
 		saveRemote(uri);
@@ -119,13 +128,13 @@ class Clone extends AbstractFetchCommand {
 
 	private void saveRemote(final URIish uri) throws URISyntaxException,
 			IOException {
-		final RemoteConfig rc = new RemoteConfig(db.getConfig(), remoteName);
+		final RemoteConfig rc = new RemoteConfig(dst.getConfig(), remoteName);
 		rc.addURI(uri);
 		rc.addFetchRefSpec(new RefSpec().setForceUpdate(true)
 				.setSourceDestination(Constants.R_HEADS + "*",
 						Constants.R_REMOTES + remoteName + "/*"));
-		rc.update(db.getConfig());
-		db.getConfig().save();
+		rc.update(dst.getConfig());
+		dst.getConfig().save();
 	}
 
 	private FetchResult runFetch() throws NotSupportedException,
@@ -163,24 +172,37 @@ class Clone extends AbstractFetchCommand {
 
 	private void doCheckout(final Ref branch) throws IOException {
 		if (branch == null)
-			throw die("cannot checkout; no HEAD advertised by remote");
+			throw die(CLIText.get().cannotChekoutNoHeadsAdvertisedByRemote);
 		if (!Constants.HEAD.equals(branch.getName())) {
 			RefUpdate u = db.updateRef(Constants.HEAD);
 			u.disableRefLog();
 			u.link(branch.getName());
 		}
 
-		final Commit commit = db.mapCommit(branch.getObjectId());
+		final RevCommit commit = parseCommit(branch);
 		final RefUpdate u = db.updateRef(Constants.HEAD);
-		u.setNewObjectId(commit.getCommitId());
+		u.setNewObjectId(commit);
 		u.forceUpdate();
 
 		final GitIndex index = new GitIndex(db);
-		final Tree tree = commit.getTree();
+		final Tree tree = db.mapTree(commit.getTree());
 		final WorkDirCheckout co;
 
-		co = new WorkDirCheckout(db, db.getWorkDir(), index, tree);
+		co = new WorkDirCheckout(db, db.getWorkTree(), index, tree);
 		co.checkout();
 		index.write();
+	}
+
+	private RevCommit parseCommit(final Ref branch)
+			throws MissingObjectException, IncorrectObjectTypeException,
+			IOException {
+		final RevWalk rw = new RevWalk(db);
+		final RevCommit commit;
+		try {
+			commit = rw.parseCommit(branch.getObjectId());
+		} finally {
+			rw.release();
+		}
+		return commit;
 	}
 }

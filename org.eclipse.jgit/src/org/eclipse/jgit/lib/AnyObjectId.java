@@ -113,7 +113,7 @@ public abstract class AnyObjectId implements Comparable {
 	 * @return < 0 if this id comes before other; 0 if this id is equal to
 	 *         other; > 0 if this id comes after other.
 	 */
-	public int compareTo(final ObjectId other) {
+	public final int compareTo(final AnyObjectId other) {
 		if (this == other)
 			return 0;
 
@@ -138,11 +138,22 @@ public abstract class AnyObjectId implements Comparable {
 		return NB.compareUInt32(w5, other.w5);
 	}
 
-	public int compareTo(final Object other) {
-		return compareTo(((ObjectId) other));
+	public final int compareTo(final Object other) {
+		return compareTo(((AnyObjectId) other));
 	}
 
-	int compareTo(final byte[] bs, final int p) {
+	/**
+	 * Compare this ObjectId to a network-byte-order ObjectId.
+	 *
+	 * @param bs
+	 *            array containing the other ObjectId in network byte order.
+	 * @param p
+	 *            position within {@code bs} to start the compare at. At least
+	 *            20 bytes, starting at this position are required.
+	 * @return a negative integer, zero, or a positive integer as this object is
+	 *         less than, equal to, or greater than the specified object.
+	 */
+	public final int compareTo(final byte[] bs, final int p) {
 		int cmp;
 
 		cmp = NB.compareUInt32(w1, NB.decodeInt32(bs, p));
@@ -164,7 +175,18 @@ public abstract class AnyObjectId implements Comparable {
 		return NB.compareUInt32(w5, NB.decodeInt32(bs, p + 16));
 	}
 
-	int compareTo(final int[] bs, final int p) {
+	/**
+	 * Compare this ObjectId to a network-byte-order ObjectId.
+	 *
+	 * @param bs
+	 *            array containing the other ObjectId in network byte order.
+	 * @param p
+	 *            position within {@code bs} to start the compare at. At least 5
+	 *            integers, starting at this position are required.
+	 * @return a negative integer, zero, or a positive integer as this object is
+	 *         less than, equal to, or greater than the specified object.
+	 */
+	public final int compareTo(final int[] bs, final int p) {
 		int cmp;
 
 		cmp = NB.compareUInt32(w1, bs[p]);
@@ -197,7 +219,7 @@ public abstract class AnyObjectId implements Comparable {
 		return abbr.prefixCompare(this) == 0;
 	}
 
-	public int hashCode() {
+	public final int hashCode() {
 		return w2;
 	}
 
@@ -208,11 +230,11 @@ public abstract class AnyObjectId implements Comparable {
 	 *            the other id to compare to. May be null.
 	 * @return true only if both ObjectIds have identical bits.
 	 */
-	public boolean equals(final AnyObjectId other) {
+	public final boolean equals(final AnyObjectId other) {
 		return other != null ? equals(this, other) : false;
 	}
 
-	public boolean equals(final Object o) {
+	public final boolean equals(final Object o) {
 		if (o instanceof AnyObjectId)
 			return equals((AnyObjectId) o);
 		else
@@ -299,6 +321,32 @@ public abstract class AnyObjectId implements Comparable {
 	 */
 	public void copyTo(final OutputStream w) throws IOException {
 		w.write(toHexByteArray());
+	}
+
+	/**
+	 * Copy this ObjectId to a byte array in hex format.
+	 *
+	 * @param b
+	 *            the buffer to copy to.
+	 * @param o
+	 *            the offset within b to write at.
+	 */
+	public void copyTo(byte[] b, int o) {
+		formatHexByte(b, o + 0, w1);
+		formatHexByte(b, o + 8, w2);
+		formatHexByte(b, o + 16, w3);
+		formatHexByte(b, o + 24, w4);
+		formatHexByte(b, o + 32, w5);
+	}
+
+	/**
+	 * Copy this ObjectId to a ByteBuffer in hex format.
+	 *
+	 * @param b
+	 *            the buffer to copy to.
+	 */
+	public void copyTo(ByteBuffer b) {
+		b.put(toHexByteArray());
 	}
 
 	private byte[] toHexByteArray() {
@@ -415,32 +463,17 @@ public abstract class AnyObjectId implements Comparable {
 	}
 
 	/**
-	 * Return unique abbreviation (prefix) of this object SHA-1.
-	 * <p>
-	 * This method is a utility for <code>abbreviate(repo, 8)</code>.
+	 * Return an abbreviation (prefix) of this object SHA-1.
 	 *
-	 * @param repo
-	 *            repository for checking uniqueness within.
-	 * @return SHA-1 abbreviation.
-	 */
-	public AbbreviatedObjectId abbreviate(final Repository repo) {
-		return abbreviate(repo, 8);
-	}
-
-	/**
-	 * Return unique abbreviation (prefix) of this object SHA-1.
-	 * <p>
-	 * Current implementation is not guaranteeing uniqueness, it just returns
-	 * fixed-length prefix of SHA-1 string.
+	 * This implementation does not guaranteeing uniqueness. Callers should
+	 * instead use {@link ObjectReader#abbreviate(AnyObjectId, int)} to obtain a
+	 * unique abbreviation within the scope of a particular object database.
 	 *
-	 * @param repo
-	 *            repository for checking uniqueness within.
 	 * @param len
-	 *            minimum length of the abbreviated string.
+	 *            length of the abbreviated string.
 	 * @return SHA-1 abbreviation.
 	 */
-	public AbbreviatedObjectId abbreviate(final Repository repo, final int len) {
-		// TODO implement checking for uniqueness
+	public AbbreviatedObjectId abbreviate(final int len) {
 		final int a = AbbreviatedObjectId.mask(len, 1, w1);
 		final int b = AbbreviatedObjectId.mask(len, 2, w2);
 		final int c = AbbreviatedObjectId.mask(len, 3, w3);

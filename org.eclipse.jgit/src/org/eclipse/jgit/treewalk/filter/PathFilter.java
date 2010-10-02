@@ -44,6 +44,7 @@
 
 package org.eclipse.jgit.treewalk.filter;
 
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.treewalk.TreeWalk;
 
@@ -76,7 +77,7 @@ public class PathFilter extends TreeFilter {
 		while (path.endsWith("/"))
 			path = path.substring(0, path.length() - 1);
 		if (path.length() == 0)
-			throw new IllegalArgumentException("Empty path not permitted.");
+			throw new IllegalArgumentException(JGitText.get().emptyPathNotPermitted);
 		return new PathFilter(path);
 	}
 
@@ -87,6 +88,11 @@ public class PathFilter extends TreeFilter {
 	private PathFilter(final String s) {
 		pathStr = s;
 		pathRaw = Constants.encode(pathStr);
+	}
+
+	/** @return the path this filter matches. */
+	public String getPath() {
+		return pathStr;
 	}
 
 	@Override
@@ -103,7 +109,7 @@ public class PathFilter extends TreeFilter {
 	}
 
 	@Override
-	public TreeFilter clone() {
+	public PathFilter clone() {
 		return this;
 	}
 

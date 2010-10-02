@@ -3,6 +3,7 @@
  * Copyright (C) 2008-2010, Google Inc.
  * Copyright (C) 2008, Marek Zawirski <marek.zawirski@gmail.com>
  * Copyright (C) 2008, Shawn O. Pearce <spearce@spearce.org>
+ * Copyright (C) 2010, Sasa Zivkov <sasa.zivkov@sap.com>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -46,44 +47,53 @@
 
 package org.eclipse.jgit.pgm;
 
-import org.kohsuke.args4j.Option;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.text.MessageFormat;
+
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.transport.FetchResult;
 import org.eclipse.jgit.transport.TrackingRefUpdate;
 import org.eclipse.jgit.transport.Transport;
+import org.kohsuke.args4j.Option;
 
 abstract class AbstractFetchCommand extends TextBuiltin {
-	@Option(name = "--verbose", aliases = { "-v" }, usage = "be more verbose")
+	@Option(name = "--verbose", aliases = { "-v" }, usage = "usage_beMoreVerbose")
 	private boolean verbose;
 
 	protected void showFetchResult(final Transport tn, final FetchResult r) {
-		boolean shownURI = false;
-		for (final TrackingRefUpdate u : r.getTrackingRefUpdates()) {
-			if (!verbose && u.getResult() == RefUpdate.Result.NO_CHANGE)
-				continue;
+		ObjectReader reader = db.newObjectReader();
+		try {
+			boolean shownURI = false;
+			for (final TrackingRefUpdate u : r.getTrackingRefUpdates()) {
+				if (!verbose && u.getResult() == RefUpdate.Result.NO_CHANGE)
+					continue;
 
-			final char type = shortTypeOf(u.getResult());
-			final String longType = longTypeOf(u);
-			final String src = abbreviateRef(u.getRemoteName(), false);
-			final String dst = abbreviateRef(u.getLocalName(), true);
+				final char type = shortTypeOf(u.getResult());
+				final String longType = longTypeOf(reader, u);
+				final String src = abbreviateRef(u.getRemoteName(), false);
+				final String dst = abbreviateRef(u.getLocalName(), true);
 
-			if (!shownURI) {
-				out.print("From ");
-				out.print(tn.getURI());
+				if (!shownURI) {
+					out.format(CLIText.get().fromURI, tn.getURI());
+					out.println();
+					shownURI = true;
+				}
+
+				out.format(" %c %-17s %-10s -> %s", type, longType, src, dst);
 				out.println();
-				shownURI = true;
 			}
-
-			out.format(" %c %-17s %-10s -> %s", type, longType, src, dst);
-			out.println();
+		} finally {
+			reader.release();
 		}
-
 		showRemoteMessages(r.getMessages());
 	}
 
 	static void showRemoteMessages(String pkt) {
+		PrintWriter writer = new PrintWriter(System.err);
 		while (0 < pkt.length()) {
 			final int lf = pkt.indexOf('\n');
 			final int cr = pkt.indexOf('\r');
@@ -95,21 +105,28 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 			else if (0 <= cr)
 				s = cr;
 			else {
-				System.err.println("remote: " + pkt);
+				writer.print(MessageFormat.format(CLIText.get().remoteMessage,
+						pkt));
+				writer.println();
 				break;
 			}
 
-			if (pkt.charAt(s) == '\r')
-				System.err.print("remote: " + pkt.substring(0, s) + "\r");
-			else
-				System.err.println("remote: " + pkt.substring(0, s));
+			if (pkt.charAt(s) == '\r') {
+				writer.print(MessageFormat.format(CLIText.get().remoteMessage,
+						pkt.substring(0, s)));
+				writer.print('\r');
+			} else {
+				writer.print(MessageFormat.format(CLIText.get().remoteMessage,
+						pkt.substring(0, s)));
+				writer.println();
+			}
 
 			pkt = pkt.substring(s + 1);
 		}
-		System.err.flush();
+		writer.flush();
 	}
 
-	private String longTypeOf(final TrackingRefUpdate u) {
+	private String longTypeOf(ObjectReader reader, final TrackingRefUpdate u) {
 		final RefUpdate.Result r = u.getResult();
 		if (r == RefUpdate.Result.LOCK_FAILURE)
 			return "[lock fail]";
@@ -129,20 +146,28 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 		}
 
 		if (r == RefUpdate.Result.FORCED) {
-			final String aOld = u.getOldObjectId().abbreviate(db).name();
-			final String aNew = u.getNewObjectId().abbreviate(db).name();
+			final String aOld = safeAbbreviate(reader, u.getOldObjectId());
+			final String aNew = safeAbbreviate(reader, u.getNewObjectId());
 			return aOld + "..." + aNew;
 		}
 
 		if (r == RefUpdate.Result.FAST_FORWARD) {
-			final String aOld = u.getOldObjectId().abbreviate(db).name();
-			final String aNew = u.getNewObjectId().abbreviate(db).name();
+			final String aOld = safeAbbreviate(reader, u.getOldObjectId());
+			final String aNew = safeAbbreviate(reader, u.getNewObjectId());
 			return aOld + ".." + aNew;
 		}
 
 		if (r == RefUpdate.Result.NO_CHANGE)
 			return "[up to date]";
 		return "[" + r.name() + "]";
+	}
+
+	private String safeAbbreviate(ObjectReader reader, ObjectId id) {
+		try {
+			return reader.abbreviate(id).name();
+		} catch (IOException cannotAbbreviate) {
+			return id.name();
+		}
 	}
 
 	private static char shortTypeOf(final RefUpdate.Result r) {

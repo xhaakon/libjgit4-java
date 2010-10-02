@@ -70,7 +70,7 @@ public class ReflogConfigTest extends RepositoryTestCase {
 
 		// set the logAllRefUpdates parameter to true and check it
 		db.getConfig().setBoolean("core", null, "logallrefupdates", true);
-		assertTrue(db.getConfig().getCore().isLogAllRefUpdates());
+		assertTrue(db.getConfig().get(CoreConfig.KEY).isLogAllRefUpdates());
 
 		// do one commit and check that reflog size is increased to 1
 		addFileToTree(t, "i-am-another-file", "and this is other data in me\n");
@@ -83,7 +83,7 @@ public class ReflogConfigTest extends RepositoryTestCase {
 
 		// set the logAllRefUpdates parameter to false and check it
 		db.getConfig().setBoolean("core", null, "logallrefupdates", false);
-		assertFalse(db.getConfig().getCore().isLogAllRefUpdates());
+		assertFalse(db.getConfig().get(CoreConfig.KEY).isLogAllRefUpdates());
 
 		// do one commit and check that reflog size is 2
 		addFileToTree(t, "i-am-anotheranother-file",
@@ -104,13 +104,18 @@ public class ReflogConfigTest extends RepositoryTestCase {
 
 	private void commit(final Tree t, String commitMsg, PersonIdent author,
 			PersonIdent committer) throws IOException {
-		final Commit commit = new Commit(db);
+		final CommitBuilder commit = new CommitBuilder();
 		commit.setAuthor(author);
 		commit.setCommitter(committer);
 		commit.setMessage(commitMsg);
-		commit.setTree(t);
-		ObjectWriter writer = new ObjectWriter(db);
-		commit.setCommitId(writer.writeCommit(commit));
+		commit.setTreeId(t.getTreeId());
+		ObjectInserter inserter = db.newObjectInserter();
+		try {
+			inserter.insert(commit);
+			inserter.flush();
+		} finally {
+			inserter.release();
+		}
 
 		int nl = commitMsg.indexOf('\n');
 		final RefUpdate ru = db.updateRef(Constants.HEAD);

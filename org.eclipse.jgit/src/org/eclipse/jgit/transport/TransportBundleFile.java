@@ -51,19 +51,20 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.util.FS;
 
 class TransportBundleFile extends Transport implements TransportBundle {
-	static boolean canHandle(final URIish uri) {
+	static boolean canHandle(final URIish uri, FS fs) {
 		if (uri.getHost() != null || uri.getPort() > 0 || uri.getUser() != null
 				|| uri.getPass() != null || uri.getPath() == null)
 			return false;
 
 		if ("file".equals(uri.getScheme()) || uri.getScheme() == null) {
-			final File f = FS.resolve(new File("."), uri.getPath());
+			final File f = fs.resolve(new File("."), uri.getPath());
 			return f.isFile() || f.getName().endsWith(".bundle");
 		}
 
@@ -74,7 +75,7 @@ class TransportBundleFile extends Transport implements TransportBundle {
 
 	TransportBundleFile(final Repository local, final URIish uri) {
 		super(local, uri);
-		bundle = FS.resolve(new File("."), uri.getPath()).getAbsoluteFile();
+		bundle = local.getFS().resolve(new File("."), uri.getPath()).getAbsoluteFile();
 	}
 
 	@Override
@@ -84,7 +85,7 @@ class TransportBundleFile extends Transport implements TransportBundle {
 		try {
 			src = new FileInputStream(bundle);
 		} catch (FileNotFoundException err) {
-			throw new TransportException(uri, "not found");
+			throw new TransportException(uri, JGitText.get().notFound);
 		}
 		return new BundleFetchConnection(this, src);
 	}
@@ -92,7 +93,7 @@ class TransportBundleFile extends Transport implements TransportBundle {
 	@Override
 	public PushConnection openPush() throws NotSupportedException {
 		throw new NotSupportedException(
-				"Push is not supported for bundle transport");
+				JGitText.get().pushIsNotSupportedForBundleTransport);
 	}
 
 	@Override

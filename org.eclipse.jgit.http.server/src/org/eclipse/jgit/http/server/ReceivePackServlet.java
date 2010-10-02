@@ -83,7 +83,12 @@ class ReceivePackServlet extends HttpServlet {
 		protected void advertise(HttpServletRequest req, Repository db,
 				PacketLineOutRefAdvertiser pck) throws IOException,
 				ServiceNotEnabledException, ServiceNotAuthorizedException {
-			receivePackFactory.create(req, db).sendAdvertisedRefs(pck);
+			ReceivePack rp = receivePackFactory.create(req, db);
+			try {
+				rp.sendAdvertisedRefs(pck);
+			} finally {
+				rp.getRevWalk().release();
+			}
 		}
 	}
 
@@ -120,7 +125,7 @@ class ReceivePackServlet extends HttpServlet {
 			return;
 
 		} catch (IOException e) {
-			getServletContext().log("Internal error during receive-pack", e);
+			getServletContext().log(HttpServerText.get().internalErrorDuringReceivePack, e);
 			rsp.sendError(SC_INTERNAL_SERVER_ERROR);
 			return;
 		}

@@ -46,6 +46,7 @@
 
 package org.eclipse.jgit.lib;
 
+import org.eclipse.jgit.JGitText;
 /**
  * Important state of the repository that affects what can and cannot bed
  * done. This is things like unhandled conflicted merges and unfinished rebase.
@@ -54,6 +55,14 @@ package org.eclipse.jgit.lib;
  * on the state are the only supported means of deciding what to do.
  */
 public enum RepositoryState {
+	/** Has no work tree and cannot be used for normal editing. */
+	BARE {
+		public boolean canCheckout() { return false; }
+		public boolean canResetHead() { return false; }
+		public boolean canCommit() { return false; }
+		public String getDescription() { return "Bare"; }
+	},
+
 	/**
 	 * A safe state for working normally
 	 * */
@@ -61,16 +70,27 @@ public enum RepositoryState {
 		public boolean canCheckout() { return true; }
 		public boolean canResetHead() { return true; }
 		public boolean canCommit() { return true; }
-		public String getDescription() { return "Normal"; }
+		public String getDescription() { return JGitText.get().repositoryState_normal; }
 	},
 
-	/** An unfinished merge. Must resole or reset before continuing normally
+	/** An unfinished merge. Must resolve or reset before continuing normally
 	 */
 	MERGING {
 		public boolean canCheckout() { return false; }
-		public boolean canResetHead() { return false; }
+		public boolean canResetHead() { return true; }
 		public boolean canCommit() { return false; }
-		public String getDescription() { return "Conflicts"; }
+		public String getDescription() { return JGitText.get().repositoryState_conflicts; }
+	},
+
+	/**
+	 * An merge where all conflicts have been resolved. The index does not
+	 * contain any unmerged paths.
+	 */
+	MERGING_RESOLVED {
+		public boolean canCheckout() { return true; }
+		public boolean canResetHead() { return true; }
+		public boolean canCommit() { return true; }
+		public String getDescription() { return JGitText.get().repositoryState_merged; }
 	},
 
 	/**
@@ -80,7 +100,7 @@ public enum RepositoryState {
 		public boolean canCheckout() { return false; }
 		public boolean canResetHead() { return false; }
 		public boolean canCommit() { return true; }
-		public String getDescription() { return "Rebase/Apply mailbox"; }
+		public String getDescription() { return JGitText.get().repositoryState_rebaseOrApplyMailbox; }
 	},
 
 	/**
@@ -90,7 +110,7 @@ public enum RepositoryState {
 		public boolean canCheckout() { return false; }
 		public boolean canResetHead() { return false; }
 		public boolean canCommit() { return true; }
-		public String getDescription() { return "Rebase"; }
+		public String getDescription() { return JGitText.get().repositoryState_rebase; }
 	},
 
 	/**
@@ -100,7 +120,7 @@ public enum RepositoryState {
 		public boolean canCheckout() { return false; }
 		public boolean canResetHead() { return false; }
 		public boolean canCommit() { return true; }
-		public String getDescription() { return "Apply mailbox"; }
+		public String getDescription() { return JGitText.get().repositoryState_applyMailbox; }
 	},
 
 	/**
@@ -110,7 +130,7 @@ public enum RepositoryState {
 		public boolean canCheckout() { return false; }
 		public boolean canResetHead() { return false; }
 		public boolean canCommit() { return true; }
-		public String getDescription() { return "Rebase w/merge"; }
+		public String getDescription() { return JGitText.get().repositoryState_rebaseWithMerge; }
 	},
 
 	/**
@@ -120,7 +140,7 @@ public enum RepositoryState {
 		public boolean canCheckout() { return false; }
 		public boolean canResetHead() { return false; }
 		public boolean canCommit() { return true; }
-		public String getDescription() { return "Rebase interactive"; }
+		public String getDescription() { return JGitText.get().repositoryState_rebaseInteractive; }
 	},
 
 	/**
@@ -133,10 +153,10 @@ public enum RepositoryState {
 		/* Do not reset, checkout instead */
 		public boolean canResetHead() { return false; }
 
-		/* Actually it may make sense, but for now we err on the side of caution */
-		public boolean canCommit() { return false; }
+		/* Commit during bisect is useful */
+		public boolean canCommit() { return true; }
 
-		public String getDescription() { return "Bisecting"; }
+		public String getDescription() { return JGitText.get().repositoryState_bisecting; }
 	};
 
 	/**

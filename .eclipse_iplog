@@ -4,6 +4,9 @@
 
 	skipCommit = 1a6964c8274c50f0253db75f010d78ef0e739343
 
+[review]
+	url = http://egit.eclipse.org/r/r/
+
 [CQ "3454"]
 	description = args4j Version: 2.0.12
 	license = BSD License
@@ -22,9 +25,20 @@
 	use = unmodified binary
 	state = approved
 
+[CQ "3904"]
+	description = jsch Version: 0.1.37 (using Orbit CQ2002)
+	license = New BSD license
+	use = unmodified source & binary
+	state = approved
+
 [CQ "3655"]
 	description = Junit Version: 3.8.2 (PB CQ2206)
 	license = Common Public License 1.0
 	use = unmodified binary
 	state = approved
 
+[CQ "3886"]
+	description = Apache SSHD Version: 0.3.0 (Subset)
+	license = Apache License, 2.0, New BSD license, MIT license
+	use = unmodified source & binary
+	state = approved

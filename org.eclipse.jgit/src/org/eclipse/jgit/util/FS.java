@@ -49,19 +49,56 @@ import java.security.PrivilegedAction;
 
 /** Abstraction to support various file system operations not in Java. */
 public abstract class FS {
-	/** The implementation selected for this operating system and JRE. */
-	public static final FS INSTANCE;
+	/** The auto-detected implementation selected for this operating system and JRE. */
+	public static final FS DETECTED;
+
+	/**
+	 * Auto-detect the appropriate file system abstraction, taking into account
+	 * the presence of a Cygwin installation on the system. Using jgit in
+	 * combination with Cygwin requires a more elaborate (and possibly slower)
+	 * resolution of file system paths.
+	 *
+	 * @param cygwinUsed
+	 *            <ul>
+	 *            <li><code>Boolean.TRUE</code> to assume that Cygwin is used in
+	 *            combination with jgit</li>
+	 *            <li><code>Boolean.FALSE</code> to assume that Cygwin is
+	 *            <b>not</b> used with jgit</li>
+	 *            <li><code>null</code> to auto-detect whether a Cygwin
+	 *            installation is present on the system and in this case assume
+	 *            that Cygwin is used</li>
+	 *            </ul>
+	 *
+	 *            Note: this parameter is only relevant on Windows.
+	 *
+	 * @return detected file system abstraction
+	 */
+	public static FS detect(Boolean cygwinUsed) {
+		if (FS_Win32.detect()) {
+			boolean useCygwin = (cygwinUsed == null && FS_Win32_Cygwin.detect())
+					|| Boolean.TRUE.equals(cygwinUsed);
+
+			if (useCygwin)
+				return new FS_Win32_Cygwin();
+			else
+				return new FS_Win32();
+		} else if (FS_POSIX_Java6.detect())
+			return new FS_POSIX_Java6();
+		else
+			return new FS_POSIX_Java5();
+	}
 
 	static {
-		if (FS_Win32.detect()) {
-			if (FS_Win32_Cygwin.detect())
-				INSTANCE = new FS_Win32_Cygwin();
-			else
-				INSTANCE = new FS_Win32();
-		} else if (FS_POSIX_Java6.detect())
-			INSTANCE = new FS_POSIX_Java6();
-		else
-			INSTANCE = new FS_POSIX_Java5();
+		DETECTED = detect(null);
+	}
+
+	private final File userHome;
+
+	/**
+	 * Constructs a file system abstraction.
+	 */
+	protected FS() {
+		this.userHome = userHomeImpl();
 	}
 
 	/**
@@ -117,29 +154,7 @@ public abstract class FS {
 	 * @return the translated path. <code>new File(dir,name)</code> if this
 	 *         platform does not require path name translation.
 	 */
-	public static File resolve(final File dir, final String name) {
-		return INSTANCE.resolveImpl(dir, name);
-	}
-
-	/**
-	 * Resolve this file to its actual path name that the JRE can use.
-	 * <p>
-	 * This method can be relatively expensive. Computing a translation may
-	 * require forking an external process per path name translated. Callers
-	 * should try to minimize the number of translations necessary by caching
-	 * the results.
-	 * <p>
-	 * Not all platforms and JREs require path name translation. Currently only
-	 * Cygwin on Win32 require translation for Cygwin based paths.
-	 *
-	 * @param dir
-	 *            directory relative to which the path name is.
-	 * @param name
-	 *            path name to translate.
-	 * @return the translated path. <code>new File(dir,name)</code> if this
-	 *         platform does not require path name translation.
-	 */
-	protected File resolveImpl(final File dir, final String name) {
+	public File resolve(final File dir, final String name) {
 		final File abspn = new File(name);
 		if (abspn.isAbsolute())
 			return abspn;
@@ -157,13 +172,16 @@ public abstract class FS {
 	 *
 	 * @return the user's home directory; null if the user does not have one.
 	 */
-	public static File userHome() {
-		return USER_HOME.home;
+	public File userHome() {
+		return userHome;
 	}
 
-	private static class USER_HOME {
-		static final File home = INSTANCE.userHomeImpl();
-	}
+	/**
+	 * Does this file system have problems with atomic renames?
+	 *
+	 * @return true if the caller should retry a failed rename of a lock file.
+	 */
+	public abstract boolean retryFailedLockFileCommit();
 
 	/**
 	 * Determine the user's home directory (location where preferences are).

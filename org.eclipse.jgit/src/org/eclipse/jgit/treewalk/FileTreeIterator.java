@@ -54,6 +54,7 @@ import java.io.InputStream;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.util.FS;
 
@@ -64,7 +65,29 @@ import org.eclipse.jgit.util.FS;
  * specified working directory as part of a {@link TreeWalk}.
  */
 public class FileTreeIterator extends WorkingTreeIterator {
-	private final File directory;
+	/**
+	 * the starting directory. This directory should correspond to the root of
+	 * the repository.
+	 */
+	protected final File directory;
+
+	/**
+	 * the file system abstraction which will be necessary to perform certain
+	 * file system operations.
+	 */
+	protected final FS fs;
+
+	/**
+	 * Create a new iterator to traverse the work tree and its children.
+	 *
+	 * @param repo
+	 *            the repository whose working tree will be scanned.
+	 */
+	public FileTreeIterator(Repository repo) {
+		this(repo.getWorkTree(), repo.getFS(), WorkingTreeOptions
+				.createConfigurationInstance(repo.getConfig()));
+		initRootIterator(repo);
+	}
 
 	/**
 	 * Create a new iterator to traverse the given directory and its children.
@@ -72,9 +95,16 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 * @param root
 	 *            the starting directory. This directory should correspond to
 	 *            the root of the repository.
+	 * @param fs
+	 *            the file system abstraction which will be necessary to perform
+	 *            certain file system operations.
+	 * @param options
+	 *            working tree options to be used
 	 */
-	public FileTreeIterator(final File root) {
+	public FileTreeIterator(final File root, FS fs, WorkingTreeOptions options) {
+		super(options);
 		directory = root;
+		this.fs = fs;
 		init(entries());
 	}
 
@@ -83,20 +113,24 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 *
 	 * @param p
 	 *            the parent iterator we were created from.
+	 * @param fs
+	 *            the file system abstraction which will be necessary to perform
+	 *            certain file system operations.
 	 * @param root
 	 *            the subdirectory. This should be a directory contained within
 	 *            the parent directory.
 	 */
-	protected FileTreeIterator(final FileTreeIterator p, final File root) {
+	protected FileTreeIterator(final FileTreeIterator p, final File root, FS fs) {
 		super(p);
 		directory = root;
+		this.fs = fs;
 		init(entries());
 	}
 
 	@Override
-	public AbstractTreeIterator createSubtreeIterator(final Repository repo)
+	public AbstractTreeIterator createSubtreeIterator(final ObjectReader reader)
 			throws IncorrectObjectTypeException, IOException {
-		return new FileTreeIterator(this, ((FileEntry) current()).file);
+		return new FileTreeIterator(this, ((FileEntry) current()).file, fs);
 	}
 
 	private Entry[] entries() {
@@ -105,7 +139,7 @@ public class FileTreeIterator extends WorkingTreeIterator {
 			return EOF;
 		final Entry[] r = new Entry[all.length];
 		for (int i = 0; i < r.length; i++)
-			r[i] = new FileEntry(all[i]);
+			r[i] = new FileEntry(all[i], fs);
 		return r;
 	}
 
@@ -121,7 +155,7 @@ public class FileTreeIterator extends WorkingTreeIterator {
 
 		private long lastModified;
 
-		FileEntry(final File f) {
+		FileEntry(final File f, FS fs) {
 			file = f;
 
 			if (f.isDirectory()) {
@@ -129,7 +163,7 @@ public class FileTreeIterator extends WorkingTreeIterator {
 					mode = FileMode.GITLINK;
 				else
 					mode = FileMode.TREE;
-			} else if (FS.INSTANCE.canExecute(file))
+			} else if (fs.canExecute(file))
 				mode = FileMode.EXECUTABLE_FILE;
 			else
 				mode = FileMode.REGULAR_FILE;
@@ -172,5 +206,21 @@ public class FileTreeIterator extends WorkingTreeIterator {
 		public File getFile() {
 			return file;
 		}
+	}
+
+	/**
+	 * @return The root directory of this iterator
+	 */
+	public File getDirectory() {
+		return directory;
+	}
+
+	/**
+	 * @return The location of the working file. This is the same as {@code new
+	 *         File(getDirectory(), getEntryPath())} but may be faster by
+	 *         reusing an internal File instance.
+	 */
+	public File getEntryFile() {
+		return ((FileEntry) current()).getFile();
 	}
 }

@@ -52,7 +52,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.text.MessageFormat;
+
+import org.eclipse.jgit.JGitText;
 
 /**
  * Input/Output utilities
@@ -95,7 +97,8 @@ public class IO {
 		try {
 			final long sz = in.getChannel().size();
 			if (sz > max)
-				throw new IOException("File is too large: " + path);
+				throw new IOException(MessageFormat.format(
+						JGitText.get().fileIsTooLarge, path));
 			final byte[] buf = new byte[(int) sz];
 			IO.readFully(in, buf, 0, buf.length);
 			return buf;
@@ -106,6 +109,48 @@ public class IO {
 				// ignore any close errors, this was a read only stream
 			}
 		}
+	}
+
+	/**
+	 * Read an entire input stream into memory as a ByteBuffer.
+	 *
+	 * Note: The stream is read to its end and is not usable after calling this
+	 * method. The caller is responsible for closing the stream.
+	 *
+	 * @param in
+	 *            input stream to be read.
+	 * @param sizeHint
+	 *            a hint on the approximate number of bytes contained in the
+	 *            stream, used to allocate temporary buffers more efficiently
+	 * @return complete contents of the input stream. The ByteBuffer always has
+	 *         a writable backing array, with {@code position() == 0} and
+	 *         {@code limit()} equal to the actual length read. Callers may rely
+	 *         on obtaining the underlying array for efficient data access. If
+	 *         {@code sizeHint} was too large, the array may be over-allocated,
+	 *         resulting in {@code limit() < array().length}.
+	 * @throws IOException
+	 *             there was an error reading from the stream.
+	 */
+	public static ByteBuffer readWholeStream(InputStream in, int sizeHint)
+			throws IOException {
+		byte[] out = new byte[sizeHint];
+		int pos = 0;
+		while (pos < out.length) {
+			int read = in.read(out, pos, out.length - pos);
+			if (read < 0)
+				return ByteBuffer.wrap(out, 0, pos);
+			pos += read;
+		}
+
+		int last = in.read();
+		if (last < 0)
+			return ByteBuffer.wrap(out, 0, pos);
+
+		TemporaryBuffer.Heap tmp = new TemporaryBuffer.Heap(Integer.MAX_VALUE);
+		tmp.write(out);
+		tmp.write(last);
+		tmp.copy(in);
+		return ByteBuffer.wrap(tmp.toByteArray());
 	}
 
 	/**
@@ -129,37 +174,7 @@ public class IO {
 		while (len > 0) {
 			final int r = fd.read(dst, off, len);
 			if (r <= 0)
-				throw new EOFException("Short read of block.");
-			off += r;
-			len -= r;
-		}
-	}
-
-	/**
-	 * Read the entire byte array into memory, or throw an exception.
-	 *
-	 * @param fd
-	 *            file to read the data from.
-	 * @param pos
-	 *            position to read from the file at.
-	 * @param dst
-	 *            buffer that must be fully populated, [off, off+len).
-	 * @param off
-	 *            position within the buffer to start writing to.
-	 * @param len
-	 *            number of bytes that must be read.
-	 * @throws EOFException
-	 *             the stream ended before dst was fully populated.
-	 * @throws IOException
-	 *             there was an error reading from the stream.
-	 */
-	public static void readFully(final FileChannel fd, long pos,
-			final byte[] dst, int off, int len) throws IOException {
-		while (len > 0) {
-			final int r = fd.read(ByteBuffer.wrap(dst, off, len), pos);
-			if (r <= 0)
-				throw new EOFException("Short read of block.");
-			pos += r;
+				throw new EOFException(JGitText.get().shortReadOfBlock);
 			off += r;
 			len -= r;
 		}
@@ -187,7 +202,7 @@ public class IO {
 		while (toSkip > 0) {
 			final long r = fd.skip(toSkip);
 			if (r <= 0)
-				throw new EOFException("Short skip of block");
+				throw new EOFException(JGitText.get().shortSkipOfBlock);
 			toSkip -= r;
 		}
 	}

@@ -46,7 +46,9 @@
 package org.eclipse.jgit.revwalk;
 
 import java.io.IOException;
+import java.text.MessageFormat;
 
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.revwalk.filter.AndRevFilter;
@@ -83,13 +85,15 @@ class StartGenerator extends Generator {
 		final TreeFilter tf = w.getTreeFilter();
 		AbstractRevQueue q = walker.queue;
 
+		w.reader.walkAdviceBeginCommits(w, w.roots);
+
 		if (rf == RevFilter.MERGE_BASE) {
 			// Computing for merge bases is a special case and does not
 			// use the bulk of the generator pipeline.
 			//
 			if (tf != TreeFilter.ALL)
-				throw new IllegalStateException("Cannot combine TreeFilter "
-						+ tf + " with RevFilter " + rf + ".");
+				throw new IllegalStateException(MessageFormat.format(
+						JGitText.get().cannotCombineTreeFilterWithRevFilter, tf, rf));
 
 			final MergeBaseGenerator mbg = new MergeBaseGenerator(w);
 			walker.pending = mbg;

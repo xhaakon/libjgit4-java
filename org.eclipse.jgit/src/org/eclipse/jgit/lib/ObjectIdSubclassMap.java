@@ -46,6 +46,7 @@
 package org.eclipse.jgit.lib;
 
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * Fast, efficient map specifically for {@link ObjectId} subclasses.
@@ -135,6 +136,11 @@ public class ObjectIdSubclassMap<V extends ObjectId> implements Iterable<V> {
 		return size;
 	}
 
+	/** @return true if {@link #size()} is 0. */
+	public boolean isEmpty() {
+		return size == 0;
+	}
+
 	public Iterator<V> iterator() {
 		return new Iterator<V>() {
 			private int found;
@@ -153,7 +159,7 @@ public class ObjectIdSubclassMap<V extends ObjectId> implements Iterable<V> {
 						return v;
 					}
 				}
-				throw new IllegalStateException();
+				throw new NoSuchElementException();
 			}
 
 			public void remove() {

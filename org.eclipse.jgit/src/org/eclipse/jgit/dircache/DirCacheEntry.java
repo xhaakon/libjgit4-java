@@ -1,6 +1,8 @@
 /*
  * Copyright (C) 2008-2009, Google Inc.
  * Copyright (C) 2008, Shawn O. Pearce <spearce@spearce.org>
+ * Copyright (C) 2010, Matthias Sohn <matthias.sohn@sap.com>
+ * Copyright (C) 2010, Christian Halstrick <christian.halstrick@sap.com>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -51,13 +53,16 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.text.MessageFormat;
 import java.util.Arrays;
 
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.util.IO;
+import org.eclipse.jgit.util.MutableInteger;
 import org.eclipse.jgit.util.NB;
 
 /**
@@ -104,13 +109,23 @@ public class DirCacheEntry {
 	private static final int P_OBJECTID = 40;
 
 	private static final int P_FLAGS = 60;
+	private static final int P_FLAGS2 = 62;
 
 	/** Mask applied to data in {@link #P_FLAGS} to get the name length. */
 	private static final int NAME_MASK = 0xfff;
 
-	static final int INFO_LEN = 62;
+	private static final int INTENT_TO_ADD = 0x20000000;
+	private static final int SKIP_WORKTREE = 0x40000000;
+	private static final int EXTENDED_FLAGS = (INTENT_TO_ADD | SKIP_WORKTREE);
 
+	private static final int INFO_LEN = 62;
+	private static final int INFO_LEN_EXTENDED = 64;
+
+	private static final int EXTENDED = 0x40;
 	private static final int ASSUME_VALID = 0x80;
+
+	/** In-core flag signaling that the entry should be considered as modified. */
+	private static final int UPDATE_NEEDED = 0x1;
 
 	/** (Possibly shared) header information storage. */
 	private final byte[] info;
@@ -121,13 +136,29 @@ public class DirCacheEntry {
 	/** Our encoded path name, from the root of the repository. */
 	final byte[] path;
 
-	DirCacheEntry(final byte[] sharedInfo, final int infoAt,
+	/** Flags which are never stored to disk. */
+	private byte inCoreFlags;
+
+	DirCacheEntry(final byte[] sharedInfo, final MutableInteger infoAt,
 			final InputStream in, final MessageDigest md) throws IOException {
 		info = sharedInfo;
-		infoOffset = infoAt;
+		infoOffset = infoAt.value;
 
 		IO.readFully(in, info, infoOffset, INFO_LEN);
-		md.update(info, infoOffset, INFO_LEN);
+
+		final int len;
+		if (isExtended()) {
+			len = INFO_LEN_EXTENDED;
+			IO.readFully(in, info, infoOffset + INFO_LEN, INFO_LEN_EXTENDED - INFO_LEN);
+
+			if ((getExtendedFlags() & ~EXTENDED_FLAGS) != 0)
+				throw new IOException(MessageFormat.format(JGitText.get()
+						.DIRCUnrecognizedExtendedFlags, String.valueOf(getExtendedFlags())));
+		} else
+			len = INFO_LEN;
+
+		infoAt.value += len;
+		md.update(info, infoOffset, len);
 
 		int pathLen = NB.decodeUInt16(info, infoOffset + P_FLAGS) & NAME_MASK;
 		int skipped = 0;
@@ -145,7 +176,7 @@ public class DirCacheEntry {
 			for (;;) {
 				final int c = in.read();
 				if (c < 0)
-					throw new EOFException("Short read of block.");
+					throw new EOFException(JGitText.get().shortReadOfBlock);
 				if (c == 0)
 					break;
 				tmp.write(c);
@@ -160,7 +191,7 @@ public class DirCacheEntry {
 		// Index records are padded out to the next 8 byte alignment
 		// for historical reasons related to how C Git read the files.
 		//
-		final int actLen = INFO_LEN + pathLen;
+		final int actLen = len + pathLen;
 		final int expLen = (actLen + 8) & ~7;
 		final int padLen = expLen - actLen - skipped;
 		if (padLen > 0) {
@@ -229,11 +260,11 @@ public class DirCacheEntry {
 	 */
 	public DirCacheEntry(final byte[] newPath, final int stage) {
 		if (!isValidPath(newPath))
-			throw new IllegalArgumentException("Invalid path: "
-					+ toString(newPath));
+			throw new IllegalArgumentException(MessageFormat.format(JGitText.get().invalidPath
+					, toString(newPath)));
 		if (stage < 0 || 3 < stage)
-			throw new IllegalArgumentException("Invalid stage " + stage
-					+ " for path " + toString(newPath));
+			throw new IllegalArgumentException(MessageFormat.format(JGitText.get().invalidStageForPath
+					, stage, toString(newPath)));
 
 		info = new byte[INFO_LEN];
 		infoOffset = 0;
@@ -248,14 +279,15 @@ public class DirCacheEntry {
 	}
 
 	void write(final OutputStream os) throws IOException {
+		final int len = isExtended() ? INFO_LEN_EXTENDED : INFO_LEN;
 		final int pathLen = path.length;
-		os.write(info, infoOffset, INFO_LEN);
+		os.write(info, infoOffset, len);
 		os.write(path, 0, pathLen);
 
 		// Index records are padded out to the next 8 byte alignment
 		// for historical reasons related to how C Git read the files.
 		//
-		final int actLen = INFO_LEN + pathLen;
+		final int actLen = len + pathLen;
 		final int expLen = (actLen + 8) & ~7;
 		if (actLen != expLen)
 			os.write(nullpad, 0, expLen - actLen);
@@ -277,7 +309,7 @@ public class DirCacheEntry {
 	 *            nanoseconds component of the index's last modified time.
 	 * @return true if extra careful checks should be used.
 	 */
-	final boolean mightBeRacilyClean(final int smudge_s, final int smudge_ns) {
+	public final boolean mightBeRacilyClean(final int smudge_s, final int smudge_ns) {
 		// If the index has a modification time then it came from disk
 		// and was not generated from scratch in memory. In such cases
 		// the entry is 'racily clean' if the entry's cached modification
@@ -287,10 +319,8 @@ public class DirCacheEntry {
 		//
 		final int base = infoOffset + P_MTIME;
 		final int mtime = NB.decodeInt32(info, base);
-		if (smudge_s < mtime)
-			return true;
 		if (smudge_s == mtime)
-			return smudge_ns <= NB.decodeInt32(info, base + 4) / 1000000;
+			return smudge_ns <= NB.decodeInt32(info, base + 4);
 		return false;
 	}
 
@@ -301,21 +331,30 @@ public class DirCacheEntry {
 	 * match the file in the working directory. Later git will be forced to
 	 * compare the file content to ensure the file matches the working tree.
 	 */
-	final void smudgeRacilyClean() {
-		// We don't use the same approach as C Git to smudge the entry,
-		// as we cannot compare the working tree file to our SHA-1 and
-		// thus cannot use the "size to 0" trick without accidentally
-		// thinking a zero length file is clean.
-		//
-		// Instead we force the mtime to the largest possible value, so
-		// it is certainly after the index's own modification time and
-		// on a future read will cause mightBeRacilyClean to say "yes!".
-		// It is also unlikely to match with the working tree file.
-		//
-		// I'll see you again before Jan 19, 2038, 03:14:07 AM GMT.
-		//
-		final int base = infoOffset + P_MTIME;
-		Arrays.fill(info, base, base + 8, (byte) 127);
+	public final void smudgeRacilyClean() {
+		// To mark an entry racily clean we set its length to 0 (like native git
+		// does). Entries which are not racily clean and have zero length can be
+		// distinguished from racily clean entries by checking P_OBJECTID
+		// against the SHA1 of empty content. When length is 0 and P_OBJECTID is
+		// different from SHA1 of empty content we know the entry is marked
+		// racily clean
+		final int base = infoOffset + P_SIZE;
+		Arrays.fill(info, base, base + 4, (byte) 0);
+	}
+
+	/**
+	 * Check whether this entry has been smudged or not
+	 * <p>
+	 * If a blob has length 0 we know his id see {@link Constants#EMPTY_BLOB_ID}. If an entry
+	 * has length 0 and an ID different from the one for empty blob we know this
+	 * entry was smudged.
+	 *
+	 * @return <code>true</code> if the entry is smudged, <code>false</code>
+	 *         otherwise
+	 */
+	public final boolean isSmudged() {
+		final int base = infoOffset + P_OBJECTID;
+		return (getLength() == 0) && (Constants.EMPTY_BLOB_ID.compareTo(info, base) != 0);
 	}
 
 	final byte[] idBuffer() {
@@ -354,6 +393,25 @@ public class DirCacheEntry {
 	}
 
 	/**
+	 * @return true if this entry should be checked for changes
+	 */
+	public boolean isUpdateNeeded() {
+		return (inCoreFlags & UPDATE_NEEDED) != 0;
+	}
+
+	/**
+	 * Set whether this entry must be checked for changes
+	 *
+	 * @param updateNeeded
+	 */
+	public void setUpdateNeeded(boolean updateNeeded) {
+		if (updateNeeded)
+			inCoreFlags |= UPDATE_NEEDED;
+		else
+			inCoreFlags &= ~UPDATE_NEEDED;
+	}
+
+	/**
 	 * Get the stage of this entry.
 	 * <p>
 	 * Entries have one of 4 possible stages: 0-3.
@@ -362,6 +420,24 @@ public class DirCacheEntry {
 	 */
 	public int getStage() {
 		return (info[infoOffset + P_FLAGS] >>> 4) & 0x3;
+	}
+
+	/**
+	 * Returns whether this entry should be skipped from the working tree.
+	 *
+	 * @return true if this entry should be skipepd.
+	 */
+	public boolean isSkipWorkTree() {
+		return (getExtendedFlags() & SKIP_WORKTREE) != 0;
+	}
+
+	/**
+	 * Returns whether this entry is intent to be added to the Index.
+	 *
+	 * @return true if this entry is intent to add.
+	 */
+	public boolean isIntentToAdd() {
+		return (getExtendedFlags() & INTENT_TO_ADD) != 0;
 	}
 
 	/**
@@ -397,8 +473,8 @@ public class DirCacheEntry {
 		switch (mode.getBits() & FileMode.TYPE_MASK) {
 		case FileMode.TYPE_MISSING:
 		case FileMode.TYPE_TREE:
-			throw new IllegalArgumentException("Invalid mode " + mode
-					+ " for path " + getPathString());
+			throw new IllegalArgumentException(MessageFormat.format(JGitText.get().invalidModeForPath
+					, mode, getPathString()));
 		}
 		NB.encodeInt32(info, infoOffset + P_MODE, mode.getBits());
 	}
@@ -452,6 +528,22 @@ public class DirCacheEntry {
 	 */
 	public void setLength(final int sz) {
 		NB.encodeInt32(info, infoOffset + P_SIZE, sz);
+	}
+
+	/**
+	 * Set the cached size (in bytes) of this file.
+	 *
+	 * @param sz
+	 *            new cached size of the file, as bytes.
+	 * @throws IllegalArgumentException
+	 *             if the size exceeds the 2 GiB barrier imposed by current file
+	 *             format limitations.
+	 */
+	public void setLength(final long sz) {
+		if (Integer.MAX_VALUE <= sz)
+			throw new IllegalArgumentException(MessageFormat.format(JGitText
+					.get().sizeExceeds2GB, getPathString(), sz));
+		setLength((int) sz);
 	}
 
 	/**
@@ -523,6 +615,13 @@ public class DirCacheEntry {
 				| NB.decodeUInt16(info, infoOffset + P_FLAGS) & ~NAME_MASK);
 	}
 
+	/**
+	 * @return true if the entry contains extended flags.
+	 */
+	boolean isExtended() {
+		return (info[infoOffset + P_FLAGS] & EXTENDED) != 0;
+	}
+
 	private long decodeTS(final int pIdx) {
 		final int base = infoOffset + pIdx;
 		final int sec = NB.decodeInt32(info, base);
@@ -534,6 +633,13 @@ public class DirCacheEntry {
 		final int base = infoOffset + pIdx;
 		NB.encodeInt32(info, base, (int) (when / 1000));
 		NB.encodeInt32(info, base + 4, ((int) (when % 1000)) * 1000000);
+	}
+
+	private int getExtendedFlags() {
+		if (isExtended())
+			return NB.decodeUInt16(info, infoOffset + P_FLAGS2) << 16;
+		else
+			return 0;
 	}
 
 	private static String toString(final byte[] path) {
@@ -562,5 +668,9 @@ public class DirCacheEntry {
 			}
 		}
 		return componentHasChars;
+	}
+
+	static int getMaximumInfoLength(boolean extended) {
+		return extended ? INFO_LEN_EXTENDED : INFO_LEN;
 	}
 }

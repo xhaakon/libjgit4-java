@@ -60,7 +60,7 @@ import org.eclipse.jgit.util.CPUTimeStopWatch;
  * time for computing the diff between a and b should depend on the product of
  * a.length+b.length and the number of found differences. The tests compute
  * diffs between chunks of different length, measure the needed time and check
- * that time/(N*D) does not differ more than a certain factor (currently 10)
+ * that time/(N*D) does not differ more than a certain factor.
  */
 public class MyersDiffPerformanceTest extends TestCase {
 	private static final long longTaskBoundary = 5000000000L;
@@ -100,7 +100,7 @@ public class MyersDiffPerformanceTest extends TestCase {
 			return ("diffing " + N / 2 + " bytes took " + runningTime
 					+ " ns. N=" + N + ", D=" + D + ", time/(N*D):"
 					+ fmt.format(perf1()) + ", time/(N*D^2):" + fmt
-					.format(perf2()));
+.format(perf2()) + "\n");
 		}
 	}
 
@@ -116,13 +116,21 @@ public class MyersDiffPerformanceTest extends TestCase {
 
 	public void test() {
 		if (stopwatch!=null) {
+			// run some tests without recording to let JIT do its optimization
+			test(10000);
+			test(20000);
+			test(10000);
+			test(20000);
+
 			List<PerfData> perfData = new LinkedList<PerfData>();
 			perfData.add(test(10000));
 			perfData.add(test(20000));
-			perfData.add(test(50000));
+			perfData.add(test(40000));
 			perfData.add(test(80000));
-			perfData.add(test(99999));
-			perfData.add(test(999999));
+			perfData.add(test(160000));
+			perfData.add(test(320000));
+			perfData.add(test(640000));
+			perfData.add(test(1280000));
 
 			Comparator<PerfData> c = getComparator(1);
 			double factor = Collections.max(perfData, c).perf1()
@@ -155,14 +163,15 @@ public class MyersDiffPerformanceTest extends TestCase {
 		String b = DiffTestDataGenerator.generateSequence(characters, 1621, 5);
 		CharArray ac = new CharArray(a);
 		CharArray bc = new CharArray(b);
-		MyersDiff myersDiff = null;
+		CharCmp cmp = new CharCmp();
+		MyersDiff<CharArray> myersDiff = null;
 		int cpuTimeChanges = 0;
 		long lastReadout = 0;
 		long interimTime = 0;
 		int repetitions = 0;
 		stopwatch.start();
 		while (cpuTimeChanges < minCPUTimerTicks && interimTime < longTaskBoundary) {
-			myersDiff = new MyersDiff(ac, bc);
+			myersDiff = new MyersDiff<CharArray>(cmp, ac, bc);
 			repetitions++;
 			interimTime = stopwatch.readout();
 			if (interimTime != lastReadout) {
@@ -171,26 +180,34 @@ public class MyersDiffPerformanceTest extends TestCase {
 			}
 		}
 		ret.runningTime = stopwatch.stop() / repetitions;
-		ret.N = (ac.size() + bc.size());
+		ret.N = ac.size() + bc.size();
 		ret.D = myersDiff.getEdits().size();
 
 		return ret;
 	}
 
-	private static class CharArray implements Sequence {
-		private final char[] array;
+	private static class CharArray extends Sequence {
+		final char[] array;
 
 		public CharArray(String s) {
 			array = s.toCharArray();
 		}
 
+		@Override
 		public int size() {
 			return array.length;
 		}
+	}
 
-		public boolean equals(int i, Sequence other, int j) {
-			CharArray o = (CharArray) other;
-			return array[i] == o.array[j];
+	private static class CharCmp extends SequenceComparator<CharArray> {
+		@Override
+		public boolean equals(CharArray a, int ai, CharArray b, int bi) {
+			return a.array[ai] == b.array[bi];
+		}
+
+		@Override
+		public int hash(CharArray seq, int ptr) {
+			return seq.array[ptr];
 		}
 	}
 }

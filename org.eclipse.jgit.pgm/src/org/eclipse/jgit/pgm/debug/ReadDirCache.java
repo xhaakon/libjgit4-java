@@ -44,7 +44,9 @@
 
 package org.eclipse.jgit.pgm.debug;
 
-import org.eclipse.jgit.dircache.DirCache;
+import java.text.MessageFormat;
+
+import org.eclipse.jgit.pgm.CLIText;
 import org.eclipse.jgit.pgm.TextBuiltin;
 
 class ReadDirCache extends TextBuiltin {
@@ -53,8 +55,9 @@ class ReadDirCache extends TextBuiltin {
 		final int cnt = 100;
 		final long start = System.currentTimeMillis();
 		for (int i = 0; i < cnt; i++)
-			DirCache.read(db);
+			db.readDirCache();
 		final long end = System.currentTimeMillis();
-		out.println(" average " + ((end - start) / cnt) + " ms/read");
+		out.print(" ");
+		out.println(MessageFormat.format(CLIText.get().averageMSPerRead, (end - start) / cnt));
 	}
 }

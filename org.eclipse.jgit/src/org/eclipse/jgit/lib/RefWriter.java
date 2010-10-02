@@ -51,6 +51,7 @@ import java.io.StringWriter;
 import java.util.Collection;
 import java.util.Map;
 
+import org.eclipse.jgit.storage.file.RefDirectory;
 import org.eclipse.jgit.util.RefList;
 import org.eclipse.jgit.util.RefMap;
 
@@ -86,8 +87,13 @@ public abstract class RefWriter {
 			this.refs = RefComparator.sort(refs.values());
 	}
 
-	RefWriter(RefList<Ref> list) {
-		this.refs = list.asList();
+	/**
+	 * @param refs
+	 *            the complete set of references. This should have been computed
+	 *            by applying updates to the advertised refs already discovered.
+	 */
+	public RefWriter(RefList<Ref> refs) {
+		this.refs = refs.asList();
 	}
 
 	/**

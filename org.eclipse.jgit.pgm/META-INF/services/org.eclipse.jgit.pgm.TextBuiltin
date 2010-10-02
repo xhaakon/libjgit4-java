@@ -1,6 +1,7 @@
 org.eclipse.jgit.pgm.AmazonS3Client
 org.eclipse.jgit.pgm.Branch
 org.eclipse.jgit.pgm.Clone
+org.eclipse.jgit.pgm.Commit
 org.eclipse.jgit.pgm.Daemon
 org.eclipse.jgit.pgm.Diff
 org.eclipse.jgit.pgm.DiffTree
@@ -29,6 +30,7 @@ org.eclipse.jgit.pgm.debug.RebuildCommitGraph
 org.eclipse.jgit.pgm.debug.ShowCacheTree
 org.eclipse.jgit.pgm.debug.ShowCommands
 org.eclipse.jgit.pgm.debug.ShowDirCache
+org.eclipse.jgit.pgm.debug.ShowPackDelta
 org.eclipse.jgit.pgm.debug.WriteDirCache
 
 org.eclipse.jgit.pgm.eclipse.Iplog

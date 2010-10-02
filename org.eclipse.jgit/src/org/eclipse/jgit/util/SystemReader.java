@@ -50,7 +50,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.TimeZone;
 
-import org.eclipse.jgit.lib.FileBasedConfig;
+import org.eclipse.jgit.storage.file.FileBasedConfig;
 
 /**
  * Interface to read values from the system.
@@ -72,9 +72,9 @@ public abstract class SystemReader {
 			return System.getProperty(key);
 		}
 
-		public FileBasedConfig openUserConfig() {
-			final File home = FS.userHome();
-			return new FileBasedConfig(new File(home, ".gitconfig"));
+		public FileBasedConfig openUserConfig(FS fs) {
+			final File home = fs.userHome();
+			return new FileBasedConfig(new File(home, ".gitconfig"), fs);
 		}
 
 		public String getHostname() {
@@ -136,9 +136,12 @@ public abstract class SystemReader {
 	public abstract String getProperty(String key);
 
 	/**
+	 * @param fs
+	 *            the file system abstraction which will be necessary to
+	 *            perform certain file system operations.
 	 * @return the git configuration found in the user home
 	 */
-	public abstract FileBasedConfig openUserConfig();
+	public abstract FileBasedConfig openUserConfig(FS fs);
 
 	/**
 	 * @return the current system time

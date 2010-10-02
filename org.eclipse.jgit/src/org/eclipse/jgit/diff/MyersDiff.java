@@ -44,6 +44,9 @@
 
 package org.eclipse.jgit.diff;
 
+import java.text.MessageFormat;
+
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.util.IntList;
 import org.eclipse.jgit.util.LongList;
 
@@ -98,30 +101,38 @@ import org.eclipse.jgit.util.LongList;
  *
  * So the overall runtime complexity stays the same with linear space,
  * albeit with a larger constant factor.
+ *
+ * @param <S>
+ *            type of sequence.
  */
-public class MyersDiff {
+public class MyersDiff<S extends Sequence> {
 	/**
 	 * The list of edits found during the last call to {@link #calculateEdits()}
 	 */
 	protected EditList edits;
 
+	/** Comparison function for sequences. */
+	protected SequenceComparator<S> cmp;
+
 	/**
 	 * The first text to be compared. Referred to as "Text A" in the comments
 	 */
-	protected Sequence a;
+	protected S a;
 
 	/**
 	 * The second text to be compared. Referred to as "Text B" in the comments
 	 */
-	protected Sequence b;
+	protected S b;
 
 	/**
 	 * The only constructor
 	 *
+	 * @param cmp comparison method for this execution.
 	 * @param a   the text A which should be compared
 	 * @param b   the text B which should be compared
 	 */
-	public MyersDiff(Sequence a, Sequence b) {
+	public MyersDiff(SequenceComparator<S> cmp, S a, S b) {
+		this.cmp = cmp;
 		this.a = a;
 		this.b = b;
 		calculateEdits();
@@ -292,21 +303,21 @@ public class MyersDiff {
 			final int getIndex(int d, int k) {
 // TODO: remove
 if (((d + k - middleK) % 2) == 1)
-	throw new RuntimeException("odd: " + d + " + " + k + " - " + middleK);
+	throw new RuntimeException(MessageFormat.format(JGitText.get().unexpectedOddResult, d, k, middleK));
 				return (d + k - middleK) / 2;
 			}
 
 			final int getX(int d, int k) {
 // TODO: remove
 if (k < beginK || k > endK)
-	throw new RuntimeException("k " + k + " not in " + beginK + " - " + endK);
+	throw new RuntimeException(MessageFormat.format(JGitText.get().kNotInRange, k, beginK, endK));
 				return x.get(getIndex(d, k));
 			}
 
 			final long getSnake(int d, int k) {
 // TODO: remove
 if (k < beginK || k > endK)
-	throw new RuntimeException("k " + k + " not in " + beginK + " - " + endK);
+	throw new RuntimeException(MessageFormat.format(JGitText.get().kNotInRange, k, beginK, endK));
 				return snake.get(getIndex(d, k));
 			}
 
@@ -433,7 +444,7 @@ if (k < beginK || k > endK)
 		class ForwardEditPaths extends EditPaths {
 			final int snake(int k, int x) {
 				for (; x < endA && k + x < endB; x++)
-					if (!a.equals(x, b, k + x))
+					if (!cmp.equals(a, x, b, k + x))
 						break;
 				return x;
 			}
@@ -475,7 +486,7 @@ if (k < beginK || k > endK)
 		class BackwardEditPaths extends EditPaths {
 			final int snake(int k, int x) {
 				for (; x > beginA && k + x > beginB; x--)
-					if (!a.equals(x - 1, b, k + x - 1))
+					if (!cmp.equals(a, x - 1, b, k + x - 1))
 						break;
 				return x;
 			}
@@ -520,13 +531,13 @@ if (k < beginK || k > endK)
 	 */
 	public static void main(String[] args) {
 		if (args.length != 2) {
-			System.err.println("Need 2 arguments");
+			System.err.println(JGitText.get().need2Arguments);
 			System.exit(1);
 		}
 		try {
 			RawText a = new RawText(new java.io.File(args[0]));
 			RawText b = new RawText(new java.io.File(args[1]));
-			MyersDiff diff = new MyersDiff(a, b);
+			MyersDiff diff = new MyersDiff(RawTextComparator.DEFAULT, a, b);
 			System.out.println(diff.getEdits().toString());
 		} catch (Exception e) {
 			e.printStackTrace();

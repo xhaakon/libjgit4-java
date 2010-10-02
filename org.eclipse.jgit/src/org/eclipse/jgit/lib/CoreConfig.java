@@ -61,20 +61,34 @@ public class CoreConfig {
 		}
 	};
 
+	/** Permissible values for {@code core.autocrlf}. */
+	public static enum AutoCRLF {
+		/** Automatic CRLF->LF conversion is disabled. */
+		FALSE,
+
+		/** Automatic CRLF->LF conversion is enabled. */
+		TRUE,
+
+		/** CRLF->LF performed, but no LF->CRLF. */
+		INPUT;
+	}
+
 	private final int compression;
 
 	private final int packIndexVersion;
 
 	private final boolean logAllRefUpdates;
 
+	private final AutoCRLF autoCRLF;
+
 	private CoreConfig(final Config rc) {
 		compression = rc.getInt("core", "compression", DEFAULT_COMPRESSION);
 		packIndexVersion = rc.getInt("pack", "indexversion", 2);
 		logAllRefUpdates = rc.getBoolean("core", "logallrefupdates", true);
+		autoCRLF = rc.getEnum("core", null, "autocrlf", AutoCRLF.FALSE);
 	}
 
 	/**
-	 * @see ObjectWriter
 	 * @return The compression level to use when storing loose objects
 	 */
 	public int getCompression() {
@@ -94,5 +108,12 @@ public class CoreConfig {
 	 */
 	public boolean isLogAllRefUpdates() {
 		return logAllRefUpdates;
+	}
+
+	/**
+	 * @return whether automatic CRLF conversion has been configured
+	 */
+	public AutoCRLF getAutoCRLF() {
+		return autoCRLF;
 	}
 }

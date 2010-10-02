@@ -45,18 +45,21 @@
 package org.eclipse.jgit.transport;
 
 import java.io.IOException;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.NoRemoteRepositoryException;
 import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.PackWriter;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.storage.pack.PackWriter;
 import org.eclipse.jgit.transport.RemoteRefUpdate.Status;
 
 /**
@@ -78,7 +81,7 @@ import org.eclipse.jgit.transport.RemoteRefUpdate.Status;
  * {@link #readAdvertisedRefs()} methods in constructor or before any use. They
  * should also handle resources releasing in {@link #close()} method if needed.
  */
-class BasePackPushConnection extends BasePackConnection implements
+public abstract class BasePackPushConnection extends BasePackConnection implements
 		PushConnection {
 	static final String CAPABILITY_REPORT_STATUS = "report-status";
 
@@ -105,7 +108,13 @@ class BasePackPushConnection extends BasePackConnection implements
 	/** Time in milliseconds spent transferring the pack data. */
 	private long packTransferTime;
 
-	BasePackPushConnection(final PackTransport packTransport) {
+	/**
+	 * Create a new connection to push using the native git transport.
+	 *
+	 * @param packTransport
+	 *            the transport.
+	 */
+	public BasePackPushConnection(final PackTransport packTransport) {
 		super(packTransport);
 		thinPack = transport.isPushThin();
 	}
@@ -137,9 +146,19 @@ class BasePackPushConnection extends BasePackConnection implements
 		} catch (TransportException e) {
 			// Fall through.
 		}
-		return new TransportException(uri, "push not permitted");
+		return new TransportException(uri, JGitText.get().pushNotPermitted);
 	}
 
+	/**
+	 * Push one or more objects and update the remote repository.
+	 *
+	 * @param monitor
+	 *            progress monitor to receive status updates.
+	 * @param refUpdates
+	 *            update commands to be applied to the remote repository.
+	 * @throws TransportException
+	 *             if any exception occurs.
+	 */
 	protected void doPush(final ProgressMonitor monitor,
 			final Map<String, RemoteRefUpdate> refUpdates)
 			throws TransportException {
@@ -158,8 +177,7 @@ class BasePackPushConnection extends BasePackConnection implements
 					//
 					int b = in.read();
 					if (0 <= b)
-						throw new TransportException(uri, "expected EOF;"
-								+ " received '" + (char) b + "' instead");
+						throw new TransportException(uri, MessageFormat.format(JGitText.get().expectedEOFReceived, (char) b));
 				}
 			}
 		} catch (TransportException e) {
@@ -201,7 +219,7 @@ class BasePackPushConnection extends BasePackConnection implements
 		}
 
 		if (monitor.isCancelled())
-			throw new TransportException(uri, "push cancelled");
+			throw new TransportException(uri, JGitText.get().pushCancelled);
 		pckOut.end();
 		outNeedsEnd = false;
 	}
@@ -225,25 +243,30 @@ class BasePackPushConnection extends BasePackConnection implements
 
 	private void writePack(final Map<String, RemoteRefUpdate> refUpdates,
 			final ProgressMonitor monitor) throws IOException {
-		final PackWriter writer = new PackWriter(local, monitor);
-		final ArrayList<ObjectId> remoteObjects = new ArrayList<ObjectId>(
-				getRefs().size());
-		final ArrayList<ObjectId> newObjects = new ArrayList<ObjectId>(
-				refUpdates.size());
+		List<ObjectId> remoteObjects = new ArrayList<ObjectId>(getRefs().size());
+		List<ObjectId> newObjects = new ArrayList<ObjectId>(refUpdates.size());
 
-		for (final Ref r : getRefs())
-			remoteObjects.add(r.getObjectId());
-		remoteObjects.addAll(additionalHaves);
-		for (final RemoteRefUpdate r : refUpdates.values()) {
-			if (!ObjectId.zeroId().equals(r.getNewObjectId()))
-				newObjects.add(r.getNewObjectId());
+		final long start;
+		final PackWriter writer = new PackWriter(transport.getPackConfig(),
+				local.newObjectReader());
+		try {
+
+			for (final Ref r : getRefs())
+				remoteObjects.add(r.getObjectId());
+			remoteObjects.addAll(additionalHaves);
+			for (final RemoteRefUpdate r : refUpdates.values()) {
+				if (!ObjectId.zeroId().equals(r.getNewObjectId()))
+					newObjects.add(r.getNewObjectId());
+			}
+
+			writer.setThin(thinPack);
+			writer.setDeltaBaseAsOffset(capableOfsDelta);
+			writer.preparePack(monitor, newObjects, remoteObjects);
+			start = System.currentTimeMillis();
+			writer.writePack(monitor, monitor, out);
+		} finally {
+			writer.release();
 		}
-
-		writer.setThin(thinPack);
-		writer.setDeltaBaseAsOffset(capableOfsDelta);
-		writer.preparePack(newObjects, remoteObjects);
-		final long start = System.currentTimeMillis();
-		writer.writePack(out);
 		out.flush();
 		packTransferTime = System.currentTimeMillis() - start;
 	}
@@ -252,13 +275,11 @@ class BasePackPushConnection extends BasePackConnection implements
 			throws IOException {
 		final String unpackLine = readStringLongTimeout();
 		if (!unpackLine.startsWith("unpack "))
-			throw new PackProtocolException(uri, "unexpected report line: "
-					+ unpackLine);
+			throw new PackProtocolException(uri, MessageFormat.format(JGitText.get().unexpectedReportLine, unpackLine));
 		final String unpackStatus = unpackLine.substring("unpack ".length());
 		if (!unpackStatus.equals("ok"))
-			throw new TransportException(uri,
-					"error occurred during unpacking on the remote end: "
-							+ unpackStatus);
+			throw new TransportException(uri, MessageFormat.format(
+					JGitText.get().errorOccurredDuringUnpackingOnTheRemoteEnd, unpackStatus));
 
 		String refLine;
 		while ((refLine = pckIn.readString()) != PacketLineIn.END) {
@@ -272,16 +293,15 @@ class BasePackPushConnection extends BasePackConnection implements
 				refNameEnd = refLine.indexOf(" ", 3);
 			}
 			if (refNameEnd == -1)
-				throw new PackProtocolException(uri
-						+ ": unexpected report line: " + refLine);
+				throw new PackProtocolException(MessageFormat.format(JGitText.get().unexpectedReportLine2
+						, uri, refLine));
 			final String refName = refLine.substring(3, refNameEnd);
 			final String message = (ok ? null : refLine
 					.substring(refNameEnd + 1));
 
 			final RemoteRefUpdate rru = refUpdates.get(refName);
 			if (rru == null)
-				throw new PackProtocolException(uri
-						+ ": unexpected ref report: " + refName);
+				throw new PackProtocolException(MessageFormat.format(JGitText.get().unexpectedRefReport, uri, refName));
 			if (ok) {
 				rru.setStatus(Status.OK);
 			} else {
@@ -291,9 +311,8 @@ class BasePackPushConnection extends BasePackConnection implements
 		}
 		for (final RemoteRefUpdate rru : refUpdates.values()) {
 			if (rru.getStatus() == Status.AWAITING_REPORT)
-				throw new PackProtocolException(uri
-						+ ": expected report for ref " + rru.getRemoteName()
-						+ " not received");
+				throw new PackProtocolException(MessageFormat.format(
+						JGitText.get().expectedReportForRefNotReceived , uri, rru.getRemoteName()));
 		}
 	}
 

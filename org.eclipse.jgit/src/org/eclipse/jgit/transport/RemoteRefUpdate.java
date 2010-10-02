@@ -44,7 +44,9 @@
 package org.eclipse.jgit.transport;
 
 import java.io.IOException;
+import java.text.MessageFormat;
 
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -184,13 +186,13 @@ public class RemoteRefUpdate {
 			final String localName, final ObjectId expectedOldObjectId)
 			throws IOException {
 		if (remoteName == null)
-			throw new IllegalArgumentException("Remote name can't be null.");
+			throw new IllegalArgumentException(JGitText.get().remoteNameCantBeNull);
 		this.srcRef = srcRef;
 		this.newObjectId = (srcRef == null ? ObjectId.zeroId() : localDb
 				.resolve(srcRef));
 		if (newObjectId == null)
-			throw new IOException("Source ref " + srcRef
-					+ " doesn't resolve to any object.");
+			throw new IOException(MessageFormat.format(
+					JGitText.get().sourceRefDoesntResolveToAnyObject, srcRef));
 		this.remoteName = remoteName;
 		this.forceUpdate = forceUpdate;
 		if (localName != null && localDb != null)
@@ -351,10 +353,10 @@ public class RemoteRefUpdate {
 	@Override
 	public String toString() {
 		return "RemoteRefUpdate[remoteName=" + remoteName + ", " + status
-				+ ", " + (expectedOldObjectId!=null?expectedOldObjectId.abbreviate(localDb).name() :"(null)")
-				+ "..." + (newObjectId != null ? newObjectId.abbreviate(localDb).name() : "(null)")
+				+ ", " + (expectedOldObjectId!=null ? expectedOldObjectId.name() : "(null)")
+				+ "..." + (newObjectId != null ? newObjectId.name() : "(null)")
 				+ (fastForward ? ", fastForward" : "")
 				+ ", srcRef=" + srcRef + (forceUpdate ? ", forceUpdate" : "") + ", message=" + (message != null ? "\""
-				+ message + "\"" : "null") + ", " + localDb.getDirectory() + "]";
+				+ message + "\"" : "null") + "]";
 	}
 }

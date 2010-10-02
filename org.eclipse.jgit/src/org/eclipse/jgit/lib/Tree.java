@@ -45,16 +45,27 @@
 
 package org.eclipse.jgit.lib;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.text.MessageFormat;
 
+import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.EntryExistsException;
 import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.errors.ObjectWritingException;
 import org.eclipse.jgit.util.RawParseUtils;
 
 /**
  * A representation of a Git tree entry. A Tree is a directory in Git.
+ *
+ * @deprecated To look up information about a single path, use
+ * {@link org.eclipse.jgit.treewalk.TreeWalk#forPath(Repository, String, org.eclipse.jgit.revwalk.RevTree)}.
+ * To lookup information about multiple paths at once, use a
+ * {@link org.eclipse.jgit.treewalk.TreeWalk} and obtain the current entry's
+ * information from its getter methods.
  */
+@Deprecated
 public class Tree extends TreeEntry implements Treeish {
 	private static final TreeEntry[] EMPTY_TREE = {};
 
@@ -245,7 +256,7 @@ public class Tree extends TreeEntry implements Treeish {
 	 */
 	public void unload() {
 		if (isModified())
-			throw new IllegalStateException("Cannot unload a modified tree.");
+			throw new IllegalStateException(JGitText.get().cannotUnloadAModifiedTree);
 		contents = null;
 	}
 
@@ -528,10 +539,8 @@ public class Tree extends TreeEntry implements Treeish {
 
 	private void ensureLoaded() throws IOException, MissingObjectException {
 		if (!isLoaded()) {
-			final ObjectLoader or = db.openTree(getId());
-			if (or == null)
-				throw new MissingObjectException(getId(), Constants.TYPE_TREE);
-			readTree(or.getBytes());
+			ObjectLoader ldr = db.open(getId(), Constants.OBJ_TREE);
+			readTree(ldr.getCachedBytes());
 		}
 	}
 
@@ -555,14 +564,14 @@ public class Tree extends TreeEntry implements Treeish {
 		while (rawPtr < rawSize) {
 			int c = raw[rawPtr++];
 			if (c < '0' || c > '7')
-				throw new CorruptObjectException(getId(), "invalid entry mode");
+				throw new CorruptObjectException(getId(), JGitText.get().corruptObjectInvalidEntryMode);
 			int mode = c - '0';
 			for (;;) {
 				c = raw[rawPtr++];
 				if (' ' == c)
 					break;
 				else if (c < '0' || c > '7')
-					throw new CorruptObjectException(getId(), "invalid mode");
+					throw new CorruptObjectException(getId(), JGitText.get().corruptObjectInvalidMode);
 				mode <<= 3;
 				mode += c - '0';
 			}
@@ -589,16 +598,40 @@ public class Tree extends TreeEntry implements Treeish {
 			else if (FileMode.GITLINK.equals(mode))
 				ent = new GitlinkTreeEntry(this, id, name);
 			else
-				throw new CorruptObjectException(getId(), "Invalid mode: "
-						+ Integer.toOctalString(mode));
+				throw new CorruptObjectException(getId(), MessageFormat.format(
+						JGitText.get().corruptObjectInvalidMode2, Integer.toOctalString(mode)));
 			temp[nextIndex++] = ent;
 		}
 
 		contents = temp;
 	}
 
+	/**
+	 * Format this Tree in canonical format.
+	 *
+	 * @return canonical encoding of the tree object.
+	 * @throws IOException
+	 *             the tree cannot be loaded, or its not in a writable state.
+	 */
+	public byte[] format() throws IOException {
+		ByteArrayOutputStream o = new ByteArrayOutputStream();
+		for (TreeEntry e : members()) {
+			ObjectId id = e.getId();
+			if (id == null)
+				throw new ObjectWritingException(MessageFormat.format(JGitText
+						.get().objectAtPathDoesNotHaveId, e.getFullName()));
+
+			e.getMode().copyTo(o);
+			o.write(' ');
+			o.write(e.getNameUTF8());
+			o.write(0);
+			id.copyRawTo(o);
+		}
+		return o.toByteArray();
+	}
+
 	public String toString() {
-		final StringBuffer r = new StringBuffer();
+		final StringBuilder r = new StringBuilder();
 		r.append(ObjectId.toString(getId()));
 		r.append(" T ");
 		r.append(getFullName());
