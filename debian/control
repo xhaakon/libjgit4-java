@@ -1,0 +1,24 @@
+Source: eclipse-jgit
+Priority: optional
+Section: devel
+Maintainer: Debian Java Maintainers <pkg-java-maintainers@lists.alioth.debian.org>
+Uploaders: Niels Thykier <niels@thykier.net>,
+           Benjamin Drung <bdrung@ubuntu.com>
+Build-Depends: debhelper,
+               default-jdk,
+               eclipse-pde (>= 3.5.2~),
+               eclipse-platform (>= 3.5.2~),
+               javahelper (>= 0.32~),
+               unzip,
+               zip
+Standards-Version: 3.9.1
+Vcs-Git: git://git.debian.org/git/pkg-java/eclipse-jgit.git
+Vcs-Browser: http://git.debian.org/?p=pkg-java/eclipse-jgit.git
+Homepage: http://www.eclipse.org/jgit/
+
+Package: eclipse-jgit
+Architecture: all
+Depends: eclipse-platform (>= 3.5.2~)
+Description: Java implementation of GIT for eclipse
+ I am so smart, I am so smart - S.M.A.T.
+ ~Homer J. Simpson.

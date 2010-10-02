@@ -1,0 +1,12 @@
+Package: eclipse-jgit
+Version: 0.9.3-1
+Architecture: all
+Maintainer: Debian Java Maintainers <pkg-java-maintainers@lists.alioth.debian.org>
+Installed-Size: 1076
+Depends: eclipse-platform (>= 3.5.2~)
+Section: devel
+Priority: optional
+Homepage: http://www.eclipse.org/jgit/
+Description: Java implementation of GIT for eclipse
+ I am so smart, I am so smart - S.M.A.T.
+ ~Homer J. Simpson.

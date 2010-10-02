@@ -1,0 +1,553 @@
+# 10/2/10 1:49:25 PM UTC
+# Eclipse Compiler for Java (TM) 0.981_R35x, 3.5.2 release, Copyright IBM Corp 2000, 2009. All rights reserved.
+----------
+1. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/api/MergeResult.java (at line 55)
+	import org.eclipse.jgit.merge.ResolveMerger;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.merge.ResolveMerger is never used
+----------
+----------
+2. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/diff/DiffFormatter.java (at line 82)
+	import org.eclipse.jgit.patch.HunkHeader;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.patch.HunkHeader is never used
+----------
+3. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/diff/DiffFormatter.java (at line 95)
+	import org.eclipse.jgit.util.io.DisabledOutputStream;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.util.io.DisabledOutputStream is never used
+----------
+----------
+4. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/diff/MyersDiff.java (at line 540)
+	MyersDiff diff = new MyersDiff(RawTextComparator.DEFAULT, a, b);
+	^^^^^^^^^
+MyersDiff is a raw type. References to generic type MyersDiff<S> should be parameterized
+----------
+5. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/diff/MyersDiff.java (at line 540)
+	MyersDiff diff = new MyersDiff(RawTextComparator.DEFAULT, a, b);
+	                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Type safety: The constructor MyersDiff(SequenceComparator, Sequence, Sequence) belongs to the raw type MyersDiff. References to generic type MyersDiff<S> should be parameterized
+----------
+6. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/diff/MyersDiff.java (at line 540)
+	MyersDiff diff = new MyersDiff(RawTextComparator.DEFAULT, a, b);
+	                     ^^^^^^^^^
+MyersDiff is a raw type. References to generic type MyersDiff<S> should be parameterized
+----------
+----------
+7. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/NoWorkTreeException.java (at line 47)
+	import org.eclipse.jgit.lib.Repository;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.lib.Repository is never used
+----------
+----------
+8. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/RevWalkException.java (at line 48)
+	import org.eclipse.jgit.revwalk.RevWalk;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.revwalk.RevWalk is never used
+----------
+----------
+9. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/TranslationBundleException.java (at line 46)
+	import java.util.ResourceBundle;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^
+The import java.util.ResourceBundle is never used
+----------
+10. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/TranslationBundleException.java (at line 54)
+	private final Class bundleClass;
+	              ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+11. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/TranslationBundleException.java (at line 70)
+	protected TranslationBundleException(String message, Class bundleClass, Locale locale, Exception cause) {
+	                                                     ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+12. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/TranslationBundleException.java (at line 79)
+	final public Class getBundleClass() {
+	             ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+----------
+13. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/TranslationBundleLoadingException.java (at line 46)
+	import java.util.ResourceBundle;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^
+The import java.util.ResourceBundle is never used
+----------
+14. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/TranslationBundleLoadingException.java (at line 67)
+	public TranslationBundleLoadingException(Class bundleClass, Locale locale, Exception cause) {
+	                                         ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+----------
+15. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/TranslationStringMissingException.java (at line 46)
+	import java.util.ResourceBundle;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^
+The import java.util.ResourceBundle is never used
+----------
+16. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/errors/TranslationStringMissingException.java (at line 71)
+	public TranslationStringMissingException(Class bundleClass, Locale locale, String key, Exception cause) {
+	                                         ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+----------
+17. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/AnyObjectId.java (at line 60)
+	public abstract class AnyObjectId implements Comparable {
+	                                             ^^^^^^^^^^
+Comparable is a raw type. References to generic type Comparable<T> should be parameterized
+----------
+----------
+18. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/BaseRepositoryBuilder.java (at line 26)
+	import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.storage.file.FileRepositoryBuilder is never used
+----------
+19. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/BaseRepositoryBuilder.java (at line 43)
+	public class BaseRepositoryBuilder<B extends BaseRepositoryBuilder, R extends Repository> {
+	                                             ^^^^^^^^^^^^^^^^^^^^^
+BaseRepositoryBuilder is a raw type. References to generic type BaseRepositoryBuilder<B,R> should be parameterized
+----------
+----------
+20. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/GitIndex.java (at line 71)
+	import org.eclipse.jgit.dircache.DirCache;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.dircache.DirCache is never used
+----------
+21. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/GitIndex.java (at line 286)
+	for (Iterator i = entries.values().iterator(); i.hasNext();) {
+	     ^^^^^^^^
+Iterator is a raw type. References to generic type Iterator<E> should be parameterized
+----------
+22. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/GitIndex.java (at line 345)
+	for (Iterator i = entries.values().iterator(); i.hasNext();) {
+	     ^^^^^^^^
+Iterator is a raw type. References to generic type Iterator<E> should be parameterized
+----------
+23. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/GitIndex.java (at line 864)
+	Header(Map entryset) {
+	       ^^^
+Map is a raw type. References to generic type Map<K,V> should be parameterized
+----------
+----------
+24. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/ObjectReader.java (at line 57)
+	import org.eclipse.jgit.storage.pack.ObjectReuseAsIs;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.storage.pack.ObjectReuseAsIs is never used
+----------
+----------
+25. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/Repository.java (at line 125)
+	protected Repository(final BaseRepositoryBuilder options) {
+	                           ^^^^^^^^^^^^^^^^^^^^^
+BaseRepositoryBuilder is a raw type. References to generic type BaseRepositoryBuilder<B,R> should be parameterized
+----------
+----------
+26. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/RepositoryBuilder.java (at line 46)
+	import java.io.File;
+	       ^^^^^^^^^^^^
+The import java.io.File is never used
+----------
+27. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/RepositoryBuilder.java (at line 48)
+	import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.storage.file.FileRepositoryBuilder is never used
+----------
+----------
+28. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/lib/TreeEntry.java (at line 62)
+	public abstract class TreeEntry implements Comparable {
+	                                           ^^^^^^^^^^
+Comparable is a raw type. References to generic type Comparable<T> should be parameterized
+----------
+----------
+29. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/merge/MergeAlgorithm.java (at line 92)
+	MergeResult result = new MergeResult<S>(sequences);
+	^^^^^^^^^^^
+MergeResult is a raw type. References to generic type MergeResult<S> should be parameterized
+----------
+30. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/merge/MergeAlgorithm.java (at line 249)
+	return result;
+	       ^^^^^^
+Type safety: The expression of type MergeResult needs unchecked conversion to conform to MergeResult<S>
+----------
+----------
+31. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/merge/MergeFormatter.java (at line 146)
+	public void formatMerge(OutputStream out, MergeResult res, String baseName,
+	                                          ^^^^^^^^^^^
+MergeResult is a raw type. References to generic type MergeResult<S> should be parameterized
+----------
+32. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/merge/MergeFormatter.java (at line 152)
+	formatMerge(out, res, names, charsetName);
+	                 ^^^
+Type safety: The expression of type MergeResult needs unchecked conversion to conform to MergeResult<RawText>
+----------
+----------
+33. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/GlobalBundleCache.java (at line 50)
+	import org.eclipse.jgit.errors.TranslationBundleLoadingException;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.errors.TranslationBundleLoadingException is never used
+----------
+34. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/GlobalBundleCache.java (at line 51)
+	import org.eclipse.jgit.errors.TranslationStringMissingException;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.errors.TranslationStringMissingException is never used
+----------
+35. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/GlobalBundleCache.java (at line 67)
+	private static final Map<Locale, Map<Class, TranslationBundle>> cachedBundles
+	                                     ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+36. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/GlobalBundleCache.java (at line 68)
+	= new HashMap<Locale, Map<Class, TranslationBundle>>();
+	                          ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+37. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/GlobalBundleCache.java (at line 87)
+	Map<Class, TranslationBundle> bundles = cachedBundles.get(locale);
+	    ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+38. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/GlobalBundleCache.java (at line 89)
+	bundles = new HashMap<Class, TranslationBundle>();
+	                      ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+39. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/GlobalBundleCache.java (at line 98)
+	return (T) bundle;
+	       ^^^^^^^^^^
+Type safety: Unchecked cast from TranslationBundle to T
+----------
+----------
+40. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/NLS.java (at line 49)
+	import org.eclipse.jgit.errors.TranslationBundleLoadingException;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.errors.TranslationBundleLoadingException is never used
+----------
+41. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/NLS.java (at line 50)
+	import org.eclipse.jgit.errors.TranslationStringMissingException;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.errors.TranslationStringMissingException is never used
+----------
+42. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/NLS.java (at line 122)
+	final private ConcurrentHashMap<Class, TranslationBundle> map = new ConcurrentHashMap<Class, TranslationBundle>();
+	                                ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+43. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/NLS.java (at line 122)
+	final private ConcurrentHashMap<Class, TranslationBundle> map = new ConcurrentHashMap<Class, TranslationBundle>();
+	                                                                                      ^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+44. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/NLS.java (at line 134)
+	return (T) bundle;
+	       ^^^^^^^^^^
+Type safety: Unchecked cast from TranslationBundle to T
+----------
+----------
+45. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/nls/TranslationBundle.java (at line 160)
+	Class bundleClass = getClass();
+	^^^^^
+Class is a raw type. References to generic type Class<T> should be parameterized
+----------
+----------
+46. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/AbstractPlotRenderer.java (at line 101)
+	for (final TLane passingLane : (TLane[]) commit.passingLanes) {
+	                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Type safety: Unchecked cast from PlotLane[] to TLane[]
+----------
+47. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/AbstractPlotRenderer.java (at line 115)
+	p = (PlotCommit<TLane>) commit.getParent(i);
+	    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Type safety: Unchecked cast from RevCommit to PlotCommit<TLane>
+----------
+----------
+48. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommit.java (at line 58)
+	static final PlotCommit[] NO_CHILDREN = {};
+	             ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+49. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommit.java (at line 66)
+	PlotCommit[] children;
+	^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+50. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommit.java (at line 96)
+	void addChild(final PlotCommit c) {
+	                    ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+51. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommit.java (at line 103)
+	final PlotCommit[] n = new PlotCommit[cnt + 1];
+	      ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+52. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommit.java (at line 129)
+	public final PlotCommit getChild(final int nth) {
+	             ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+53. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommit.java (at line 140)
+	public final boolean isChild(final PlotCommit c) {
+	                                   ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+54. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommit.java (at line 141)
+	for (final PlotCommit a : children)
+	           ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+55. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommit.java (at line 153)
+	return (L) lane;
+	       ^^^^^^^^
+Type safety: Unchecked cast from PlotLane to L
+----------
+----------
+56. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 114)
+	result.add((L) p);
+	           ^^^^^
+Type safety: Unchecked cast from PlotLane to L
+----------
+57. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 129)
+	final PlotCommit c = currCommit.children[0];
+	      ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+58. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 133)
+	c.lane = nextFreeLane();
+	  ^^^^
+Type safety: The field lane from the raw type PlotCommit is assigned a value of type PlotLane. References to generic type PlotCommit<L> should be parameterized
+----------
+59. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 137)
+	final PlotCommit rObj = get(r);
+	      ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+60. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 168)
+	final PlotCommit c = currCommit.children[i];
+	      ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+61. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 172)
+	c.lane = nextFreeLane();
+	  ^^^^
+Type safety: The field lane from the raw type PlotCommit is assigned a value of type PlotLane. References to generic type PlotCommit<L> should be parameterized
+----------
+62. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 199)
+	final PlotCommit rObj = get(r);
+	      ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+63. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 228)
+	recycleLane((L) lane);
+	            ^^^^^^^^
+Type safety: Unchecked cast from PlotLane to L
+----------
+64. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 237)
+	((PlotCommit) currCommit.getParent(i)).addChild(currCommit);
+	  ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+65. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotCommitList.java (at line 256)
+	return (L) new PlotLane();
+	       ^^^^^^^^^^^^^^^^^^
+Type safety: Unchecked cast from PlotLane to L
+----------
+----------
+66. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotWalk.java (at line 99)
+	return new PlotCommit(id);
+	           ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+67. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revplot/PlotWalk.java (at line 105)
+	PlotCommit<?> pc = (PlotCommit) super.next();
+	                    ^^^^^^^^^^
+PlotCommit is a raw type. References to generic type PlotCommit<L> should be parameterized
+----------
+----------
+68. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revwalk/ObjectWalk.java (at line 53)
+	import org.eclipse.jgit.lib.AnyObjectId;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.lib.AnyObjectId is never used
+----------
+----------
+69. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revwalk/RevCommitList.java (at line 310)
+	enter(size, (E) c);
+	            ^^^^^
+Type safety: Unchecked cast from RevCommit to E
+----------
+70. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revwalk/RevCommitList.java (at line 311)
+	add((E) c);
+	    ^^^^^
+Type safety: Unchecked cast from RevCommit to E
+----------
+71. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revwalk/RevCommitList.java (at line 336)
+	enter(size++, (E) c);
+	              ^^^^^
+Type safety: Unchecked cast from RevCommit to E
+----------
+----------
+72. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revwalk/RevObjectList.java (at line 104)
+	return (E) old;
+	       ^^^^^^^
+Type safety: Unchecked cast from Object to E
+----------
+73. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revwalk/RevObjectList.java (at line 116)
+	return s != null ? (E) s.contents[index] : null;
+	                   ^^^^^^^^^^^^^^^^^^^^^
+Type safety: Unchecked cast from Object to E
+----------
+----------
+74. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/revwalk/filter/PatternMatchRevFilter.java (at line 57)
+	import org.eclipse.jgit.util.RawCharSequence;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.util.RawCharSequence is never used
+----------
+----------
+75. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/storage/file/FileRepository.java (at line 151)
+	public FileRepository(final BaseRepositoryBuilder options) throws IOException {
+	                            ^^^^^^^^^^^^^^^^^^^^^
+BaseRepositoryBuilder is a raw type. References to generic type BaseRepositoryBuilder<B,R> should be parameterized
+----------
+----------
+76. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/storage/file/FileRepositoryBuilder.java (at line 46)
+	import java.io.File;
+	       ^^^^^^^^^^^^
+The import java.io.File is never used
+----------
+----------
+77. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/storage/file/PackIndex.java (at line 49)
+	import java.io.FileNotFoundException;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import java.io.FileNotFoundException is never used
+----------
+----------
+78. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/storage/file/PackIndexWriter.java (at line 56)
+	import org.eclipse.jgit.lib.ObjectId;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.lib.ObjectId is never used
+----------
+----------
+79. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/storage/pack/DeltaWindow.java (at line 380)
+	private void dropFromWindow(@SuppressWarnings("unused") int srcSlot) {
+	                                              ^^^^^^^^
+Unnecessary @SuppressWarnings("unused")
+----------
+----------
+80. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/storage/pack/ObjectReuseAsIs.java (at line 50)
+	import org.eclipse.jgit.lib.ObjectReader;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.lib.ObjectReader is never used
+----------
+----------
+81. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/storage/pack/PackConfig.java (at line 52)
+	import org.eclipse.jgit.storage.file.PackIndexWriter;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.storage.file.PackIndexWriter is never used
+----------
+----------
+82. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/storage/pack/PackWriter.java (at line 455)
+	Collections.sort(sortedByName);
+	^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Type safety: Unchecked invocation sort(List<ObjectToPack>) of the generic method sort(List<T>) of type Collections
+----------
+----------
+83. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/transport/FetchResult.java (at line 50)
+	import java.util.Collection;
+	       ^^^^^^^^^^^^^^^^^^^^
+The import java.util.Collection is never used
+----------
+----------
+84. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/transport/PushConnection.java (at line 51)
+	import org.eclipse.jgit.transport.RemoteRefUpdate.Status;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.transport.RemoteRefUpdate.Status is never used
+----------
+----------
+85. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/transport/RefAdvertiser.java (at line 183)
+	|| (all instanceof SortedMap && ((SortedMap) all).comparator() == null))
+	                   ^^^^^^^^^
+SortedMap is a raw type. References to generic type SortedMap<K,V> should be parameterized
+----------
+86. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/transport/RefAdvertiser.java (at line 183)
+	|| (all instanceof SortedMap && ((SortedMap) all).comparator() == null))
+	                                  ^^^^^^^^^
+SortedMap is a raw type. References to generic type SortedMap<K,V> should be parameterized
+----------
+----------
+87. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/transport/SshConfigSessionFactory.java (at line 63)
+	import com.jcraft.jsch.UserInfo;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^
+The import com.jcraft.jsch.UserInfo is never used
+----------
+----------
+88. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/transport/Transport.java (at line 64)
+	import org.eclipse.jgit.lib.NullProgressMonitor;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.lib.NullProgressMonitor is never used
+----------
+----------
+89. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/transport/TransportSftp.java (at line 197)
+	final Collection<ChannelSftp.LsEntry> list = ftp.ls("pack");
+	                                             ^^^^^^^^^^^^^^
+Type safety: The expression of type Vector needs unchecked conversion to conform to Collection<ChannelSftp.LsEntry>
+----------
+90. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/transport/TransportSftp.java (at line 354)
+	list = ftp.ls(dir);
+	       ^^^^^^^^^^^
+Type safety: The expression of type Vector needs unchecked conversion to conform to Collection<ChannelSftp.LsEntry>
+----------
+----------
+91. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/treewalk/AbstractTreeIterator.java (at line 59)
+	import org.eclipse.jgit.treewalk.filter.TreeFilter;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.treewalk.filter.TreeFilter is never used
+----------
+----------
+92. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/treewalk/CanonicalTreeParser.java (at line 51)
+	import org.eclipse.jgit.errors.MissingObjectException;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.errors.MissingObjectException is never used
+----------
+----------
+93. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/treewalk/NameConflictTreeWalk.java (at line 46)
+	import org.eclipse.jgit.dircache.DirCacheBuilder;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.dircache.DirCacheBuilder is never used
+----------
+----------
+94. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/treewalk/TreeWalk.java (at line 591)
+	return t.matches == currentHead ? (T) t : null;
+	                                  ^^^^^
+Type safety: Unchecked cast from AbstractTreeIterator to T
+----------
+----------
+95. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/treewalk/WorkingTreeIterator.java (at line 65)
+	import org.eclipse.jgit.dircache.DirCache;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.dircache.DirCache is never used
+----------
+----------
+96. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/util/RefMap.java (at line 402)
+	if (obj instanceof Map.Entry) {
+	                   ^^^^^^^^^
+Map.Entry is a raw type. References to generic type Map<K,V>.Entry<K,V> should be parameterized
+----------
+97. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/util/RefMap.java (at line 403)
+	final Object key = ((Map.Entry) obj).getKey();
+	                     ^^^^^^^^^
+Map.Entry is a raw type. References to generic type Map<K,V>.Entry<K,V> should be parameterized
+----------
+98. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/util/RefMap.java (at line 404)
+	final Object val = ((Map.Entry) obj).getValue();
+	                     ^^^^^^^^^
+Map.Entry is a raw type. References to generic type Map<K,V>.Entry<K,V> should be parameterized
+----------
+----------
+99. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/util/io/MessageWriter.java (at line 53)
+	import org.eclipse.jgit.transport.BaseConnection;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.transport.BaseConnection is never used
+----------
+----------
+100. WARNING in /home/moon/debian/eclipse/eclipse-jgit/debian/.eclipse-build/build/plugins/org.eclipse.jgit/src/org/eclipse/jgit/util/io/TeeInputStream.java (at line 50)
+	import org.eclipse.jgit.util.TemporaryBuffer;
+	       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The import org.eclipse.jgit.util.TemporaryBuffer is never used
+----------
+100 problems (100 warnings)

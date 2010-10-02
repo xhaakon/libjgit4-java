@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+
+# Note: We use forceContextQualifier because the docs plugins use custom build
+#       scripts and don't work otherwise.
+BUILD_OPTIONS := -DjavacTarget=1.5 -DjavacSource=1.5 -DforceContextQualifier=v20101002
+
+export JAVA_HOME := /usr/lib/jvm/default-java
+
+%:
+	dh --with eclipse-helper $@
+
+override_jh_compilefeatures:
+	jh_compilefeatures --build-opts '$(BUILD_OPTIONS)'
