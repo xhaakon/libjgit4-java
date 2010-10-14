@@ -1,0 +1,87 @@
+Format-Specification: http://svn.debian.org/wsvn/dep/web/deps/dep5.mdwn?op=file&rev=135
+Name: Eclipse-JGit
+
+Files: *
+Copyright: 2009, Alex Blewitt <alex.blewitt@gmail.com>
+           2008, Charles O'Farrell <charleso@charleso.org>
+           2010, Chris Aniszczyk <caniszczyk@gmail.com>
+           2010, Christian Halstrick <christian.halstrick@sap.com>
+           2009, Constantine Plotnikov <constantine.plotnikov@gmail.com>
+           2009, Daniel Cheng (aka SDiZ) <git@sdiz.net>
+           2009, Daniel Cheng (aka SDiZ) <j16sdiz+freenet@gmail.com> 
+           2007, Dave Watson <dwatson@mimvista.com>
+           2008, Florian Köberle <florianskarten@web.de>
+           2008-2010, Google Inc
+           2008, Imran M Yousuf <imyousuf@smartitengineering.com>
+           2010, Jens Baumgart <jens.baumgart@sap.com>
+           2009, JetBrains s.r.o
+           2008-2009, Johannes E. Schindelin <johannes.schindelin@gmx.de>
+           2008-2009, Jonas Fonseca <fonseca@diku.dk>
+           2010, Marc Strapetz <marc.strapetz@syntevo.com>
+           2008, Marek Zawirski <marek.zawirski@gmail.com>
+           2010, Mathias Kinzler <mathias.kinzler@sap.com>
+           2009-2010, Matthias Sohn <matthias.sohn@sap.com>
+           2008, Mike Ralphson <mike@abacus.co.uk>
+           2006-2010, Robin Rosenberg <robin.rosenberg@dewire.com>
+           2008, Roger C. Soares <rogersoares@intelinet.com.br>
+           2010, Sasa Zivkov <sasa.zivkov@sap.com>
+           2006-2008, Shawn O. Pearce <spearce@spearce.org>
+           2010, Stefan Lay <stefan.lay@sap.com>
+           2008, Thad Hughes <thadh@thad.corp.google.com>
+           2009, Tor Arne Vestbø <torarnv@gmail.com>
+           2009, Yann Simon <yann.simon.fr@gmail.com>
+           2009, Vasyl' Vavrychuk <vvavrychuk@gmail.com>
+License: EDL-1.0
+
+Files: org.eclipse.jgit/src/org/eclipse/jgit/util/Base64.java
+Copyright: Public Domain, written by Robert Harder
+License: PD
+ This file has been downloaded from:
+ http://iharder.sourceforge.net/current/java/base64/
+ .
+ Regarding the Public Domain note, the author of this file wrote the
+ following on his site.
+ .
+ A Note About Public Domain:
+ .
+ I have released this software into the Public Domain. That means you
+ can do whatever you want with it. Really. You don't have to match it
+ up with any other open source license &em; just use it. You can rename
+ the files, move the Java packages, whatever you want. If your lawyers
+ say you have to have a license, contact me, and I'll make a special
+ release to you under whatever reasonable license you desire: MIT, BSD,
+ GPL, whatever.
+
+Files: debian/*
+Copyright: 2010, Debian Orbital Alignment Team <pkg-java-maintainers@lists.alioth.debian.org>
+License: EDL-1.0
+
+License: EDL-1.0
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ .
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+ .
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+ .
+    * Neither the name of the Eclipse Foundation, Inc. nor the names
+      of its contributors may be used to endorse or promote products
+      derived from this software without specific prior written
+      permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
