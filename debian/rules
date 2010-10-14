@@ -7,7 +7,7 @@ BUILD_OPTIONS := -DjavacTarget=1.5 -DjavacSource=1.5 -DforceContextQualifier=v20
 export JAVA_HOME := /usr/lib/jvm/default-java
 
 %:
-	dh --with eclipse-helper $@
+	dh $@ --with eclipse-helper
 
 override_jh_compilefeatures:
 	jh_compilefeatures --build-opts '$(BUILD_OPTIONS)'
