@@ -6,8 +6,8 @@ Uploaders: Niels Thykier <niels@thykier.net>,
            Benjamin Drung <bdrung@ubuntu.com>
 Build-Depends: debhelper (>= 7.0.50~),
                default-jdk,
-               eclipse-pde (>= 3.5.2~),
-               eclipse-platform (>= 3.5.2~),
+               eclipse-pde (>= 3.5.2),
+               eclipse-platform (>= 3.5.2),
                javahelper (>= 0.32~),
                unzip,
                zip
@@ -18,7 +18,7 @@ Homepage: http://www.eclipse.org/jgit/
 
 Package: eclipse-jgit
 Architecture: all
-Depends: eclipse-platform (>= 3.5.2~), ${misc:Depends}
+Depends: eclipse-platform (>= 3.5.2), ${misc:Depends}
 Description: Java implementation of GIT for eclipse
  I am so smart, I am so smart - S.M.A.T.
  ~Homer J. Simpson.
