@@ -4,7 +4,7 @@ Section: devel
 Maintainer: Debian Java Maintainers <pkg-java-maintainers@lists.alioth.debian.org>
 Uploaders: Niels Thykier <niels@thykier.net>,
            Benjamin Drung <bdrung@ubuntu.com>
-Build-Depends: debhelper (>= 7.0.50~),
+Build-Depends: debhelper (>= 8~),
                default-jdk,
                eclipse-pde (>= 3.5.2),
                eclipse-platform (>= 3.5.2),
