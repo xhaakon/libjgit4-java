@@ -1,5 +1,5 @@
-eclipse-jgit (0.9.3-1) UNRELEASED; urgency=low
+eclipse-jgit (1.1.0-1) UNRELEASED; urgency=low
 
   * Initial release. (Closes: #600171)
 
- -- Niels Thykier <niels@thykier.net>  Sat, 02 Oct 2010 15:20:42 +0200
+ -- Jakub Adam <jakub.adam@ktknet.cz>  Mon, 26 Sep 2011 18:40:57 +0200
