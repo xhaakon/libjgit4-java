@@ -2,35 +2,57 @@ Format-Specification: http://svn.debian.org/wsvn/dep/web/deps/dep5.mdwn?op=file&
 Name: Eclipse-JGit
 
 Files: *
-Copyright: 2009, Alex Blewitt <alex.blewitt@gmail.com>
-           2008, Charles O'Farrell <charleso@charleso.org>
-           2010, Chris Aniszczyk <caniszczyk@gmail.com>
-           2010, Christian Halstrick <christian.halstrick@sap.com>
-           2009, Constantine Plotnikov <constantine.plotnikov@gmail.com>
+Copyright: 2011, Abhishek Bhatnagar <abhatnag@redhat.com>
+           2009, Alex Blewitt <alex.blewitt@gmail.com>
+           2007-2008, Charles O'Farrell <charleso@charleso.org>
+           2010-2011, Chris Aniszczyk <caniszczyk@gmail.com>
+           2011, Chris Aniszczyk <zx@redhat.com>
+           2009-2011, Christian Halstrick <christian.halstrick@sap.com>
+           2009, Christian Halstrick, Matthias Sohn, SAP AG
+           2011, Christoph Brill <egore911@egore911.de>
+           2009-2010, Constantine Plotnikov <constantine.plotnikov@gmail.com>
            2009, Daniel Cheng (aka SDiZ) <git@sdiz.net>
            2009, Daniel Cheng (aka SDiZ) <j16sdiz+freenet@gmail.com>
+           2011, Dariusz Luksza <dariusz@luksza.org>
            2007, Dave Watson <dwatson@mimvista.com>
            2008, Florian Köberle <florianskarten@web.de>
-           2008-2010, Google Inc
+           2010-2011, Garmin International
+           2011, GitHub Inc
+           2008-2011, Google Inc
            2008, Imran M Yousuf <imyousuf@smartitengineering.com>
            2010, Jens Baumgart <jens.baumgart@sap.com>
-           2009, JetBrains s.r.o
+           2011, Jesse Greenwald <jesse.greenwald@gmail.com>
+           2009-2010, JetBrains s.r.o
            2008-2009, Johannes E. Schindelin <johannes.schindelin@gmx.de>
            2008-2009, Jonas Fonseca <fonseca@diku.dk>
+           2011, Ketan Padegaonkar <KetanPadegaonkar@gmail.com>
+           2011, Kevin Sawicki <kevin@github.com>
+           2011, Leonard Broman <leonard.broman@gmail.com>
            2010, Marc Strapetz <marc.strapetz@syntevo.com>
            2008, Marek Zawirski <marek.zawirski@gmail.com>
-           2010, Mathias Kinzler <mathias.kinzler@sap.com>
-           2009-2010, Matthias Sohn <matthias.sohn@sap.com>
+           2009, Mark Struberg <struberg@yahoo.de>
+           2010-2011, Mathias Kinzler <mathias.kinzler@sap.com>
+           2010, Matt Fischer <matt.fischer@garmin.com>
+           2009-2011, Matthias Sohn <matthias.sohn@sap.com>
            2008, Mike Ralphson <mike@abacus.co.uk>
-           2006-2010, Robin Rosenberg <robin.rosenberg@dewire.com>
+           2009, Mykola Nikishov <mn@mn.com.ua>
+           2010-2011, Philipp Thun <philipp.thun@sap.com>
+           2010, Red Hat Inc
+           2007, Robin Rosenberg <me@lathund.dewire.com>
+           2008, Robin Rosenberg <robin.rosenberg.lists@dewire.com>
+           2006-2011, Robin Rosenberg <robin.rosenberg@dewire.com>
+           2009, Robin Rosenberg <robin.rosenberg@gmail.com>
+           2010, Robin Stocker <robin@nibor.org>
            2008, Roger C. Soares <rogersoares@intelinet.com.br>
-           2010, Sasa Zivkov <sasa.zivkov@sap.com>
-           2006-2008, Shawn O. Pearce <spearce@spearce.org>
+           2009-2010, Sasa Zivkov <sasa.zivkov@sap.com>
+           2006-2009, Shawn O. Pearce <spearce@spearce.org>
+           2011, Stefan Lay <stefan.lay@.com>
            2010, Stefan Lay <stefan.lay@sap.com>
            2008, Thad Hughes <thadh@thad.corp.google.com>
+           2011, Tomasz Zarna <Tomasz.Zarna@pl.ibm.com>
            2009, Tor Arne Vestbø <torarnv@gmail.com>
-           2009, Yann Simon <yann.simon.fr@gmail.com>
            2009, Vasyl' Vavrychuk <vvavrychuk@gmail.com>
+           2009, Yann Simon <yann.simon.fr@gmail.com>
 License: EDL-1.0
 
 Files: org.eclipse.jgit/src/org/eclipse/jgit/util/Base64.java
@@ -53,7 +75,7 @@ License: PD
  GPL, whatever.
 
 Files: debian/*
-Copyright: 2010, Debian Orbital Alignment Team <pkg-java-maintainers@lists.alioth.debian.org>
+Copyright: 2010-2011, Debian Orbital Alignment Team <pkg-java-maintainers@lists.alioth.debian.org>
 License: EDL-1.0
 
 License: EDL-1.0
