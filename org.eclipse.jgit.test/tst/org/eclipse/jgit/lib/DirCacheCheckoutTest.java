@@ -37,12 +37,24 @@
  */
 package org.eclipse.jgit.lib;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.MergeResult.MergeStatus;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheCheckout;
+import org.eclipse.jgit.errors.CorruptObjectException;
+import org.eclipse.jgit.errors.NoWorkTreeException;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.junit.Test;
 
 public class DirCacheCheckoutTest extends ReadTreeTest {
 	private DirCacheCheckout dco;
@@ -51,7 +63,7 @@ public class DirCacheCheckoutTest extends ReadTreeTest {
 			throws IllegalStateException, IOException {
 		DirCache dc = db.lockDirCache();
 		try {
-			dco = new DirCacheCheckout(db, head.getTreeId(), dc, merge.getTreeId());
+			dco = new DirCacheCheckout(db, head.getId(), dc, merge.getId());
 			dco.preScanTwoTrees();
 		} finally {
 			dc.unlock();
@@ -62,7 +74,7 @@ public class DirCacheCheckoutTest extends ReadTreeTest {
 	public void checkout() throws IOException {
 		DirCache dc = db.lockDirCache();
 		try {
-			dco = new DirCacheCheckout(db, theHead.getTreeId(), dc, theMerge.getTreeId());
+			dco = new DirCacheCheckout(db, theHead.getId(), dc, theMerge.getId());
 			dco.checkout();
 		} finally {
 			dc.unlock();
@@ -82,5 +94,67 @@ public class DirCacheCheckoutTest extends ReadTreeTest {
 	@Override
 	public List<String> getConflicts() {
 		return dco.getConflicts();
+	}
+
+	@Test
+	public void testResetHard() throws IOException, NoFilepatternException,
+			GitAPIException {
+		Git git = new Git(db);
+		writeTrashFile("f", "f()");
+		writeTrashFile("D/g", "g()");
+		git.add().addFilepattern(".").call();
+		git.commit().setMessage("inital").call();
+		assertIndex(mkmap("f", "f()", "D/g", "g()"));
+
+		git.branchCreate().setName("topic").call();
+
+		writeTrashFile("f", "f()\nmaster");
+		writeTrashFile("D/g", "g()\ng2()");
+		writeTrashFile("E/h", "h()");
+		git.add().addFilepattern(".").call();
+		RevCommit master = git.commit().setMessage("master-1").call();
+		assertIndex(mkmap("f", "f()\nmaster", "D/g", "g()\ng2()", "E/h", "h()"));
+
+		checkoutBranch("refs/heads/topic");
+		assertIndex(mkmap("f", "f()", "D/g", "g()"));
+
+		writeTrashFile("f", "f()\nside");
+		assertTrue(new File(db.getWorkTree(), "D/g").delete());
+		writeTrashFile("G/i", "i()");
+		git.add().addFilepattern(".").call();
+		git.add().addFilepattern(".").setUpdate(true).call();
+		RevCommit topic = git.commit().setMessage("topic-1").call();
+		assertIndex(mkmap("f", "f()\nside", "G/i", "i()"));
+
+		writeTrashFile("untracked", "untracked");
+
+		resetHard(master);
+		assertIndex(mkmap("f", "f()\nmaster", "D/g", "g()\ng2()", "E/h", "h()"));
+		resetHard(topic);
+		assertIndex(mkmap("f", "f()\nside", "G/i", "i()"));
+		assertWorkDir(mkmap("f", "f()\nside", "G/i", "i()", "untracked",
+				"untracked"));
+
+		assertEquals(MergeStatus.CONFLICTING, git.merge().include(master)
+				.call().getMergeStatus());
+		assertEquals(
+				"[D/g, mode:100644, stage:1][D/g, mode:100644, stage:3][E/h, mode:100644][G/i, mode:100644][f, mode:100644, stage:1][f, mode:100644, stage:2][f, mode:100644, stage:3]",
+				indexState(0));
+
+		resetHard(master);
+		assertIndex(mkmap("f", "f()\nmaster", "D/g", "g()\ng2()", "E/h", "h()"));
+		assertWorkDir(mkmap("f", "f()\nmaster", "D/g", "g()\ng2()", "E/h",
+				"h()", "untracked", "untracked"));
+	}
+
+	private DirCacheCheckout resetHard(RevCommit commit)
+			throws NoWorkTreeException,
+			CorruptObjectException, IOException {
+		DirCacheCheckout dc;
+		dc = new DirCacheCheckout(db, null, db.lockDirCache(),
+				commit.getTree());
+		dc.setFailOnConflict(true);
+		assertTrue(dc.checkout());
+		return dc;
 	}
 }

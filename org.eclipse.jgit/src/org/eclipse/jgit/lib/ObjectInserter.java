@@ -52,6 +52,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 
+import org.eclipse.jgit.transport.PackParser;
+
 /**
  * Inserts objects into an existing {@code ObjectDatabase}.
  * <p>
@@ -70,6 +72,11 @@ public abstract class ObjectInserter {
 		@Override
 		public ObjectId insert(int objectType, long length, InputStream in)
 				throws IOException {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public PackParser newPackParser(InputStream in) throws IOException {
 			throw new UnsupportedOperationException();
 		}
 
@@ -177,10 +184,33 @@ public abstract class ObjectInserter {
 	}
 
 	/**
-	 * Insert a single commit into the store, returning its unique name.
+	 * Compute the ObjectId for the given tree without inserting it.
 	 *
-	 * As a side effect, {@link CommitBuilder#getCommitId()} will also be
-	 * populated with the returned ObjectId.
+	 * @param formatter
+	 * @return the computed ObjectId
+	 */
+	public ObjectId idFor(TreeFormatter formatter) {
+		return formatter.computeId(this);
+	}
+
+	/**
+	 * Insert a single tree into the store, returning its unique name.
+	 *
+	 * @param formatter
+	 *            the formatter containing the proposed tree's data.
+	 * @return the name of the tree object.
+	 * @throws IOException
+	 *             the object could not be stored.
+	 */
+	public final ObjectId insert(TreeFormatter formatter) throws IOException {
+		// Delegate to the formatter, as then it can pass the raw internal
+		// buffer back to this inserter, avoiding unnecessary data copying.
+		//
+		return formatter.insertTo(this);
+	}
+
+	/**
+	 * Insert a single commit into the store, returning its unique name.
 	 *
 	 * @param builder
 	 *            the builder containing the proposed commit's data.
@@ -189,14 +219,11 @@ public abstract class ObjectInserter {
 	 *             the object could not be stored.
 	 */
 	public final ObjectId insert(CommitBuilder builder) throws IOException {
-		return insert(Constants.OBJ_COMMIT, builder.format(this));
+		return insert(Constants.OBJ_COMMIT, builder.build());
 	}
 
 	/**
 	 * Insert a single annotated tag into the store, returning its unique name.
-	 *
-	 * As a side effect, {@link TagBuilder#getTagId()} will also be populated
-	 * with the returned ObjectId.
 	 *
 	 * @param builder
 	 *            the builder containing the proposed tag's data.
@@ -205,7 +232,7 @@ public abstract class ObjectInserter {
 	 *             the object could not be stored.
 	 */
 	public final ObjectId insert(TagBuilder builder) throws IOException {
-		return insert(Constants.OBJ_TAG, builder.format(this));
+		return insert(Constants.OBJ_TAG, builder.build());
 	}
 
 	/**
@@ -261,6 +288,19 @@ public abstract class ObjectInserter {
 	 */
 	public abstract ObjectId insert(int objectType, long length, InputStream in)
 			throws IOException;
+
+	/**
+	 * Initialize a parser to read from a pack formatted stream.
+	 *
+	 * @param in
+	 *            the input stream. The stream is not closed by the parser, and
+	 *            must instead be closed by the caller once parsing is complete.
+	 * @return the pack parser.
+	 * @throws IOException
+	 *             the parser instance, which can be configured and then used to
+	 *             parse objects into the ObjectDatabase.
+	 */
+	public abstract PackParser newPackParser(InputStream in) throws IOException;
 
 	/**
 	 * Make all inserted objects visible.

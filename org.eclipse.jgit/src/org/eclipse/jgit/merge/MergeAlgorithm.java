@@ -47,24 +47,37 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import org.eclipse.jgit.diff.DiffAlgorithm;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.EditList;
-import org.eclipse.jgit.diff.MyersDiff;
+import org.eclipse.jgit.diff.HistogramDiff;
 import org.eclipse.jgit.diff.Sequence;
 import org.eclipse.jgit.diff.SequenceComparator;
 import org.eclipse.jgit.merge.MergeChunk.ConflictState;
 
 /**
  * Provides the merge algorithm which does a three-way merge on content provided
- * as RawText. Makes use of {@link MyersDiff} to compute the diffs.
+ * as RawText. By default {@link HistogramDiff} is used as diff algorithm.
  */
 public final class MergeAlgorithm {
+	private final DiffAlgorithm diffAlg;
 
 	/**
-	 * Since this class provides only static methods I add a private default
-	 * constructor to prevent instantiation.
+	 * Creates a new MergeAlgorithm which uses {@link HistogramDiff} as diff
+	 * algorithm
 	 */
-	private MergeAlgorithm() {
+	public MergeAlgorithm() {
+		this(new HistogramDiff());
+	}
+
+	/**
+	 * Creates a new MergeAlgorithm
+	 *
+	 * @param diff
+	 *            the diff algorithm used by this merge
+	 */
+	public MergeAlgorithm(DiffAlgorithm diff) {
+		this.diffAlg = diff;
 	}
 
 	// An special edit which acts as a sentinel value by marking the end the
@@ -83,16 +96,47 @@ public final class MergeAlgorithm {
 	 * @param theirs the second sequence to be merged
 	 * @return the resulting content
 	 */
-	public static <S extends Sequence> MergeResult<S> merge(
+	public <S extends Sequence> MergeResult<S> merge(
 			SequenceComparator<S> cmp, S base, S ours, S theirs) {
 		List<S> sequences = new ArrayList<S>(3);
 		sequences.add(base);
 		sequences.add(ours);
 		sequences.add(theirs);
-		MergeResult result = new MergeResult<S>(sequences);
-		EditList oursEdits = new MyersDiff<S>(cmp, base, ours).getEdits();
+		MergeResult<S> result = new MergeResult<S>(sequences);
+
+		if (ours.size() == 0) {
+			if (theirs.size() != 0) {
+				EditList theirsEdits = diffAlg.diff(cmp, base, theirs);
+				if (!theirsEdits.isEmpty()) {
+					// we deleted, they modified -> Let their complete content
+					// conflict with empty text
+					result.add(1, 0, 0, ConflictState.FIRST_CONFLICTING_RANGE);
+					result.add(2, 0, theirs.size(),
+							ConflictState.NEXT_CONFLICTING_RANGE);
+				} else
+					// we deleted, they didn't modify -> Let our deletion win
+					result.add(1, 0, 0, ConflictState.NO_CONFLICT);
+			} else
+				// we and they deleted -> return a single chunk of nothing
+				result.add(1, 0, 0, ConflictState.NO_CONFLICT);
+			return result;
+		} else if (theirs.size() == 0) {
+			EditList oursEdits = diffAlg.diff(cmp, base, ours);
+			if (!oursEdits.isEmpty()) {
+				// we modified, they deleted -> Let our complete content
+				// conflict with empty text
+				result.add(1, 0, ours.size(),
+						ConflictState.FIRST_CONFLICTING_RANGE);
+				result.add(2, 0, 0, ConflictState.NEXT_CONFLICTING_RANGE);
+			} else
+				// they deleted, we didn't modify -> Let their deletion win
+				result.add(2, 0, 0, ConflictState.NO_CONFLICT);
+			return result;
+		}
+
+		EditList oursEdits = diffAlg.diff(cmp, base, ours);
 		Iterator<Edit> baseToOurs = oursEdits.iterator();
-		EditList theirsEdits = new MyersDiff<S>(cmp, base, theirs).getEdits();
+		EditList theirsEdits = diffAlg.diff(cmp, base, theirs);
 		Iterator<Edit> baseToTheirs = theirsEdits.iterator();
 		int current = 0; // points to the next line (first line is 0) of base
 		                 // which was not handled yet
@@ -103,7 +147,7 @@ public final class MergeAlgorithm {
 		// leave the loop when there are no edits more for ours or for theirs
 		// (or both)
 		while (theirsEdit != END_EDIT || oursEdit != END_EDIT) {
-			if (oursEdit.getEndA() <= theirsEdit.getBeginA()) {
+			if (oursEdit.getEndA() < theirsEdit.getBeginA()) {
 				// something was changed in ours not overlapping with any change
 				// from theirs. First add the common part in front of the edit
 				// then the edit.
@@ -115,7 +159,7 @@ public final class MergeAlgorithm {
 						ConflictState.NO_CONFLICT);
 				current = oursEdit.getEndA();
 				oursEdit = nextEdit(baseToOurs);
-			} else if (theirsEdit.getEndA() <= oursEdit.getBeginA()) {
+			} else if (theirsEdit.getEndA() < oursEdit.getBeginA()) {
 				// something was changed in theirs not overlapping with any
 				// from ours. First add the common part in front of the edit
 				// then the edit.
@@ -179,10 +223,10 @@ public final class MergeAlgorithm {
 				Edit nextOursEdit = nextEdit(baseToOurs);
 				Edit nextTheirsEdit = nextEdit(baseToTheirs);
 				for (;;) {
-					if (oursEdit.getEndA() > nextTheirsEdit.getBeginA()) {
+					if (oursEdit.getEndA() >= nextTheirsEdit.getBeginA()) {
 						theirsEdit = nextTheirsEdit;
 						nextTheirsEdit = nextEdit(baseToTheirs);
-					} else if (theirsEdit.getEndA() > nextOursEdit.getBeginA()) {
+					} else if (theirsEdit.getEndA() >= nextOursEdit.getBeginA()) {
 						oursEdit = nextOursEdit;
 						nextOursEdit = nextEdit(baseToOurs);
 					} else {
@@ -201,28 +245,39 @@ public final class MergeAlgorithm {
 
 				// A conflicting region is found. Strip off common lines in
 				// in the beginning and the end of the conflicting region
-				int conflictLen = Math.min(oursEndB - oursBeginB, theirsEndB
-						- theirsBeginB);
+
+				// Determine the minimum length of the conflicting areas in OURS
+				// and THEIRS. Also determine how much bigger the conflicting
+				// area in THEIRS is compared to OURS. All that is needed to
+				// limit the search for common areas at the beginning or end
+				// (the common areas cannot be bigger then the smaller
+				// conflicting area. The delta is needed to know whether the
+				// complete conflicting area is common in OURS and THEIRS.
+				int minBSize = oursEndB - oursBeginB;
+				int BSizeDelta = minBSize - (theirsEndB - theirsBeginB);
+				if (BSizeDelta > 0)
+					minBSize -= BSizeDelta;
+
 				int commonPrefix = 0;
-				while (commonPrefix < conflictLen
+				while (commonPrefix < minBSize
 						&& cmp.equals(ours, oursBeginB + commonPrefix, theirs,
 								theirsBeginB + commonPrefix))
 					commonPrefix++;
-				conflictLen -= commonPrefix;
+				minBSize -= commonPrefix;
 				int commonSuffix = 0;
-				while (commonSuffix < conflictLen
+				while (commonSuffix < minBSize
 						&& cmp.equals(ours, oursEndB - commonSuffix - 1, theirs,
 								theirsEndB - commonSuffix - 1))
 					commonSuffix++;
-				conflictLen -= commonSuffix;
+				minBSize -= commonSuffix;
 
 				// Add the common lines at start of conflict
 				if (commonPrefix > 0)
 					result.add(1, oursBeginB, oursBeginB + commonPrefix,
 							ConflictState.NO_CONFLICT);
 
-				// Add the conflict
-				if (conflictLen > 0) {
+				// Add the conflict (Only if there is a conflict left to report)
+				if (minBSize > 0 || BSizeDelta != 0) {
 					result.add(1, oursBeginB + commonPrefix, oursEndB
 							- commonSuffix,
 							ConflictState.FIRST_CONFLICTING_RANGE);

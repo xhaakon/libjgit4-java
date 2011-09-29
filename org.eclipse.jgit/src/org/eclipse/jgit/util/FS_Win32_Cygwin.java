@@ -43,17 +43,17 @@
 
 package org.eclipse.jgit.util;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 class FS_Win32_Cygwin extends FS_Win32 {
 	private static String cygpath;
 
-	static boolean detect() {
+	static boolean isCygwin() {
 		final String path = AccessController
 				.doPrivileged(new PrivilegedAction<String>() {
 					public String run() {
@@ -62,47 +62,30 @@ class FS_Win32_Cygwin extends FS_Win32 {
 				});
 		if (path == null)
 			return false;
-		for (final String p : path.split(";")) {
-			final File e = new File(p, "cygpath.exe");
-			if (e.isFile()) {
-				cygpath = e.getAbsolutePath();
-				return true;
-			}
-		}
-		return false;
+		File found = FS.searchPath(path, "cygpath.exe");
+		if (found != null)
+			cygpath = found.getPath();
+		return cygpath != null;
+	}
+
+	FS_Win32_Cygwin() {
+		super();
+	}
+
+	FS_Win32_Cygwin(FS src) {
+		super(src);
+	}
+
+	public FS newInstance() {
+		return new FS_Win32_Cygwin(this);
 	}
 
 	public File resolve(final File dir, final String pn) {
-		try {
-			final Process p;
-
-			p = Runtime.getRuntime().exec(
-					new String[] { cygpath, "--windows", "--absolute", pn },
-					null, dir);
-			p.getOutputStream().close();
-
-			final BufferedReader lineRead = new BufferedReader(
-					new InputStreamReader(p.getInputStream(), "UTF-8"));
-			String r = null;
-			try {
-				r = lineRead.readLine();
-			} finally {
-				lineRead.close();
-			}
-
-			for (;;) {
-				try {
-					if (p.waitFor() == 0 && r != null && r.length() > 0)
-						return new File(r);
-					break;
-				} catch (InterruptedException ie) {
-					// Stop bothering me, I have a zombie to reap.
-				}
-			}
-		} catch (IOException ioe) {
-			// Fall through and use the default return.
-			//
-		}
+		String w = readPipe(dir, //
+				new String[] { cygpath, "--windows", "--absolute", pn }, //
+				"UTF-8");
+		if (w != null)
+			return new File(w);
 		return super.resolve(dir, pn);
 	}
 
@@ -117,5 +100,18 @@ class FS_Win32_Cygwin extends FS_Win32 {
 		if (home == null || home.length() == 0)
 			return super.userHomeImpl();
 		return resolve(new File("."), home);
+	}
+
+	@Override
+	public ProcessBuilder runInShell(String cmd, String[] args) {
+		List<String> argv = new ArrayList<String>(4 + args.length);
+		argv.add("sh.exe");
+		argv.add("-c");
+		argv.add(cmd + " \"$@\"");
+		argv.add(cmd);
+		argv.addAll(Arrays.asList(args));
+		ProcessBuilder proc = new ProcessBuilder();
+		proc.command(argv);
+		return proc;
 	}
 }

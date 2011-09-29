@@ -46,6 +46,8 @@
 
 package org.eclipse.jgit.lib;
 
+import static org.junit.Assert.assertEquals;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -58,10 +60,15 @@ import java.util.TreeSet;
 
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheBuilder;
+import org.eclipse.jgit.dircache.DirCacheCheckout;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.junit.LocalDiskRepositoryTestCase;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepository;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.util.FileUtils;
+import org.junit.Before;
 
 /**
  * Base class for most JGit unit tests.
@@ -96,6 +103,11 @@ public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
 		return path;
 	}
 
+	protected void deleteTrashFile(final String name) throws IOException {
+		File path = new File(db.getWorkTree(), name);
+		FileUtils.delete(path);
+	}
+
 	protected static void checkFile(File f, final String checkData)
 			throws IOException {
 		Reader r = new InputStreamReader(new FileInputStream(f), "ISO-8859-1");
@@ -116,7 +128,8 @@ public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
 	protected File trash;
 
 	@Override
-	protected void setUp() throws Exception {
+	@Before
+	public void setUp() throws Exception {
 		super.setUp();
 		db = createWorkRepository();
 		trash = db.getWorkTree();
@@ -131,6 +144,8 @@ public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
 	public static final int CONTENT_ID = 8;
 
 	public static final int CONTENT = 16;
+
+	public static final int ASSUME_UNCHANGED = 32;
 
 	/**
 	 * Represent the state of the index in one String. This representation is
@@ -155,20 +170,24 @@ public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
 	 * 'stage' is only presented when the stage is different from 0. All
 	 * reported time stamps are mapped to strings like "t0", "t1", ... "tn". The
 	 * smallest reported time-stamp will be called "t0". This allows to write
-	 * assertions against the string although the concrete value of the
-	 * time stamps is unknown.
+	 * assertions against the string although the concrete value of the time
+	 * stamps is unknown.
+	 *
+	 * @param repo
+	 *            the repository the index state should be determined for
 	 *
 	 * @param includedOptions
 	 *            a bitmask constructed out of the constants {@link #MOD_TIME},
-	 *            {@link #SMUDGE}, {@link #LENGTH}, {@link #CONTENT_ID} and {@link #CONTENT}
-	 *            controlling which info is present in the resulting string.
+	 *            {@link #SMUDGE}, {@link #LENGTH}, {@link #CONTENT_ID} and
+	 *            {@link #CONTENT} controlling which info is present in the
+	 *            resulting string.
 	 * @return a string encoding the index state
 	 * @throws IllegalStateException
 	 * @throws IOException
 	 */
-	public String indexState(int includedOptions)
+	public String indexState(Repository repo, int includedOptions)
 			throws IllegalStateException, IOException {
-		DirCache dc = db.readDirCache();
+		DirCache dc = repo.readDirCache();
 		StringBuilder sb = new StringBuilder();
 		TreeSet<Long> timeStamps = null;
 
@@ -203,9 +222,52 @@ public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
 						+ new String(db.open(entry.getObjectId(),
 								Constants.OBJ_BLOB).getCachedBytes(), "UTF-8"));
 			}
+			if (0 != (includedOptions & ASSUME_UNCHANGED))
+				sb.append(", assume-unchanged:"
+						+ Boolean.toString(entry.isAssumeValid()));
 			sb.append("]");
 		}
 		return sb.toString();
+	}
+
+	/**
+	 * Represent the state of the index in one String. This representation is
+	 * useful when writing tests which do assertions on the state of the index.
+	 * By default information about path, mode, stage (if different from 0) is
+	 * included. A bitmask controls which additional info about
+	 * modificationTimes, smudge state and length is included.
+	 * <p>
+	 * The format of the returned string is described with this BNF:
+	 *
+	 * <pre>
+	 * result = ( "[" path mode stage? time? smudge? length? sha1? content? "]" )* .
+	 * mode = ", mode:" number .
+	 * stage = ", stage:" number .
+	 * time = ", time:t" timestamp-index .
+	 * smudge = "" | ", smudged" .
+	 * length = ", length:" number .
+	 * sha1 = ", sha1:" hex-sha1 .
+	 * content = ", content:" blob-data .
+	 * </pre>
+	 *
+	 * 'stage' is only presented when the stage is different from 0. All
+	 * reported time stamps are mapped to strings like "t0", "t1", ... "tn". The
+	 * smallest reported time-stamp will be called "t0". This allows to write
+	 * assertions against the string although the concrete value of the time
+	 * stamps is unknown.
+	 *
+	 * @param includedOptions
+	 *            a bitmask constructed out of the constants {@link #MOD_TIME},
+	 *            {@link #SMUDGE}, {@link #LENGTH}, {@link #CONTENT_ID} and
+	 *            {@link #CONTENT} controlling which info is present in the
+	 *            resulting string.
+	 * @return a string encoding the index state
+	 * @throws IllegalStateException
+	 * @throws IOException
+	 */
+	public String indexState(int includedOptions)
+			throws IllegalStateException, IOException {
+		return indexState(db, includedOptions);
 	}
 
 	/**
@@ -312,7 +374,29 @@ public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
 			}
 			return actTime;
 		} finally {
-			tmp.delete();
+			FileUtils.delete(tmp);
 		}
+	}
+
+	protected void createBranch(ObjectId objectId, String branchName)
+			throws IOException {
+		RefUpdate updateRef = db.updateRef(branchName);
+		updateRef.setNewObjectId(objectId);
+		updateRef.update();
+	}
+
+	protected void checkoutBranch(String branchName)
+			throws IllegalStateException, IOException {
+		RevWalk walk = new RevWalk(db);
+		RevCommit head = walk.parseCommit(db.resolve(Constants.HEAD));
+		RevCommit branch = walk.parseCommit(db.resolve(branchName));
+		DirCacheCheckout dco = new DirCacheCheckout(db, head.getTree().getId(),
+				db.lockDirCache(), branch.getTree().getId());
+		dco.setFailOnConflict(true);
+		dco.checkout();
+		walk.release();
+		// update the HEAD
+		RefUpdate refUpdate = db.updateRef(Constants.HEAD);
+		refUpdate.link(branchName);
 	}
 }

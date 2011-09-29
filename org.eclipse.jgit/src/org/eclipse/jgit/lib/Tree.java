@@ -45,7 +45,6 @@
 
 package org.eclipse.jgit.lib;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.text.MessageFormat;
 
@@ -66,7 +65,7 @@ import org.eclipse.jgit.util.RawParseUtils;
  * information from its getter methods.
  */
 @Deprecated
-public class Tree extends TreeEntry implements Treeish {
+public class Tree extends TreeEntry {
 	private static final TreeEntry[] EMPTY_TREE = {};
 
 	/**
@@ -234,14 +233,6 @@ public class Tree extends TreeEntry implements Treeish {
 
 	public Repository getRepository() {
 		return db;
-	}
-
-	public final ObjectId getTreeId() {
-		return getId();
-	}
-
-	public final Tree getTree() {
-		return this;
 	}
 
 	/**
@@ -510,33 +501,6 @@ public class Tree extends TreeEntry implements Treeish {
 		return findMember(s,(byte)'/');
 	}
 
-	public void accept(final TreeVisitor tv, final int flags)
-			throws IOException {
-		final TreeEntry[] c;
-
-		if ((MODIFIED_ONLY & flags) == MODIFIED_ONLY && !isModified())
-			return;
-
-		if ((LOADED_ONLY & flags) == LOADED_ONLY && !isLoaded()) {
-			tv.startVisitTree(this);
-			tv.endVisitTree(this);
-			return;
-		}
-
-		ensureLoaded();
-		tv.startVisitTree(this);
-
-		if ((CONCURRENT_MODIFICATION & flags) == CONCURRENT_MODIFICATION)
-			c = members();
-		else
-			c = contents;
-
-		for (int k = 0; k < c.length; k++)
-			c[k].accept(tv, flags);
-
-		tv.endVisitTree(this);
-	}
-
 	private void ensureLoaded() throws IOException, MissingObjectException {
 		if (!isLoaded()) {
 			ObjectLoader ldr = db.open(getId(), Constants.OBJ_TREE);
@@ -614,20 +578,16 @@ public class Tree extends TreeEntry implements Treeish {
 	 *             the tree cannot be loaded, or its not in a writable state.
 	 */
 	public byte[] format() throws IOException {
-		ByteArrayOutputStream o = new ByteArrayOutputStream();
+		TreeFormatter fmt = new TreeFormatter();
 		for (TreeEntry e : members()) {
 			ObjectId id = e.getId();
 			if (id == null)
 				throw new ObjectWritingException(MessageFormat.format(JGitText
 						.get().objectAtPathDoesNotHaveId, e.getFullName()));
 
-			e.getMode().copyTo(o);
-			o.write(' ');
-			o.write(e.getNameUTF8());
-			o.write(0);
-			id.copyRawTo(o);
+			fmt.append(e.getNameUTF8(), e.getMode(), id);
 		}
-		return o.toByteArray();
+		return fmt.toByteArray();
 	}
 
 	public String toString() {

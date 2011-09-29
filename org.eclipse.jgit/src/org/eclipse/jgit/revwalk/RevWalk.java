@@ -63,7 +63,7 @@ import org.eclipse.jgit.lib.AsyncObjectLoaderQueue;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectIdSubclassMap;
+import org.eclipse.jgit.lib.ObjectIdOwnerMap;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
@@ -170,7 +170,7 @@ public class RevWalk implements Iterable<RevCommit> {
 
 	final MutableObjectId idBuffer;
 
-	private final ObjectIdSubclassMap<RevObject> objects;
+	ObjectIdOwnerMap<RevObject> objects;
 
 	private int freeFlags = APP_FLAGS;
 
@@ -220,7 +220,7 @@ public class RevWalk implements Iterable<RevCommit> {
 		repository = repo;
 		reader = or;
 		idBuffer = new MutableObjectId();
-		objects = new ObjectIdSubclassMap<RevObject>();
+		objects = new ObjectIdOwnerMap<RevObject>();
 		roots = new ArrayList<RevCommit>();
 		queue = new DateRevQueue();
 		pending = new StartGenerator(this);
@@ -1181,7 +1181,6 @@ public class RevWalk implements Iterable<RevCommit> {
 			}
 		}
 
-		reader.release();
 		roots.clear();
 		queue = new DateRevQueue();
 		pending = new StartGenerator(this);
@@ -1270,6 +1269,26 @@ public class RevWalk implements Iterable<RevCommit> {
 
 	private boolean isNotStarted() {
 		return pending instanceof StartGenerator;
+	}
+
+	/**
+	 * Create and return an {@link ObjectWalk} using the same objects.
+	 * <p>
+	 * Prior to using this method, the caller must reset this RevWalk to clean
+	 * any flags that were used during the last traversal.
+	 * <p>
+	 * The returned ObjectWalk uses the same ObjectReader, internal object pool,
+	 * and free RevFlags. Once the ObjectWalk is created, this RevWalk should
+	 * not be used anymore.
+	 *
+	 * @return a new walk, using the exact same object pool.
+	 */
+	public ObjectWalk toObjectWalkWithSameObjects() {
+		ObjectWalk ow = new ObjectWalk(reader);
+		RevWalk rw = ow;
+		rw.objects = objects;
+		rw.freeFlags = freeFlags;
+		return ow;
 	}
 
 	/**

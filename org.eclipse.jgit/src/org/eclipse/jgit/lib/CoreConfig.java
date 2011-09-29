@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2010, Chris Aniszczyk <caniszczyk@gmail.com>
  * Copyright (C) 2009, Christian Halstrick <christian.halstrick@sap.com>
  * Copyright (C) 2009, Google Inc.
  * Copyright (C) 2007, Robin Rosenberg <robin.rosenberg@dewire.com>
@@ -79,13 +80,14 @@ public class CoreConfig {
 
 	private final boolean logAllRefUpdates;
 
-	private final AutoCRLF autoCRLF;
+	private final String excludesfile;
 
 	private CoreConfig(final Config rc) {
 		compression = rc.getInt("core", "compression", DEFAULT_COMPRESSION);
 		packIndexVersion = rc.getInt("pack", "indexversion", 2);
 		logAllRefUpdates = rc.getBoolean("core", "logallrefupdates", true);
-		autoCRLF = rc.getEnum("core", null, "autocrlf", AutoCRLF.FALSE);
+		excludesfile = rc.getString(ConfigConstants.CONFIG_CORE_SECTION, null,
+				ConfigConstants.CONFIG_KEY_EXCLUDESFILE);
 	}
 
 	/**
@@ -97,7 +99,6 @@ public class CoreConfig {
 
 	/**
 	 * @return the preferred pack index file format; 0 for oldest possible.
-	 * @see org.eclipse.jgit.transport.IndexPack
 	 */
 	public int getPackIndexVersion() {
 		return packIndexVersion;
@@ -111,9 +112,9 @@ public class CoreConfig {
 	}
 
 	/**
-	 * @return whether automatic CRLF conversion has been configured
+	 * @return path of excludesfile
 	 */
-	public AutoCRLF getAutoCRLF() {
-		return autoCRLF;
+	public String getExcludesFile() {
+		return excludesfile;
 	}
 }

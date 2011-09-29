@@ -52,7 +52,10 @@ import java.io.BufferedOutputStream;
 import java.io.PrintWriter;
 import java.text.MessageFormat;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import org.eclipse.jgit.diff.DiffAlgorithm;
+import org.eclipse.jgit.diff.DiffAlgorithm.SupportedAlgorithm;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.RawTextComparator;
@@ -96,6 +99,11 @@ class Diff extends TextBuiltin {
 	@Option(name = "--no-renames", usage = "usage_noRenames")
 	void noRenames(@SuppressWarnings("unused") boolean on) {
 		detectRenames = Boolean.FALSE;
+	}
+
+	@Option(name = "--algorithm", metaVar = "metaVar_diffAlg", usage = "usage_diffAlgorithm")
+	void setAlgorithm(SupportedAlgorithm s) {
+		diffFmt.setDiffAlgorithm(DiffAlgorithm.getAlgorithm(s));
 	}
 
 	@Option(name = "-l", usage = "usage_renameLimit")
@@ -182,7 +190,9 @@ class Diff extends TextBuiltin {
 			} else if (newTree == null)
 				newTree = new FileTreeIterator(db);
 
-			diffFmt.setProgressMonitor(new TextProgressMonitor());
+			TextProgressMonitor pm = new TextProgressMonitor();
+			pm.setDelayStart(2, TimeUnit.SECONDS);
+			diffFmt.setProgressMonitor(pm);
 			diffFmt.setPathFilter(pathFilter);
 			if (detectRenames != null)
 				diffFmt.setDetectRenames(detectRenames.booleanValue());

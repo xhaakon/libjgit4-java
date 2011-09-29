@@ -48,6 +48,7 @@ import static javax.servlet.http.HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
 import static javax.servlet.http.HttpServletResponse.SC_NOT_FOUND;
 import static javax.servlet.http.HttpServletResponse.SC_UNAUTHORIZED;
 import static org.eclipse.jgit.http.server.ServletUtils.ATTRIBUTE_REPOSITORY;
+import static org.eclipse.jgit.util.HttpSupport.HDR_ACCEPT;
 
 import java.io.IOException;
 import java.text.MessageFormat;
@@ -63,10 +64,11 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
-import org.eclipse.jgit.http.server.resolver.RepositoryResolver;
-import org.eclipse.jgit.http.server.resolver.ServiceNotAuthorizedException;
-import org.eclipse.jgit.http.server.resolver.ServiceNotEnabledException;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.transport.PacketLineOut;
+import org.eclipse.jgit.transport.resolver.RepositoryResolver;
+import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
+import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 
 /**
  * Opens a repository named by the path info through {@link RepositoryResolver}.
@@ -82,7 +84,7 @@ import org.eclipse.jgit.lib.Repository;
  * attribute when the request is complete.
  */
 public class RepositoryFilter implements Filter {
-	private final RepositoryResolver resolver;
+	private final RepositoryResolver<HttpServletRequest> resolver;
 
 	private ServletContext context;
 
@@ -94,7 +96,7 @@ public class RepositoryFilter implements Filter {
 	 *            component to the actual {@link Repository} instance for the
 	 *            current web request.
 	 */
-	public RepositoryFilter(final RepositoryResolver resolver) {
+	public RepositoryFilter(final RepositoryResolver<HttpServletRequest> resolver) {
 		this.resolver = resolver;
 	}
 
@@ -131,13 +133,13 @@ public class RepositoryFilter implements Filter {
 		try {
 			db = resolver.open(req, name);
 		} catch (RepositoryNotFoundException e) {
-			((HttpServletResponse) rsp).sendError(SC_NOT_FOUND);
+			sendError(SC_NOT_FOUND, req, (HttpServletResponse) rsp);
+			return;
+		} catch (ServiceNotEnabledException e) {
+			sendError(SC_FORBIDDEN, req, (HttpServletResponse) rsp);
 			return;
 		} catch (ServiceNotAuthorizedException e) {
 			((HttpServletResponse) rsp).sendError(SC_UNAUTHORIZED);
-			return;
-		} catch (ServiceNotEnabledException e) {
-			((HttpServletResponse) rsp).sendError(SC_FORBIDDEN);
 			return;
 		}
 		try {
@@ -146,6 +148,59 @@ public class RepositoryFilter implements Filter {
 		} finally {
 			request.removeAttribute(ATTRIBUTE_REPOSITORY);
 			db.close();
+		}
+	}
+
+	static void sendError(int statusCode, HttpServletRequest req,
+			HttpServletResponse rsp) throws IOException {
+		String svc = req.getParameter("service");
+
+		if (req.getRequestURI().endsWith("/info/refs") && isService(svc)) {
+			// Smart HTTP service request, use an ERR response.
+			rsp.setContentType("application/x-" + svc + "-advertisement");
+
+			SmartOutputStream buf = new SmartOutputStream(req, rsp);
+			PacketLineOut out = new PacketLineOut(buf);
+			out.writeString("# service=" + svc + "\n");
+			out.end();
+			out.writeString("ERR " + translate(statusCode));
+			buf.close();
+			return;
+		}
+
+		String accept = req.getHeader(HDR_ACCEPT);
+		if (accept != null && accept.contains(UploadPackServlet.RSP_TYPE)) {
+			// An upload-pack wants ACK or NAK, return ERR
+			// and the client will print this instead.
+			rsp.setContentType(UploadPackServlet.RSP_TYPE);
+			SmartOutputStream buf = new SmartOutputStream(req, rsp);
+			PacketLineOut out = new PacketLineOut(buf);
+			out.writeString("ERR " + translate(statusCode));
+			buf.close();
+			return;
+		}
+
+		// Otherwise fail with an HTTP error code instead of an
+		// application level message. This may not be as pretty
+		// of a result for the user, but its better than nothing.
+		//
+		rsp.sendError(statusCode);
+	}
+
+	private static boolean isService(String svc) {
+		return "git-upload-pack".equals(svc) || "git-receive-pack".equals(svc);
+	}
+
+	private static String translate(int statusCode) {
+		switch (statusCode) {
+		case SC_NOT_FOUND:
+			return HttpServerText.get().repositoryNotFound;
+
+		case SC_FORBIDDEN:
+			return HttpServerText.get().repositoryAccessForbidden;
+
+		default:
+			return String.valueOf(statusCode);
 		}
 	}
 }

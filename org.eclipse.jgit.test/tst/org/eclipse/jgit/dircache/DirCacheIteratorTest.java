@@ -43,34 +43,46 @@
 
 package org.eclipse.jgit.dircache;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+
+import java.io.File;
 import java.util.Collections;
 
+import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.RepositoryTestCase;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
+import org.eclipse.jgit.util.FS;
+import org.junit.Test;
 
 public class DirCacheIteratorTest extends RepositoryTestCase {
+	@Test
 	public void testEmptyTree_NoTreeWalk() throws Exception {
-		final DirCache dc = db.readDirCache();
+		final DirCache dc = DirCache.newInCore();
 		assertEquals(0, dc.getEntryCount());
 
 		final DirCacheIterator i = new DirCacheIterator(dc);
 		assertTrue(i.eof());
 	}
 
+	@Test
 	public void testEmptyTree_WithTreeWalk() throws Exception {
-		final DirCache dc = db.readDirCache();
+		final DirCache dc = DirCache.newInCore();
 		assertEquals(0, dc.getEntryCount());
 
 		final TreeWalk tw = new TreeWalk(db);
-		tw.reset();
 		tw.addTree(new DirCacheIterator(dc));
 		assertFalse(tw.next());
 	}
 
+	@Test
 	public void testNoSubtree_NoTreeWalk() throws Exception {
-		final DirCache dc = db.readDirCache();
+		final DirCache dc = DirCache.newInCore();
 
 		final String[] paths = { "a.", "a0b" };
 		final DirCacheEntry[] ents = new DirCacheEntry[paths.length];
@@ -94,8 +106,9 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 		assertEquals(paths.length, pathIdx);
 	}
 
+	@Test
 	public void testNoSubtree_WithTreeWalk() throws Exception {
-		final DirCache dc = db.readDirCache();
+		final DirCache dc = DirCache.newInCore();
 
 		final String[] paths = { "a.", "a0b" };
 		final FileMode[] modes = { FileMode.EXECUTABLE_FILE, FileMode.GITLINK };
@@ -112,7 +125,6 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 
 		final DirCacheIterator i = new DirCacheIterator(dc);
 		final TreeWalk tw = new TreeWalk(db);
-		tw.reset();
 		tw.addTree(i);
 		int pathIdx = 0;
 		while (tw.next()) {
@@ -127,8 +139,9 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 		assertEquals(paths.length, pathIdx);
 	}
 
+	@Test
 	public void testSingleSubtree_NoRecursion() throws Exception {
-		final DirCache dc = db.readDirCache();
+		final DirCache dc = DirCache.newInCore();
 
 		final String[] paths = { "a.", "a/b", "a/c", "a/d", "a0b" };
 		final DirCacheEntry[] ents = new DirCacheEntry[paths.length];
@@ -149,7 +162,6 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 
 		final DirCacheIterator i = new DirCacheIterator(dc);
 		final TreeWalk tw = new TreeWalk(db);
-		tw.reset();
 		tw.addTree(i);
 		tw.setRecursive(false);
 		int pathIdx = 0;
@@ -171,8 +183,9 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 		assertEquals(expPaths.length, pathIdx);
 	}
 
+	@Test
 	public void testSingleSubtree_Recursive() throws Exception {
-		final DirCache dc = db.readDirCache();
+		final DirCache dc = DirCache.newInCore();
 
 		final FileMode mode = FileMode.REGULAR_FILE;
 		final String[] paths = { "a.", "a/b", "a/c", "a/d", "a0b" };
@@ -189,7 +202,6 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 
 		final DirCacheIterator i = new DirCacheIterator(dc);
 		final TreeWalk tw = new TreeWalk(db);
-		tw.reset();
 		tw.addTree(i);
 		tw.setRecursive(true);
 		int pathIdx = 0;
@@ -206,8 +218,9 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 		assertEquals(paths.length, pathIdx);
 	}
 
+	@Test
 	public void testTwoLevelSubtree_Recursive() throws Exception {
-		final DirCache dc = db.readDirCache();
+		final DirCache dc = DirCache.newInCore();
 
 		final FileMode mode = FileMode.REGULAR_FILE;
 		final String[] paths = { "a.", "a/b", "a/c/e", "a/c/f", "a/d", "a0b" };
@@ -223,7 +236,6 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 		b.finish();
 
 		final TreeWalk tw = new TreeWalk(db);
-		tw.reset();
 		tw.addTree(new DirCacheIterator(dc));
 		tw.setRecursive(true);
 		int pathIdx = 0;
@@ -240,8 +252,9 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 		assertEquals(paths.length, pathIdx);
 	}
 
+	@Test
 	public void testTwoLevelSubtree_FilterPath() throws Exception {
-		final DirCache dc = db.readDirCache();
+		final DirCache dc = DirCache.newInCore();
 
 		final FileMode mode = FileMode.REGULAR_FILE;
 		final String[] paths = { "a.", "a/b", "a/c/e", "a/c/f", "a/d", "a0b" };
@@ -273,5 +286,28 @@ public class DirCacheIteratorTest extends RepositoryTestCase {
 			assertSame(mode, tw.getFileMode(0));
 			assertFalse(tw.next());
 		}
+	}
+
+	@Test
+	public void testRemovedSubtree() throws Exception {
+		final File path = JGitTestUtil
+				.getTestResourceFile("dircache.testRemovedSubtree");
+
+		final DirCache dc = DirCache.read(path, FS.DETECTED);
+		assertEquals(2, dc.getEntryCount());
+
+		final TreeWalk tw = new TreeWalk(db);
+		tw.setRecursive(true);
+		tw.addTree(new DirCacheIterator(dc));
+
+		assertTrue(tw.next());
+		assertEquals("a/a", tw.getPathString());
+		assertSame(FileMode.REGULAR_FILE, tw.getFileMode(0));
+
+		assertTrue(tw.next());
+		assertEquals("q", tw.getPathString());
+		assertSame(FileMode.REGULAR_FILE, tw.getFileMode(0));
+
+		assertFalse(tw.next());
 	}
 }

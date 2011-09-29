@@ -48,6 +48,7 @@ package org.eclipse.jgit.treewalk;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -64,10 +65,12 @@ import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
+import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.ignore.IgnoreNode;
 import org.eclipse.jgit.ignore.IgnoreRule;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.CoreConfig;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.util.FS;
@@ -90,7 +93,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	protected static final Entry[] EOF = {};
 
 	/** Size we perform file IO in if we have to read and hash a file. */
-	private static final int BUFFER_SIZE = 2048;
+	static final int BUFFER_SIZE = 2048;
 
 	/**
 	 * Maximum size of files which may be read fully into memory for performance
@@ -98,20 +101,14 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 */
 	private static final long MAXIMUM_FILE_SIZE_TO_READ_FULLY = 65536;
 
+	/** Inherited state of this iterator, describing working tree, etc. */
+	private final IteratorState state;
+
 	/** The {@link #idBuffer()} for the current entry. */
 	private byte[] contentId;
 
 	/** Index within {@link #entries} that {@link #contentId} came from. */
 	private int contentIdFromPtr;
-
-	/** Buffer used to perform {@link #contentId} computations. */
-	private byte[] contentReadBuffer;
-
-	/** Digest computer for {@link #contentId} computations. */
-	private MessageDigest contentDigest;
-
-	/** File name character encoder. */
-	private final CharsetEncoder nameEncoder;
 
 	/** List of entries obtained from the subclass. */
 	private Entry[] entries;
@@ -125,9 +122,6 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	/** If there is a .gitignore file present, the parsed rules from it. */
 	private IgnoreNode ignoreNode;
 
-	/** Options used to process the working tree. */
-	private final WorkingTreeOptions options;
-
 	/**
 	 * Create a new iterator with no parent.
 	 *
@@ -136,8 +130,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 */
 	protected WorkingTreeIterator(WorkingTreeOptions options) {
 		super();
-		nameEncoder = Constants.CHARSET.newEncoder();
-		this.options = options;
+		state = new IteratorState(options);
 	}
 
 	/**
@@ -160,8 +153,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	protected WorkingTreeIterator(final String prefix,
 			WorkingTreeOptions options) {
 		super(prefix);
-		nameEncoder = Constants.CHARSET.newEncoder();
-		this.options = options;
+		state = new IteratorState(options);
 	}
 
 	/**
@@ -172,8 +164,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 */
 	protected WorkingTreeIterator(final WorkingTreeIterator p) {
 		super(p);
-		nameEncoder = p.nameEncoder;
-		options = p.options;
+		state = p.state;
 	}
 
 	/**
@@ -194,6 +185,24 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		ignoreNode = new RootIgnoreNode(entry, repo);
 	}
 
+	/**
+	 * Define the matching {@link DirCacheIterator}, to optimize ObjectIds.
+	 *
+	 * Once the DirCacheIterator has been set this iterator must only be
+	 * advanced by the TreeWalk that is supplied, as it assumes that itself and
+	 * the corresponding DirCacheIterator are positioned on the same file path
+	 * whenever {@link #idBuffer()} is invoked.
+	 *
+	 * @param walk
+	 *            the walk that will be advancing this iterator.
+	 * @param treeId
+	 *            index of the matching {@link DirCacheIterator}.
+	 */
+	public void setDirCacheIterator(TreeWalk walk, int treeId) {
+		state.walk = walk;
+		state.dirCacheTree = treeId;
+	}
+
 	@Override
 	public boolean hasId() {
 		if (contentIdFromPtr == ptr)
@@ -205,6 +214,21 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	public byte[] idBuffer() {
 		if (contentIdFromPtr == ptr)
 			return contentId;
+
+		if (state.walk != null) {
+			// If there is a matching DirCacheIterator, we can reuse
+			// its idBuffer, but only if we appear to be clean against
+			// the cached index information for the path.
+			//
+			DirCacheIterator i = state.walk.getTree(state.dirCacheTree,
+					DirCacheIterator.class);
+			if (i != null) {
+				DirCacheEntry ent = i.getDirCacheEntry();
+				if (ent != null && compareMetadata(ent) == MetadataDiff.EQUAL)
+					return i.idBuffer();
+			}
+		}
+
 		switch (mode & FileMode.TYPE_MASK) {
 		case FileMode.TYPE_FILE:
 			contentIdFromPtr = ptr;
@@ -222,21 +246,6 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		return zeroid;
 	}
 
-	private void initializeDigestAndReadBuffer() {
-		if (contentDigest != null)
-			return;
-
-		if (parent == null) {
-			contentReadBuffer = new byte[BUFFER_SIZE];
-			contentDigest = Constants.newMessageDigest();
-		} else {
-			final WorkingTreeIterator p = (WorkingTreeIterator) parent;
-			p.initializeDigestAndReadBuffer();
-			contentReadBuffer = p.contentReadBuffer;
-			contentDigest = p.contentDigest;
-		}
-	}
-
 	private static final byte[] digits = { '0', '1', '2', '3', '4', '5', '6',
 			'7', '8', '9' };
 
@@ -249,18 +258,18 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			if (is == null)
 				return zeroid;
 			try {
-				initializeDigestAndReadBuffer();
+				state.initializeDigestAndReadBuffer();
 
 				final long len = e.getLength();
-				if (!mightNeedCleaning(e))
+				if (!mightNeedCleaning())
 					return computeHash(is, len);
 
 				if (len <= MAXIMUM_FILE_SIZE_TO_READ_FULLY) {
 					ByteBuffer rawbuf = IO.readWholeStream(is, (int) len);
 					byte[] raw = rawbuf.array();
 					int n = rawbuf.limit();
-					if (!isBinary(e, raw, n)) {
-						rawbuf = filterClean(e, raw, n);
+					if (!isBinary(raw, n)) {
+						rawbuf = filterClean(raw, n);
 						raw = rawbuf.array();
 						n = rawbuf.limit();
 					}
@@ -271,14 +280,14 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 					return computeHash(is, len);
 
 				final long canonLen;
-				final InputStream lenIs = filterClean(e, e.openInputStream());
+				final InputStream lenIs = filterClean(e.openInputStream());
 				try {
 					canonLen = computeLength(lenIs);
 				} finally {
 					safeClose(lenIs);
 				}
 
-				return computeHash(filterClean(e, is), canonLen);
+				return computeHash(filterClean(is), canonLen);
 			} finally {
 				safeClose(is);
 			}
@@ -298,8 +307,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		}
 	}
 
-	private boolean mightNeedCleaning(Entry entry) {
-		switch (options.getAutoCRLF()) {
+	private boolean mightNeedCleaning() {
+		switch (getOptions().getAutoCRLF()) {
 		case FALSE:
 		default:
 			return false;
@@ -310,7 +319,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		}
 	}
 
-	private boolean isBinary(Entry entry, byte[] content, int sz) {
+	private boolean isBinary(byte[] content, int sz) {
 		return RawText.isBinary(content, sz);
 	}
 
@@ -323,13 +332,13 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		}
 	}
 
-	private ByteBuffer filterClean(Entry entry, byte[] src, int n)
+	private ByteBuffer filterClean(byte[] src, int n)
 			throws IOException {
 		InputStream in = new ByteArrayInputStream(src);
-		return IO.readWholeStream(filterClean(entry, in), n);
+		return IO.readWholeStream(filterClean(in), n);
 	}
 
-	private InputStream filterClean(Entry entry, InputStream in) {
+	private InputStream filterClean(InputStream in) {
 		return new EolCanonicalizingInputStream(in);
 	}
 
@@ -339,7 +348,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @return working tree options
 	 */
 	public WorkingTreeOptions getOptions() {
-		return options;
+		return state.options;
 	}
 
 	@Override
@@ -520,6 +529,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		entries = list;
 		int i, o;
 
+		final CharsetEncoder nameEncoder = state.nameEncoder;
 		for (i = 0, o = 0; i < entries.length; i++) {
 			final Entry e = entries[i];
 			if (e == null)
@@ -555,6 +565,88 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	}
 
 	/**
+	 * The result of a metadata-comparison between the current entry and a
+	 * {@link DirCacheEntry}
+	 */
+	public enum MetadataDiff {
+		/**
+		 * The entries are equal by metaData (mode, length,
+		 * modification-timestamp) or the <code>assumeValid</code> attribute of
+		 * the index entry is set
+		 */
+		EQUAL,
+
+		/**
+		 * The entries are not equal by metaData (mode, length) or the
+		 * <code>isUpdateNeeded</code> attribute of the index entry is set
+		 */
+		DIFFER_BY_METADATA,
+
+		/** index entry is smudged - can't use that entry for comparison */
+		SMUDGED,
+
+		/**
+		 * The entries are equal by metaData (mode, length) but differ by
+		 * modification-timestamp.
+		 */
+		DIFFER_BY_TIMESTAMP
+	}
+
+	/**
+	 * Compare the metadata (mode, length, modification-timestamp) of the
+	 * current entry and a {@link DirCacheEntry}
+	 *
+	 * @param entry
+	 *            the {@link DirCacheEntry} to compare with
+	 * @return a {@link MetadataDiff} which tells whether and how the entries
+	 *         metadata differ
+	 */
+	public MetadataDiff compareMetadata(DirCacheEntry entry) {
+		if (entry.isAssumeValid())
+			return MetadataDiff.EQUAL;
+
+		if (entry.isUpdateNeeded())
+			return MetadataDiff.DIFFER_BY_METADATA;
+
+		if (!entry.isSmudged() && (getEntryLength() != entry.getLength()))
+			return MetadataDiff.DIFFER_BY_METADATA;
+
+		// Determine difference in mode-bits of file and index-entry. In the
+		// bitwise presentation of modeDiff we'll have a '1' when the two modes
+		// differ at this position.
+		int modeDiff = getEntryRawMode() ^ entry.getRawMode();
+
+		// Do not rely on filemode differences in case of symbolic links
+		if (modeDiff != 0 && !FileMode.SYMLINK.equals(entry.getRawMode())) {
+			// Ignore the executable file bits if WorkingTreeOptions tell me to
+			// do so. Ignoring is done by setting the bits representing a
+			// EXECUTABLE_FILE to '0' in modeDiff
+			if (!state.options.isFileMode())
+				modeDiff &= ~FileMode.EXECUTABLE_FILE.getBits();
+			if (modeDiff != 0)
+				// Report a modification if the modes still (after potentially
+				// ignoring EXECUTABLE_FILE bits) differ
+				return MetadataDiff.DIFFER_BY_METADATA;
+		}
+
+		// Git under windows only stores seconds so we round the timestamp
+		// Java gives us if it looks like the timestamp in index is seconds
+		// only. Otherwise we compare the timestamp at millisecond precision.
+		long cacheLastModified = entry.getLastModified();
+		long fileLastModified = getEntryLastModified();
+		if (cacheLastModified % 1000 == 0)
+			fileLastModified = fileLastModified - fileLastModified % 1000;
+
+		if (fileLastModified != cacheLastModified)
+			return MetadataDiff.DIFFER_BY_TIMESTAMP;
+		else if (!entry.isSmudged())
+			// The file is clean when you look at timestamps.
+			return MetadataDiff.EQUAL;
+		else
+			return MetadataDiff.SMUDGED;
+	}
+
+	/**
 	 * Checks whether this entry differs from a given entry from the
 	 * {@link DirCache}.
 	 *
@@ -567,69 +659,30 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @param forceContentCheck
 	 *            True if the actual file content should be checked if
 	 *            modification time differs.
-	 * @param checkFilemode
-	 *            whether the executable-bit in the filemode should be checked
-	 *            to detect modifications
-	 * @param fs
-	 *            The filesystem this repo uses. Needed to find out whether the
-	 *            executable-bits are supported
-	 *
 	 * @return true if content is most likely different.
 	 */
-	public boolean isModified(DirCacheEntry entry, boolean forceContentCheck,
-			boolean checkFilemode, FS fs) {
-		if (entry.isAssumeValid())
-			return false;
-
-		if (entry.isUpdateNeeded())
-			return true;
-
-		if (!entry.isSmudged() && (getEntryLength() != entry.getLength()))
-			return true;
-
-		// Determine difference in mode-bits of file and index-entry. In the
-		// bitwise presentation of modeDiff we'll have a '1' when the two modes
-		// differ at this position.
-		int modeDiff = getEntryRawMode() ^ entry.getRawMode();
-		// Ignore the executable file bits if checkFilemode tells me to do so.
-		// Ignoring is done by setting the bits representing a EXECUTABLE_FILE
-		// to '0' in modeDiff
-		if (!checkFilemode)
-			modeDiff &= ~FileMode.EXECUTABLE_FILE.getBits();
-		if (modeDiff != 0)
-			// Report a modification if the modes still (after potentially
-			// ignoring EXECUTABLE_FILE bits) differ
-			return true;
-
-		// Git under windows only stores seconds so we round the timestamp
-		// Java gives us if it looks like the timestamp in index is seconds
-		// only. Otherwise we compare the timestamp at millisecond precision.
-		long cacheLastModified = entry.getLastModified();
-		long fileLastModified = getEntryLastModified();
-		if (cacheLastModified % 1000 == 0)
-			fileLastModified = fileLastModified - fileLastModified % 1000;
-
-		if (fileLastModified != cacheLastModified) {
-			// The file is dirty by timestamps
-			if (forceContentCheck) {
+	public boolean isModified(DirCacheEntry entry, boolean forceContentCheck) {
+		MetadataDiff diff = compareMetadata(entry);
+		switch (diff) {
+		case DIFFER_BY_TIMESTAMP:
+			if (forceContentCheck)
 				// But we are told to look at content even though timestamps
 				// tell us about modification
 				return contentCheck(entry);
-			} else {
+			else
 				// We are told to assume a modification if timestamps differs
 				return true;
-			}
-		} else {
-			// The file is clean when you look at timestamps.
-			if (entry.isSmudged()) {
-				// The file is clean by timestamps but the entry was smudged.
-				// Lets do a content check
-				return contentCheck(entry);
-			} else {
-				// The file is clean by timestamps and the entry is not
-				// smudged: Can't get any cleaner!
-				return false;
-			}
+		case SMUDGED:
+			// The file is clean by timestamps but the entry was smudged.
+			// Lets do a content check
+			return contentCheck(entry);
+		case EQUAL:
+			return false;
+		case DIFFER_BY_METADATA:
+			return true;
+		default:
+			throw new IllegalStateException(MessageFormat.format(
+					JGitText.get().unexpectedCompareResult, diff.name()));
 		}
 	}
 
@@ -678,6 +731,9 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	}
 
 	private byte[] computeHash(InputStream in, long length) throws IOException {
+		final MessageDigest contentDigest = state.contentDigest;
+		final byte[] contentReadBuffer = state.contentReadBuffer;
+
 		contentDigest.reset();
 		contentDigest.update(hblob);
 		contentDigest.update((byte) ' ');
@@ -844,7 +900,27 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 				r = new IgnoreNode();
 			}
 
-			File exclude = new File(repository.getDirectory(), "info/exclude");
+			FS fs = repository.getFS();
+			String path = repository.getConfig().get(CoreConfig.KEY)
+					.getExcludesFile();
+			if (path != null) {
+				File excludesfile;
+				if (path.startsWith("~/"))
+					excludesfile = fs.resolve(fs.userHome(), path.substring(2));
+				else
+					excludesfile = fs.resolve(null, path);
+				loadRulesFromFile(r, excludesfile);
+			}
+
+			File exclude = fs
+					.resolve(repository.getDirectory(), "info/exclude");
+			loadRulesFromFile(r, exclude);
+
+			return r.getRules().isEmpty() ? null : r;
+		}
+
+		private void loadRulesFromFile(IgnoreNode r, File exclude)
+				throws FileNotFoundException, IOException {
 			if (exclude.exists()) {
 				FileInputStream in = new FileInputStream(exclude);
 				try {
@@ -853,8 +929,38 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 					in.close();
 				}
 			}
+		}
+	}
 
-			return r.getRules().isEmpty() ? null : r;
+	private static final class IteratorState {
+		/** Options used to process the working tree. */
+		final WorkingTreeOptions options;
+
+		/** File name character encoder. */
+		final CharsetEncoder nameEncoder;
+
+		/** Digest computer for {@link #contentId} computations. */
+		MessageDigest contentDigest;
+
+		/** Buffer used to perform {@link #contentId} computations. */
+		byte[] contentReadBuffer;
+
+		/** TreeWalk with a (supposedly) matching DirCacheIterator. */
+		TreeWalk walk;
+
+		/** Position of the matching {@link DirCacheIterator}. */
+		int dirCacheTree;
+
+		IteratorState(WorkingTreeOptions options) {
+			this.options = options;
+			this.nameEncoder = Constants.CHARSET.newEncoder();
+		}
+
+		void initializeDigestAndReadBuffer() {
+			if (contentDigest == null) {
+				contentDigest = Constants.newMessageDigest();
+				contentReadBuffer = new byte[BUFFER_SIZE];
+			}
 		}
 	}
 }

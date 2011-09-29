@@ -56,8 +56,19 @@ import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.RawParseUtils;
 
-class PacketLineIn {
-	static final String END = new String("") /* must not string pool */;
+/**
+ * Read Git style pkt-line formatting from an input stream.
+ * <p>
+ * This class is not thread safe and may issue multiple reads to the underlying
+ * stream for each method call made.
+ * <p>
+ * This class performs no buffering on its own. This makes it suitable to
+ * interleave reads performed by this class with reads performed directly
+ * against the underlying InputStream.
+ */
+public class PacketLineIn {
+	/** Magic return from {@link #readString()} when a flush packet is found. */
+	public static final String END = new StringBuilder(0).toString(); 	/* must not string pool */
 
 	static enum AckNackResult {
 		/** NAK */
@@ -76,7 +87,13 @@ class PacketLineIn {
 
 	private final byte[] lineBuffer;
 
-	PacketLineIn(final InputStream i) {
+	/**
+	 * Create a new packet line reader.
+	 *
+	 * @param i
+	 *            the input stream to consume.
+	 */
+	public PacketLineIn(final InputStream i) {
 		in = i;
 		lineBuffer = new byte[SideBandOutputStream.SMALL_BUF];
 	}
@@ -100,10 +117,24 @@ class PacketLineIn {
 			else if (arg.equals(" ready"))
 				return AckNackResult.ACK_READY;
 		}
+		if (line.startsWith("ERR "))
+			throw new PackProtocolException(line.substring(4));
 		throw new PackProtocolException(MessageFormat.format(JGitText.get().expectedACKNAKGot, line));
 	}
 
-	String readString() throws IOException {
+	/**
+	 * Read a single UTF-8 encoded string packet from the input stream.
+	 * <p>
+	 * If the string ends with an LF, it will be removed before returning the
+	 * value to the caller. If this automatic trimming behavior is not desired,
+	 * use {@link #readStringRaw()} instead.
+	 *
+	 * @return the string. {@link #END} if the string was the magic flush
+	 *         packet.
+	 * @throws IOException
+	 *             the stream cannot be read.
+	 */
+	public String readString() throws IOException {
 		int len = readLength();
 		if (len == 0)
 			return END;
@@ -112,14 +143,29 @@ class PacketLineIn {
 		if (len == 0)
 			return "";
 
-		final byte[] raw = new byte[len];
+		byte[] raw;
+		if (len <= lineBuffer.length)
+			raw = lineBuffer;
+		else
+			raw = new byte[len];
+
 		IO.readFully(in, raw, 0, len);
 		if (raw[len - 1] == '\n')
 			len--;
 		return RawParseUtils.decode(Constants.CHARSET, raw, 0, len);
 	}
 
-	String readStringRaw() throws IOException {
+	/**
+	 * Read a single UTF-8 encoded string packet from the input stream.
+	 * <p>
+	 * Unlike {@link #readString()} a trailing LF will be retained.
+	 *
+	 * @return the string. {@link #END} if the string was the magic flush
+	 *         packet.
+	 * @throws IOException
+	 *             the stream cannot be read.
+	 */
+	public String readStringRaw() throws IOException {
 		int len = readLength();
 		if (len == 0)
 			return END;

@@ -57,11 +57,13 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.TransportException;
+import org.eclipse.jgit.lib.BatchingProgressMonitor;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ProgressMonitor;
@@ -110,8 +112,12 @@ class FetchProcess {
 		try {
 			executeImp(monitor, result);
 		} finally {
+			try {
 			for (final PackLock lock : packLocks)
 				lock.unlock();
+			} catch (IOException e) {
+				throw new TransportException(e.getMessage(), e);
+			}
 		}
 	}
 
@@ -160,8 +166,10 @@ class FetchProcess {
 				have.addAll(askFor.keySet());
 				askFor.clear();
 				for (final Ref r : additionalTags) {
-					final ObjectId id = r.getPeeledObjectId();
-					if (id == null || transport.local.hasObject(id))
+					ObjectId id = r.getPeeledObjectId();
+					if (id == null)
+						id = r.getObjectId();
+					if (transport.local.hasObject(id))
 						wantTag(r);
 				}
 
@@ -177,10 +185,16 @@ class FetchProcess {
 
 		final RevWalk walk = new RevWalk(transport.local);
 		try {
+			if (monitor instanceof BatchingProgressMonitor) {
+				((BatchingProgressMonitor) monitor).setDelayStart(
+						250, TimeUnit.MILLISECONDS);
+			}
+			monitor.beginTask(JGitText.get().updatingReferences, localUpdates.size());
 			if (transport.isRemoveDeletedRefs())
 				deleteStaleTrackingRefs(result, walk);
 			for (TrackingRefUpdate u : localUpdates) {
 				try {
+					monitor.update(1);
 					u.update(walk);
 					result.add(u);
 				} catch (IOException err) {
@@ -189,6 +203,7 @@ class FetchProcess {
 							u.getLocalName(), err.getMessage()), err);
 				}
 			}
+			monitor.endTask();
 		} finally {
 			walk.release();
 		}
@@ -343,14 +358,22 @@ class FetchProcess {
 		for (final Ref r : conn.getRefs()) {
 			if (!isTag(r))
 				continue;
+
+			Ref local = haveRefs.get(r.getName());
+			ObjectId obj = r.getObjectId();
+
 			if (r.getPeeledObjectId() == null) {
-				additionalTags.add(r);
+				if (local != null && obj.equals(local.getObjectId()))
+					continue;
+				if (askFor.containsKey(obj) || transport.local.hasObject(obj))
+					wantTag(r);
+				else
+					additionalTags.add(r);
 				continue;
 			}
 
-			final Ref local = haveRefs.get(r.getName());
 			if (local != null) {
-				if (!r.getObjectId().equals(local.getObjectId()))
+				if (!obj.equals(local.getObjectId()))
 					wantTag(r);
 			} else if (askFor.containsKey(r.getPeeledObjectId())
 					|| transport.local.hasObject(r.getPeeledObjectId()))

@@ -94,7 +94,9 @@ import org.eclipse.jgit.revwalk.RevWalk;
  */
 public abstract class RevFilter {
 	/** Default filter that always returns true (thread safe). */
-	public static final RevFilter ALL = new RevFilter() {
+	public static final RevFilter ALL = new AllFilter();
+
+	private static final class AllFilter extends RevFilter {
 		@Override
 		public boolean include(final RevWalk walker, final RevCommit c) {
 			return true;
@@ -106,13 +108,20 @@ public abstract class RevFilter {
 		}
 
 		@Override
+		public boolean requiresCommitBody() {
+			return false;
+		}
+
+		@Override
 		public String toString() {
 			return "ALL";
 		}
-	};
+	}
 
 	/** Default filter that always returns false (thread safe). */
-	public static final RevFilter NONE = new RevFilter() {
+	public static final RevFilter NONE = new NoneFilter();
+
+	private static final class NoneFilter extends RevFilter {
 		@Override
 		public boolean include(final RevWalk walker, final RevCommit c) {
 			return false;
@@ -124,13 +133,20 @@ public abstract class RevFilter {
 		}
 
 		@Override
+		public boolean requiresCommitBody() {
+			return false;
+		}
+
+		@Override
 		public String toString() {
 			return "NONE";
 		}
-	};
+	}
 
 	/** Excludes commits with more than one parent (thread safe). */
-	public static final RevFilter NO_MERGES = new RevFilter() {
+	public static final RevFilter NO_MERGES = new NoMergesFilter();
+
+	private static final class NoMergesFilter extends RevFilter {
 		@Override
 		public boolean include(final RevWalk walker, final RevCommit c) {
 			return c.getParentCount() < 2;
@@ -142,10 +158,15 @@ public abstract class RevFilter {
 		}
 
 		@Override
+		public boolean requiresCommitBody() {
+			return false;
+		}
+
+		@Override
 		public String toString() {
 			return "NO_MERGES";
 		}
-	};
+	}
 
 	/**
 	 * Selects only merge bases of the starting points (thread safe).
@@ -155,7 +176,9 @@ public abstract class RevFilter {
 	 * information beyond the arguments is necessary to determine if the
 	 * supplied commit is a merge base.
 	 */
-	public static final RevFilter MERGE_BASE = new RevFilter() {
+	public static final RevFilter MERGE_BASE = new MergeBaseFilter();
+
+	private static final class MergeBaseFilter extends RevFilter {
 		@Override
 		public boolean include(final RevWalk walker, final RevCommit c) {
 			throw new UnsupportedOperationException(JGitText.get().cannotBeCombined);
@@ -167,10 +190,15 @@ public abstract class RevFilter {
 		}
 
 		@Override
+		public boolean requiresCommitBody() {
+			return false;
+		}
+
+		@Override
 		public String toString() {
 			return "MERGE_BASE";
 		}
-	};
+	}
 
 	/**
 	 * Create a new filter that does the opposite of this filter.
@@ -181,6 +209,12 @@ public abstract class RevFilter {
 		return NotRevFilter.create(this);
 	}
 
+	/** @return true if the filter needs the commit body to be parsed. */
+	public boolean requiresCommitBody() {
+		// Assume true to be backward compatible with prior behavior.
+		return true;
+	}
+
 	/**
 	 * Determine if the supplied commit should be included in results.
 	 *
@@ -188,7 +222,8 @@ public abstract class RevFilter {
 	 *            the active walker this filter is being invoked from within.
 	 * @param cmit
 	 *            the commit currently being tested. The commit has been parsed
-	 *            and its body is available for inspection.
+	 *            and its body is available for inspection only if the filter
+	 *            returns true from {@link #requiresCommitBody()}.
 	 * @return true to include this commit in the results; false to have this
 	 *         commit be omitted entirely from the results.
 	 * @throws StopWalkException

@@ -52,7 +52,7 @@
   <parent>
     <groupId>org.eclipse.jgit</groupId>
     <artifactId>org.eclipse.jgit-parent</artifactId>
-    <version>0.9.3</version>
+    <version>1.1.0.201109151100-r</version>
   </parent>
 
   <artifactId>org.eclipse.jgit.http.server</artifactId>
@@ -88,6 +88,7 @@
         <directory>.</directory>
         <includes>
           <include>plugin.properties</include>
+          <include>about.html</include>
         </includes>
       </resource>
       <resource>
@@ -96,6 +97,26 @@
     </resources>
 
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <inherited>true</inherited>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <phase>process-classes</phase>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+            <configuration>
+              <archive>
+                <manifestFile>${source-bundle-manifest}</manifestFile>
+              </archive>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <artifactId>maven-jar-plugin</artifactId>
         <configuration>
