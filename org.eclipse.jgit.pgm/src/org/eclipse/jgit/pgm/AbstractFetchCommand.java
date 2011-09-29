@@ -57,14 +57,13 @@ import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.transport.FetchResult;
 import org.eclipse.jgit.transport.TrackingRefUpdate;
-import org.eclipse.jgit.transport.Transport;
 import org.kohsuke.args4j.Option;
 
 abstract class AbstractFetchCommand extends TextBuiltin {
 	@Option(name = "--verbose", aliases = { "-v" }, usage = "usage_beMoreVerbose")
 	private boolean verbose;
 
-	protected void showFetchResult(final Transport tn, final FetchResult r) {
+	protected void showFetchResult(final FetchResult r) {
 		ObjectReader reader = db.newObjectReader();
 		try {
 			boolean shownURI = false;
@@ -78,8 +77,8 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 				final String dst = abbreviateRef(u.getLocalName(), true);
 
 				if (!shownURI) {
-					out.format(CLIText.get().fromURI, tn.getURI());
-					out.println();
+					out.println(MessageFormat.format(CLIText.get().fromURI,
+							r.getURI()));
 					shownURI = true;
 				}
 

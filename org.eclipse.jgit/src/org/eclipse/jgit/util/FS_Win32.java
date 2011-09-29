@@ -45,11 +45,15 @@
 package org.eclipse.jgit.util;
 
 import java.io.File;
+import java.nio.charset.Charset;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 class FS_Win32 extends FS {
-	static boolean detect() {
+	static boolean isWin32() {
 		final String osDotName = AccessController
 				.doPrivileged(new PrivilegedAction<String>() {
 					public String run() {
@@ -58,6 +62,18 @@ class FS_Win32 extends FS {
 				});
 		return osDotName != null
 				&& StringUtils.toLowerCase(osDotName).indexOf("windows") != -1;
+	}
+
+	FS_Win32() {
+		super();
+	}
+
+	FS_Win32(FS src) {
+		super(src);
+	}
+
+	public FS newInstance() {
+		return new FS_Win32(this);
 	}
 
 	public boolean supportsExecute() {
@@ -75,5 +91,57 @@ class FS_Win32 extends FS {
 	@Override
 	public boolean retryFailedLockFileCommit() {
 		return true;
+	}
+
+	@Override
+	protected File discoverGitPrefix() {
+		String path = SystemReader.getInstance().getenv("PATH");
+		File gitExe = searchPath(path, "git.exe", "git.cmd");
+		if (gitExe != null)
+			return gitExe.getParentFile().getParentFile();
+
+		// This isn't likely to work, if bash is in $PATH, git should
+		// also be in $PATH. But its worth trying.
+		//
+		String w = readPipe(userHome(), //
+				new String[] { "bash", "--login", "-c", "which git" }, //
+				Charset.defaultCharset().name());
+		if (w != null) {
+			// The path may be in cygwin/msys notation so resolve it right away
+			gitExe = resolve(null, w);
+			if (gitExe != null)
+				return gitExe.getParentFile().getParentFile();
+		}
+		return null;
+	}
+
+	@Override
+	protected File userHomeImpl() {
+		String home = SystemReader.getInstance().getenv("HOME");
+		if (home != null)
+			return resolve(null, home);
+		String homeDrive = SystemReader.getInstance().getenv("HOMEDRIVE");
+		if (homeDrive != null) {
+			String homePath = SystemReader.getInstance().getenv("HOMEPATH");
+			return new File(homeDrive, homePath);
+		}
+
+		String homeShare = SystemReader.getInstance().getenv("HOMESHARE");
+		if (homeShare != null)
+			return new File(homeShare);
+
+		return super.userHomeImpl();
+	}
+
+	@Override
+	public ProcessBuilder runInShell(String cmd, String[] args) {
+		List<String> argv = new ArrayList<String>(3 + args.length);
+		argv.add("cmd.exe");
+		argv.add("/c");
+		argv.add(cmd);
+		argv.addAll(Arrays.asList(args));
+		ProcessBuilder proc = new ProcessBuilder();
+		proc.command(argv);
+		return proc;
 	}
 }

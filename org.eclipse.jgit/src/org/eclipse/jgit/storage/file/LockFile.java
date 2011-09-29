@@ -44,7 +44,6 @@
 
 package org.eclipse.jgit.storage.file;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -52,14 +51,16 @@ import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.FileLock;
-import java.nio.channels.OverlappingFileLockException;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.text.MessageFormat;
 
 import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.util.FS;
+import org.eclipse.jgit.util.FileUtils;
 
 /**
  * Git style file locking and replacement.
@@ -85,15 +86,15 @@ public class LockFile {
 
 	private final File lck;
 
-	private FileLock fLck;
-
 	private boolean haveLck;
 
 	private FileOutputStream os;
 
-	private boolean needStatInformation;
+	private boolean needSnapshot;
 
-	private long commitLastModified;
+	private boolean fsync;
+
+	private FileSnapshot commitSnapshot;
 
 	private final FS fs;
 
@@ -122,28 +123,11 @@ public class LockFile {
 	 *             does not hold the lock.
 	 */
 	public boolean lock() throws IOException {
-		lck.getParentFile().mkdirs();
+		FileUtils.mkdirs(lck.getParentFile(), true);
 		if (lck.createNewFile()) {
 			haveLck = true;
 			try {
 				os = new FileOutputStream(lck);
-				try {
-					fLck = os.getChannel().tryLock();
-					if (fLck == null)
-						throw new OverlappingFileLockException();
-				} catch (OverlappingFileLockException ofle) {
-					// We cannot use unlock() here as this file is not
-					// held by us, but we thought we created it. We must
-					// not delete it, as it belongs to some other process.
-					//
-					haveLck = false;
-					try {
-						os.close();
-					} catch (IOException ioe) {
-						// Fail by returning haveLck = false.
-					}
-					os = null;
-				}
 			} catch (IOException ioe) {
 				unlock();
 				throw ioe;
@@ -192,10 +176,21 @@ public class LockFile {
 		try {
 			final FileInputStream fis = new FileInputStream(ref);
 			try {
-				final byte[] buf = new byte[2048];
-				int r;
-				while ((r = fis.read(buf)) >= 0)
-					os.write(buf, 0, r);
+				if (fsync) {
+					FileChannel in = fis.getChannel();
+					long pos = 0;
+					long cnt = in.size();
+					while (0 < cnt) {
+						long r = os.getChannel().transferFrom(in, pos, cnt);
+						pos += r;
+						cnt -= r;
+					}
+				} else {
+					final byte[] buf = new byte[2048];
+					int r;
+					while ((r = fis.read(buf)) >= 0)
+						os.write(buf, 0, r);
+				}
 			} finally {
 				fis.close();
 			}
@@ -229,26 +224,10 @@ public class LockFile {
 	 *             before throwing the underlying exception to the caller.
 	 */
 	public void write(final ObjectId id) throws IOException {
-		requireLock();
-		try {
-			final BufferedOutputStream b;
-			b = new BufferedOutputStream(os, Constants.OBJECT_ID_STRING_LENGTH + 1);
-			id.copyTo(b);
-			b.write('\n');
-			b.flush();
-			fLck.release();
-			b.close();
-			os = null;
-		} catch (IOException ioe) {
-			unlock();
-			throw ioe;
-		} catch (RuntimeException ioe) {
-			unlock();
-			throw ioe;
-		} catch (Error ioe) {
-			unlock();
-			throw ioe;
-		}
+		byte[] buf = new byte[Constants.OBJECT_ID_STRING_LENGTH + 1];
+		id.copyTo(buf, 0);
+		buf[Constants.OBJECT_ID_STRING_LENGTH] = '\n';
+		write(buf);
 	}
 
 	/**
@@ -268,9 +247,15 @@ public class LockFile {
 	public void write(final byte[] content) throws IOException {
 		requireLock();
 		try {
-			os.write(content);
-			os.flush();
-			fLck.release();
+			if (fsync) {
+				FileChannel fc = os.getChannel();
+				ByteBuffer buf = ByteBuffer.wrap(content);
+				while (0 < buf.remaining())
+					fc.write(buf);
+				fc.force(true);
+			} else {
+				os.write(content);
+			}
 			os.close();
 			os = null;
 		} catch (IOException ioe) {
@@ -296,34 +281,36 @@ public class LockFile {
 	 */
 	public OutputStream getOutputStream() {
 		requireLock();
+
+		final OutputStream out;
+		if (fsync)
+			out = Channels.newOutputStream(os.getChannel());
+		else
+			out = os;
+
 		return new OutputStream() {
 			@Override
 			public void write(final byte[] b, final int o, final int n)
 					throws IOException {
-				os.write(b, o, n);
+				out.write(b, o, n);
 			}
 
 			@Override
 			public void write(final byte[] b) throws IOException {
-				os.write(b);
+				out.write(b);
 			}
 
 			@Override
 			public void write(final int b) throws IOException {
-				os.write(b);
-			}
-
-			@Override
-			public void flush() throws IOException {
-				os.flush();
+				out.write(b);
 			}
 
 			@Override
 			public void close() throws IOException {
 				try {
-					os.flush();
-					fLck.release();
-					os.close();
+					if (fsync)
+						os.getChannel().force(true);
+					out.close();
 					os = null;
 				} catch (IOException ioe) {
 					unlock();
@@ -348,20 +335,42 @@ public class LockFile {
 
 	/**
 	 * Request that {@link #commit()} remember modification time.
+	 * <p>
+	 * This is an alias for {@code setNeedSnapshot(true)}.
 	 *
 	 * @param on
 	 *            true if the commit method must remember the modification time.
 	 */
 	public void setNeedStatInformation(final boolean on) {
-		needStatInformation = on;
+		setNeedSnapshot(on);
+	}
+
+	/**
+	 * Request that {@link #commit()} remember the {@link FileSnapshot}.
+	 *
+	 * @param on
+	 *            true if the commit method must remember the FileSnapshot.
+	 */
+	public void setNeedSnapshot(final boolean on) {
+		needSnapshot = on;
+	}
+
+	/**
+	 * Request that {@link #commit()} force dirty data to the drive.
+	 *
+	 * @param on
+	 *            true if dirty data should be forced to the drive.
+	 */
+	public void setFSync(final boolean on) {
+		fsync = on;
 	}
 
 	/**
 	 * Wait until the lock file information differs from the old file.
 	 * <p>
-	 * This method tests both the length and the last modification date. If both
-	 * are the same, this method sleeps until it can force the new lock file's
-	 * modification date to be later than the target file.
+	 * This method tests the last modification date. If both are the same, this
+	 * method sleeps until it can force the new lock file's modification date to
+	 * be later than the target file.
 	 *
 	 * @throws InterruptedException
 	 *             the thread was interrupted before the last modified date of
@@ -369,14 +378,12 @@ public class LockFile {
 	 *             the target file.
 	 */
 	public void waitForStatChange() throws InterruptedException {
-		if (ref.length() == lck.length()) {
-			long otime = ref.lastModified();
-			long ntime = lck.lastModified();
-			while (otime == ntime) {
-				Thread.sleep(25 /* milliseconds */);
-				lck.setLastModified(System.currentTimeMillis());
-				ntime = lck.lastModified();
-			}
+		FileSnapshot o = FileSnapshot.save(ref);
+		FileSnapshot n = FileSnapshot.save(lck);
+		while (o.equals(n)) {
+			Thread.sleep(25 /* milliseconds */);
+			lck.setLastModified(System.currentTimeMillis());
+			n = FileSnapshot.save(lck);
 		}
 	}
 
@@ -401,7 +408,7 @@ public class LockFile {
 		if (lck.renameTo(ref))
 			return true;
 		if (!ref.exists() || deleteRef())
-			if (lck.renameTo(ref))
+			if (renameLock())
 				return true;
 		unlock();
 		return false;
@@ -426,9 +433,28 @@ public class LockFile {
 		return false;
 	}
 
+	private boolean renameLock() {
+		if (!fs.retryFailedLockFileCommit())
+			return lck.renameTo(ref);
+
+		// File renaming fails on windows if another thread is
+		// concurrently reading the same file. So try a few times.
+		//
+		for (int attempts = 0; attempts < 10; attempts++) {
+			if (lck.renameTo(ref))
+				return true;
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				return false;
+			}
+		}
+		return false;
+	}
+
 	private void saveStatInformation() {
-		if (needStatInformation)
-			commitLastModified = lck.lastModified();
+		if (needSnapshot)
+			commitSnapshot = FileSnapshot.save(lck);
 	}
 
 	/**
@@ -437,7 +463,12 @@ public class LockFile {
 	 * @return modification time of the lock file right before we committed it.
 	 */
 	public long getCommitLastModified() {
-		return commitLastModified;
+		return commitSnapshot.lastModified();
+	}
+
+	/** @return get the {@link FileSnapshot} just before commit. */
+	public FileSnapshot getCommitSnapshot() {
+		return commitSnapshot;
 	}
 
 	/**
@@ -447,14 +478,6 @@ public class LockFile {
 	 */
 	public void unlock() {
 		if (os != null) {
-			if (fLck != null) {
-				try {
-					fLck.release();
-				} catch (IOException ioe) {
-					// Huh?
-				}
-				fLck = null;
-			}
 			try {
 				os.close();
 			} catch (IOException ioe) {
@@ -465,7 +488,11 @@ public class LockFile {
 
 		if (haveLck) {
 			haveLck = false;
-			lck.delete();
+			try {
+				FileUtils.delete(lck, FileUtils.RETRY);
+			} catch (IOException e) {
+				// couldn't delete the file even after retry.
+			}
 		}
 	}
 

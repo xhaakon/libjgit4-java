@@ -43,6 +43,14 @@
 
 package org.eclipse.jgit.transport;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -59,6 +67,7 @@ import org.eclipse.jgit.junit.TestRepository;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -69,6 +78,9 @@ import org.eclipse.jgit.storage.file.ObjectDirectory;
 import org.eclipse.jgit.storage.pack.BinaryDelta;
 import org.eclipse.jgit.util.NB;
 import org.eclipse.jgit.util.TemporaryBuffer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 	private static final NullProgressMonitor PM = NullProgressMonitor.INSTANCE;
@@ -86,7 +98,8 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 	private RevBlob a, b;
 
 	@Override
-	protected void setUp() throws Exception {
+	@Before
+	public void setUp() throws Exception {
 		super.setUp();
 
 		src = createBareRepository();
@@ -118,7 +131,8 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 	}
 
 	@Override
-	protected void tearDown() throws Exception {
+	@After
+	public void tearDown() throws Exception {
 		if (src != null)
 			src.close();
 		if (dst != null)
@@ -126,9 +140,10 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 		super.tearDown();
 	}
 
+	@Test
 	public void testFilterHidesPrivate() throws Exception {
 		Map<String, Ref> refs;
-		TransportLocal t = new TransportLocal(src, uriOf(dst)) {
+		TransportLocal t = new TransportLocal(src, uriOf(dst), dst.getDirectory()) {
 			@Override
 			ReceivePack createReceivePack(final Repository db) {
 				db.close();
@@ -160,6 +175,7 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 		assertEquals(B, master.getObjectId());
 	}
 
+	@Test
 	public void testSuccess() throws Exception {
 		// Manually force a delta of an object so we reuse it later.
 		//
@@ -190,7 +206,7 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 
 		// Push this new content to the remote, doing strict validation.
 		//
-		TransportLocal t = new TransportLocal(src, uriOf(dst)) {
+		TransportLocal t = new TransportLocal(src, uriOf(dst), dst.getDirectory()) {
 			@Override
 			ReceivePack createReceivePack(final Repository db) {
 				db.close();
@@ -225,6 +241,7 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 		assertEquals(N, dst.resolve(R_MASTER));
 	}
 
+	@Test
 	public void testCreateBranchAtHiddenCommitFails() throws Exception {
 		final TemporaryBuffer.Heap pack = new TemporaryBuffer.Heap(64);
 		packHeader(pack, 0);
@@ -271,6 +288,7 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 		rp.receive(new ByteArrayInputStream(inBuf.toByteArray()), outBuf, null);
 	}
 
+	@Test
 	public void testUsingHiddenDeltaBaseFails() throws Exception {
 		byte[] delta = { 0x1, 0x1, 0x1, 'c' };
 		TestRepository<Repository> s = new TestRepository<Repository>(src);
@@ -322,6 +340,7 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 		assertSame(PacketLineIn.END, r.readString());
 	}
 
+	@Test
 	public void testUsingHiddenCommonBlobFails() throws Exception {
 		// Try to use the 'b' blob that is hidden.
 		//
@@ -371,6 +390,7 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 		assertSame(PacketLineIn.END, r.readString());
 	}
 
+	@Test
 	public void testUsingUnknownBlobFails() throws Exception {
 		// Try to use the 'n' blob that is not on the server.
 		//
@@ -421,6 +441,7 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 		assertSame(PacketLineIn.END, r.readString());
 	}
 
+	@Test
 	public void testUsingUnknownTreeFails() throws Exception {
 		TestRepository<Repository> s = new TestRepository<Repository>(src);
 		RevCommit N = s.commit().parent(B).add("q", s.blob("a")).create();
@@ -516,12 +537,22 @@ public class ReceivePackRefFilterTest extends LocalDiskRepositoryTestCase {
 		buf.write(md.digest());
 	}
 
+	private ObjectInserter inserter;
+
+	@After
+	public void release() {
+		if (inserter != null)
+			inserter.release();
+	}
+
 	private void openPack(TemporaryBuffer.Heap buf) throws IOException {
+		if (inserter == null)
+			inserter = src.newObjectInserter();
+
 		final byte[] raw = buf.toByteArray();
-		IndexPack ip = IndexPack.create(src, new ByteArrayInputStream(raw));
-		ip.setFixThin(true);
-		ip.index(PM);
-		ip.renameAndOpenPack();
+		PackParser p = inserter.newPackParser(new ByteArrayInputStream(raw));
+		p.setAllowThin(true);
+		p.parse(PM);
 	}
 
 	private static PacketLineIn asPacketLineIn(TemporaryBuffer.Heap buf)

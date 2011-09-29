@@ -43,6 +43,10 @@
 
 package org.eclipse.jgit.http.test;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -54,12 +58,9 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.jgit.http.server.resolver.DefaultReceivePackFactory;
-import org.eclipse.jgit.http.server.resolver.RepositoryResolver;
-import org.eclipse.jgit.http.server.resolver.ServiceNotAuthorizedException;
-import org.eclipse.jgit.http.server.resolver.ServiceNotEnabledException;
-import org.eclipse.jgit.http.test.util.AccessEvent;
-import org.eclipse.jgit.http.test.util.HttpTestCase;
 import org.eclipse.jgit.junit.TestRepository;
+import org.eclipse.jgit.junit.http.AccessEvent;
+import org.eclipse.jgit.junit.http.HttpTestCase;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
@@ -75,13 +76,19 @@ import org.eclipse.jgit.transport.ReceivePack;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.URIish;
+import org.eclipse.jgit.transport.resolver.RepositoryResolver;
+import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
+import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
+import org.junit.Before;
+import org.junit.Test;
 
 public class HookMessageTest extends HttpTestCase {
 	private FileRepository remoteRepository;
 
 	private URIish remoteURI;
 
-	protected void setUp() throws Exception {
+	@Before
+	public void setUp() throws Exception {
 		super.setUp();
 
 		final TestRepository<FileRepository> src = createTestRepository();
@@ -89,7 +96,7 @@ public class HookMessageTest extends HttpTestCase {
 
 		ServletContextHandler app = server.addContext("/git");
 		GitServlet gs = new GitServlet();
-		gs.setRepositoryResolver(new RepositoryResolver() {
+		gs.setRepositoryResolver(new RepositoryResolver<HttpServletRequest>() {
 			public Repository open(HttpServletRequest req, String name)
 					throws RepositoryNotFoundException,
 					ServiceNotEnabledException {
@@ -130,6 +137,7 @@ public class HookMessageTest extends HttpTestCase {
 		cfg.save();
 	}
 
+	@Test
 	public void testPush_CreateBranch() throws Exception {
 		final TestRepository src = createTestRepository();
 		final RevBlob Q_txt = src.blob("new text");

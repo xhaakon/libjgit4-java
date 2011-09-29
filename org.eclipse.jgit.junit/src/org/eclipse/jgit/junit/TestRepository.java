@@ -43,6 +43,8 @@
 
 package org.eclipse.jgit.junit;
 
+import static org.junit.Assert.*;
+
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -55,9 +57,6 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import junit.framework.Assert;
-import junit.framework.AssertionFailedError;
 
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheBuilder;
@@ -97,6 +96,7 @@ import org.eclipse.jgit.storage.file.PackIndex.MutableEntry;
 import org.eclipse.jgit.storage.pack.PackWriter;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
+import org.eclipse.jgit.util.FileUtils;
 
 /**
  * Wrapper to make creating test data easier.
@@ -184,6 +184,17 @@ public class TestRepository<R extends Repository> {
 	}
 
 	/**
+	 * Set the author and committer using {@link #getClock()}.
+	 *
+	 * @param c
+	 *            the commit builder to store.
+	 */
+	public void setAuthorAndCommitter(org.eclipse.jgit.lib.CommitBuilder c) {
+		c.setAuthor(new PersonIdent(author, new Date(now)));
+		c.setCommitter(new PersonIdent(committer, new Date(now)));
+	}
+
+	/**
 	 * Create a new blob object in the repository.
 	 *
 	 * @param content
@@ -265,12 +276,10 @@ public class TestRepository<R extends Repository> {
 	 * @param path
 	 *            the path to find the entry of.
 	 * @return the parsed object entry at this path, never null.
-	 * @throws AssertionFailedError
-	 *             if the path does not exist in the given tree.
 	 * @throws Exception
 	 */
 	public RevObject get(final RevTree tree, final String path)
-			throws AssertionFailedError, Exception {
+			throws Exception {
 		final TreeWalk tw = new TreeWalk(pool.getObjectReader());
 		tw.setFilter(PathFilterGroup.createFromStrings(Collections
 				.singleton(path)));
@@ -284,7 +293,7 @@ public class TestRepository<R extends Repository> {
 			final FileMode entmode = tw.getFileMode(0);
 			return pool.lookupAny(entid, entmode.getObjectType());
 		}
-		Assert.fail("Can't find " + path + " in tree " + tree.name());
+		fail("Can't find " + path + " in tree " + tree.name());
 		return null; // never reached.
 	}
 
@@ -586,7 +595,7 @@ public class TestRepository<R extends Repository> {
 		md.update(Constants.encodeASCII(bin.length));
 		md.update((byte) 0);
 		md.update(bin);
-		Assert.assertEquals(id, ObjectId.fromRaw(md.digest()));
+		assertEquals(id, ObjectId.fromRaw(md.digest()));
 	}
 
 	/**
@@ -640,10 +649,10 @@ public class TestRepository<R extends Repository> {
 		}
 	}
 
-	private void prunePacked(ObjectDirectory odb) {
+	private void prunePacked(ObjectDirectory odb) throws IOException {
 		for (PackFile p : odb.getPacks()) {
 			for (MutableEntry e : p)
-				odb.fileFor(e.toObjectId()).delete();
+				FileUtils.delete(odb.fileFor(e.toObjectId()));
 		}
 	}
 
@@ -815,8 +824,7 @@ public class TestRepository<R extends Repository> {
 
 				c = new org.eclipse.jgit.lib.CommitBuilder();
 				c.setParentIds(parents);
-				c.setAuthor(new PersonIdent(author, new Date(now)));
-				c.setCommitter(new PersonIdent(committer, new Date(now)));
+				setAuthorAndCommitter(c);
 				c.setMessage(message);
 
 				ObjectId commitId;

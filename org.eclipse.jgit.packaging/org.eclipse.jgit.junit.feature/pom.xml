@@ -50,19 +50,29 @@
   <parent>
     <groupId>org.eclipse.jgit</groupId>
     <artifactId>jgit.tycho.parent</artifactId>
-    <version>0.9.3</version>
+    <version>1.1.0.201109151100-r</version>
   </parent>
 
   <artifactId>org.eclipse.jgit.junit.feature</artifactId>
   <packaging>eclipse-feature</packaging>
 
-  <name>JGit JUnit Feature (Incubation)</name>
+  <name>JGit JUnit Feature</name>
 
   <dependencies>
     <dependency>
       <groupId>org.eclipse.jgit</groupId>
       <artifactId>org.eclipse.jgit.junit</artifactId>
-      <version>0.9.3</version>
+      <version>1.1.0.201109151100-r</version>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jgit</groupId>
+      <artifactId>org.eclipse.jgit.junit.http</artifactId>
+      <version>1.1.0.201109151100-r</version>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jgit</groupId>
+      <artifactId>org.eclipse.jgit.http.server</artifactId>
+      <version>1.1.0.201109151100-r</version>
     </dependency>
   </dependencies>
 

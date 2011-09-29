@@ -51,7 +51,7 @@
   <parent>
     <groupId>org.eclipse.jgit</groupId>
     <artifactId>org.eclipse.jgit-parent</artifactId>
-    <version>0.9.3</version>
+    <version>1.1.0.201109151100-r</version>
   </parent>
 
   <artifactId>org.eclipse.jgit.iplog</artifactId>
@@ -81,6 +81,7 @@
         <directory>.</directory>
         <includes>
           <include>plugin.properties</include>
+          <include>about.html</include>
         </includes>
       </resource>
       <resource>

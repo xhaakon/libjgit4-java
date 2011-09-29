@@ -2,6 +2,7 @@
  * Copyright (C) 2009, Mykola Nikishov <mn@mn.com.ua>
  * Copyright (C) 2008, Robin Rosenberg <robin.rosenberg@dewire.com>
  * Copyright (C) 2008, Shawn O. Pearce <spearce@spearce.org>
+ * Copyright (C) 2010, Christian Halstrick <christian.halstrick@sap.com>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -45,6 +46,7 @@
 
 package org.eclipse.jgit.transport;
 
+import java.io.File;
 import java.io.Serializable;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -53,6 +55,7 @@ import java.util.regex.Pattern;
 
 import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.util.StringUtils;
 
 /**
  * This URI like construct used for referencing Git archives over the net, as
@@ -61,13 +64,116 @@ import org.eclipse.jgit.lib.Constants;
  * any special character is written as-is.
  */
 public class URIish implements Serializable {
+	/**
+	 * Part of a pattern which matches the scheme part (git, http, ...) of an
+	 * URI. Defines one capturing group containing the scheme without the
+	 * trailing colon and slashes
+	 */
+	private static final String SCHEME_P = "([a-z][a-z0-9+-]+)://";
+
+	/**
+	 * Part of a pattern which matches the optional user/password part (e.g.
+	 * root:pwd@ in git://root:pwd@host.xyz/a.git) of URIs. Defines two
+	 * capturing groups: the first containing the user and the second containing
+	 * the password
+	 */
+	private static final String OPT_USER_PWD_P = "(?:([^\\\\/:@]+)(?::([^\\\\/]+))?@)?";
+
+	/**
+	 * Part of a pattern which matches the host part of URIs. Defines one
+	 * capturing group containing the host name.
+	 */
+	private static final String HOST_P = "([^\\\\/:]+)";
+
+	/**
+	 * Part of a pattern which matches the optional port part of URIs. Defines
+	 * one capturing group containing the port without the preceding colon.
+	 */
+	private static final String OPT_PORT_P = "(?::(\\d+))?";
+
+	/**
+	 * Part of a pattern which matches the ~username part (e.g. /~root in
+	 * git://host.xyz/~root/a.git) of URIs. Defines no capturing group.
+	 */
+	private static final String USER_HOME_P = "(?:/~(?:[^\\\\/]+))";
+
+	/**
+	 * Part of a pattern which matches the optional drive letter in paths (e.g.
+	 * D: in file:///D:/a.txt). Defines no capturing group.
+	 */
+	private static final String OPT_DRIVE_LETTER_P = "(?:[A-Za-z]:)?";
+
+	/**
+	 * Part of a pattern which matches a relative path. Relative paths don't
+	 * start with slash or drive letters. Defines no capturing group.
+	 */
+	private static final String RELATIVE_PATH_P = "(?:(?:[^\\\\/]+[\\\\/])*[^\\\\/]+[\\\\/]?)";
+
+	/**
+	 * Part of a pattern which matches a relative or absolute path. Defines no
+	 * capturing group.
+	 */
+	private static final String PATH_P = "(" + OPT_DRIVE_LETTER_P + "[\\\\/]?"
+			+ RELATIVE_PATH_P + ")";
+
 	private static final long serialVersionUID = 1L;
 
-	private static final Pattern FULL_URI = Pattern
-			.compile("^(?:([a-z][a-z0-9+-]+)://(?:([^/]+?)(?::([^/]+?))?@)?(?:([^/]+?))?(?::(\\d+))?)?((?:[A-Za-z]:)?/.+)$");
+	/**
+	 * A pattern matching standard URI: </br>
+	 * <code>scheme "://" user_password? hostname? portnumber? path</code>
+	 */
+	private static final Pattern FULL_URI = Pattern.compile("^" //
+			+ SCHEME_P //
+			+ "(?:" // start a group containing hostname and all options only
+					// availabe when a hostname is there
+			+ OPT_USER_PWD_P //
+			+ HOST_P //
+			+ OPT_PORT_P //
+			+ "(" // open a catpuring group the the user-home-dir part
+			+ (USER_HOME_P + "?") //
+			+ "[\\\\/])" //
+			+ ")?" // close the optional group containing hostname
+			+ "(.+)?" //
+			+ "$");
 
-	private static final Pattern SCP_URI = Pattern
-			.compile("^(?:([^@]+?)@)?([^:]+?):(.+)$");
+	/**
+	 * A pattern matching the reference to a local file. This may be an absolute
+	 * path (maybe even containing windows drive-letters) or a relative path.
+	 */
+	private static final Pattern LOCAL_FILE = Pattern.compile("^" //
+			+ "([\\\\/]?" + PATH_P + ")" //
+			+ "$");
+
+	/**
+	 * A pattern matching a URI for the scheme 'file' which has only ':/' as
+	 * separator between scheme and path. Standard file URIs have '://' as
+	 * separator, but java.io.File.toURI() constructs those URIs.
+	 */
+	private static final Pattern SINGLE_SLASH_FILE_URI = Pattern.compile("^" //
+			+ "(file):([\\\\/](?![\\\\/])" //
+			+ PATH_P //
+			+ ")$");
+
+	/**
+	 * A pattern matching a SCP URI's of the form user@host:path/to/repo.git
+	 */
+	private static final Pattern RELATIVE_SCP_URI = Pattern.compile("^" //
+			+ OPT_USER_PWD_P //
+			+ HOST_P //
+			+ ":(" //
+			+ ("(?:" + USER_HOME_P + "[\\\\/])?") //
+			+ RELATIVE_PATH_P //
+			+ ")$");
+
+	/**
+	 * A pattern matching a SCP URI's of the form user@host:/path/to/repo.git
+	 */
+	private static final Pattern ABSOLUTE_SCP_URI = Pattern.compile("^" //
+			+ OPT_USER_PWD_P //
+			+ "([^\\\\/:]{2,})" //
+			+ ":(" //
+			+ "[\\\\/]" + RELATIVE_PATH_P //
+			+ ")$");
 
 	private String scheme;
 
@@ -88,8 +194,17 @@ public class URIish implements Serializable {
 	 * @throws URISyntaxException
 	 */
 	public URIish(String s) throws URISyntaxException {
-		s = s.replace('\\', '/');
-		Matcher matcher = FULL_URI.matcher(s);
+		if (StringUtils.isEmptyOrNull(s)) {
+			throw new URISyntaxException("The uri was empty or null",
+					JGitText.get().cannotParseGitURIish);
+		}
+		Matcher matcher = SINGLE_SLASH_FILE_URI.matcher(s);
+		if (matcher.matches()) {
+			scheme = matcher.group(1);
+			path = cleanLeadingSlashes(matcher.group(2), scheme);
+			return;
+		}
+		matcher = FULL_URI.matcher(s);
 		if (matcher.matches()) {
 			scheme = matcher.group(1);
 			user = matcher.group(2);
@@ -97,25 +212,55 @@ public class URIish implements Serializable {
 			host = matcher.group(4);
 			if (matcher.group(5) != null)
 				port = Integer.parseInt(matcher.group(5));
-			path = matcher.group(6);
-			if (path.length() >= 3
-			&& path.charAt(0) == '/'
-			&& path.charAt(2) == ':'
-			&& (path.charAt(1) >= 'A' && path.charAt(1) <= 'Z'
-			 || path.charAt(1) >= 'a' && path.charAt(1) <= 'z'))
-				path = path.substring(1);
-			else if (scheme != null && path.length() >= 2
-					&& path.charAt(0) == '/' && path.charAt(1) == '~')
-				path = path.substring(1);
-		} else {
-			matcher = SCP_URI.matcher(s);
-			if (matcher.matches()) {
-				user = matcher.group(1);
-				host = matcher.group(2);
-				path = matcher.group(3);
-			} else
-				throw new URISyntaxException(s, JGitText.get().cannotParseGitURIish);
+			path = cleanLeadingSlashes(
+					n2e(matcher.group(6)) + n2e(matcher.group(7)), scheme);
+			return;
 		}
+		matcher = RELATIVE_SCP_URI.matcher(s);
+		if (matcher.matches()) {
+			user = matcher.group(1);
+			pass = matcher.group(2);
+			host = matcher.group(3);
+			path = matcher.group(4);
+			return;
+		}
+		matcher = ABSOLUTE_SCP_URI.matcher(s);
+		if (matcher.matches()) {
+			user = matcher.group(1);
+			pass = matcher.group(2);
+			host = matcher.group(3);
+			path = matcher.group(4);
+			return;
+		}
+		matcher = LOCAL_FILE.matcher(s);
+		if (matcher.matches()) {
+			path = matcher.group(1);
+			return;
+		}
+		throw new URISyntaxException(s, JGitText.get().cannotParseGitURIish);
+	}
+
+	private String n2e(String s) {
+		if (s == null)
+			return "";
+		else
+			return s;
+	}
+
+	// takes care to cut of a leading slash if a windows drive letter or a
+	// user-home-dir specifications are
+	private String cleanLeadingSlashes(String p, String s) {
+		if (p.length() >= 3
+				&& p.charAt(0) == '/'
+				&& p.charAt(2) == ':'
+				&& (p.charAt(1) >= 'A' && p.charAt(1) <= 'Z' || p.charAt(1) >= 'a'
+						&& p.charAt(1) <= 'z'))
+			return p.substring(1);
+		else if (s != null && p.length() >= 2 && p.charAt(0) == '/'
+				&& p.charAt(1) == '~')
+			return p.substring(1);
+		else
+			return p;
 	}
 
 	/**
@@ -411,7 +556,12 @@ public class URIish implements Serializable {
 	public String getHumanishName() throws IllegalArgumentException {
 		if ("".equals(getPath()) || getPath() == null)
 			throw new IllegalArgumentException();
-		String[] elements = getPath().split("/");
+		String s = getPath();
+		String[] elements;
+		if ("file".equals(scheme) || LOCAL_FILE.matcher(s).matches())
+			elements = s.split("[\\" + File.separatorChar + "/]");
+		else
+			elements = s.split("/");
 		if (elements.length == 0)
 			throw new IllegalArgumentException();
 		String result = elements[elements.length - 1];

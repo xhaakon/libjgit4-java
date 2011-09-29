@@ -45,9 +45,17 @@
 
 package org.eclipse.jgit.lib;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import java.io.IOException;
 
+import org.eclipse.jgit.storage.file.FileBasedConfig;
+import org.junit.Test;
+
 public class ReflogConfigTest extends RepositoryTestCase {
+	@Test
 	public void testlogAllRefUpdates() throws Exception {
 		long commitTime = 1154236443000L;
 		int tz = -4 * 60;
@@ -55,63 +63,56 @@ public class ReflogConfigTest extends RepositoryTestCase {
 		// check that there are no entries in the reflog and turn off writing
 		// reflogs
 		assertEquals(0, db.getReflogReader(Constants.HEAD).getReverseEntries().size());
-		db.getConfig().setBoolean("core", null, "logallrefupdates", false);
+		final FileBasedConfig cfg = db.getConfig();
+		cfg.setBoolean("core", null, "logallrefupdates", false);
+		cfg.save();
 
 		// do one commit and check that reflog size is 0: no reflogs should be
 		// written
-		final Tree t = new Tree(db);
-		addFileToTree(t, "i-am-a-file", "and this is the data in me\n");
-		commit(t, "A Commit\n", new PersonIdent(author, commitTime, tz),
+		commit("A Commit\n", new PersonIdent(author, commitTime, tz),
 				new PersonIdent(committer, commitTime, tz));
-		commitTime += 100;
+		commitTime += 60 * 1000;
 		assertTrue(
 				"Reflog for HEAD still contain no entry",
 				db.getReflogReader(Constants.HEAD).getReverseEntries().size() == 0);
 
 		// set the logAllRefUpdates parameter to true and check it
-		db.getConfig().setBoolean("core", null, "logallrefupdates", true);
-		assertTrue(db.getConfig().get(CoreConfig.KEY).isLogAllRefUpdates());
+		cfg.setBoolean("core", null, "logallrefupdates", true);
+		cfg.save();
+		assertTrue(cfg.get(CoreConfig.KEY).isLogAllRefUpdates());
 
 		// do one commit and check that reflog size is increased to 1
-		addFileToTree(t, "i-am-another-file", "and this is other data in me\n");
-		commit(t, "A Commit\n", new PersonIdent(author, commitTime, tz),
+		commit("A Commit\n", new PersonIdent(author, commitTime, tz),
 				new PersonIdent(committer, commitTime, tz));
-		commitTime += 100;
+		commitTime += 60 * 1000;
 		assertTrue(
 				"Reflog for HEAD should contain one entry",
 				db.getReflogReader(Constants.HEAD).getReverseEntries().size() == 1);
 
 		// set the logAllRefUpdates parameter to false and check it
-		db.getConfig().setBoolean("core", null, "logallrefupdates", false);
-		assertFalse(db.getConfig().get(CoreConfig.KEY).isLogAllRefUpdates());
+		cfg.setBoolean("core", null, "logallrefupdates", false);
+		cfg.save();
+		assertFalse(cfg.get(CoreConfig.KEY).isLogAllRefUpdates());
 
 		// do one commit and check that reflog size is 2
-		addFileToTree(t, "i-am-anotheranother-file",
-				"and this is other other data in me\n");
-		commit(t, "A Commit\n", new PersonIdent(author, commitTime, tz),
+		commit("A Commit\n", new PersonIdent(author, commitTime, tz),
 				new PersonIdent(committer, commitTime, tz));
 		assertTrue(
 				"Reflog for HEAD should contain two entries",
 				db.getReflogReader(Constants.HEAD).getReverseEntries().size() == 2);
 	}
 
-	private void addFileToTree(final Tree t, String filename, String content)
-			throws IOException {
-		FileTreeEntry f = t.addFile(filename);
-		writeTrashFile(f.getName(), content);
-		t.accept(new WriteTree(trash, db), TreeEntry.MODIFIED_ONLY);
-	}
-
-	private void commit(final Tree t, String commitMsg, PersonIdent author,
+	private void commit(String commitMsg, PersonIdent author,
 			PersonIdent committer) throws IOException {
 		final CommitBuilder commit = new CommitBuilder();
 		commit.setAuthor(author);
 		commit.setCommitter(committer);
 		commit.setMessage(commitMsg);
-		commit.setTreeId(t.getTreeId());
 		ObjectInserter inserter = db.newObjectInserter();
+		ObjectId id;
 		try {
-			inserter.insert(commit);
+			commit.setTreeId(inserter.insert(new TreeFormatter()));
+			id = inserter.insert(commit);
 			inserter.flush();
 		} finally {
 			inserter.release();
@@ -119,7 +120,7 @@ public class ReflogConfigTest extends RepositoryTestCase {
 
 		int nl = commitMsg.indexOf('\n');
 		final RefUpdate ru = db.updateRef(Constants.HEAD);
-		ru.setNewObjectId(commit.getCommitId());
+		ru.setNewObjectId(id);
 		ru.setRefLogMessage("commit : "
 				+ ((nl == -1) ? commitMsg : commitMsg.substring(0, nl)), false);
 		ru.forceUpdate();

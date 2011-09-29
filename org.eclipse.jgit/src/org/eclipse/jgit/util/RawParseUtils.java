@@ -54,7 +54,11 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
+import java.nio.charset.IllegalCharsetNameException;
+import java.nio.charset.UnsupportedCharsetException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -67,7 +71,12 @@ public final class RawParseUtils {
 
 	private static final byte[] footerLineKeyChars;
 
+	private static final Map<String, Charset> encodingAliases;
+
 	static {
+		encodingAliases = new HashMap<String, Charset>();
+		encodingAliases.put("latin-1", Charset.forName("ISO-8859-1"));
+
 		digits10 = new byte['9' + 1];
 		Arrays.fill(digits10, (byte) -1);
 		for (char i = '0'; i <= '9'; i++)
@@ -651,7 +660,20 @@ public final class RawParseUtils {
 		if (enc < 0)
 			return Constants.CHARSET;
 		final int lf = nextLF(b, enc);
-		return Charset.forName(decode(Constants.CHARSET, b, enc, lf - 1));
+		String decoded = decode(Constants.CHARSET, b, enc, lf - 1);
+		try {
+			return Charset.forName(decoded);
+		} catch (IllegalCharsetNameException badName) {
+			Charset aliased = charsetForAlias(decoded);
+			if (aliased != null)
+				return aliased;
+			throw badName;
+		} catch (UnsupportedCharsetException badName) {
+			Charset aliased = charsetForAlias(decoded);
+			if (aliased != null)
+				return aliased;
+			throw badName;
+		}
 	}
 
 	/**
@@ -695,8 +717,8 @@ public final class RawParseUtils {
 				(emailE >= raw.length - 1 && raw[emailE - 1] != '>'))
 			return null;
 
-		final int nameEnd = emailB - 2 >= 0 && raw[emailB - 2] == ' ' ? emailB - 2
-				: emailB - 1;
+		final int nameEnd = emailB - 2 >= nameB && raw[emailB - 2] == ' ' ?
+				emailB - 2 : emailB - 1;
 		final String name = decode(cs, raw, nameB, nameEnd);
 		final String email = decode(cs, raw, emailB, emailE - 1);
 
@@ -1058,6 +1080,10 @@ public final class RawParseUtils {
 			pos--;
 
 		return pos;
+	}
+
+	private static Charset charsetForAlias(String name) {
+		return encodingAliases.get(StringUtils.toLowerCase(name));
 	}
 
 	private RawParseUtils() {

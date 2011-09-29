@@ -44,6 +44,7 @@
 package org.eclipse.jgit.lib;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -177,6 +178,19 @@ public abstract class RefDatabase {
 	public abstract Map<String, Ref> getRefs(String prefix) throws IOException;
 
 	/**
+	 * Get the additional reference-like entities from the repository.
+	 * <p>
+	 * The result list includes non-ref items such as MERGE_HEAD and
+	 * FETCH_RESULT cast to be refs. The names of these refs are not returned by
+	 * <code>getRefs(ALL)</code> but are accepted by {@link #getRef(String)}
+	 *
+	 * @return a list of additional refs
+	 * @throws IOException
+	 *             the reference space cannot be accessed.
+	 */
+	public abstract List<Ref> getAdditionalRefs() throws IOException;
+
+	/**
 	 * Peel a possibly unpeeled reference by traversing the annotated tags.
 	 * <p>
 	 * If the reference cannot be peeled (as it does not refer to an annotated
@@ -195,4 +209,15 @@ public abstract class RefDatabase {
 	 *             the reference space or object space cannot be accessed.
 	 */
 	public abstract Ref peel(Ref ref) throws IOException;
+
+	/**
+	 * Triggers a refresh of all internal data structures.
+	 * <p>
+	 * In case the RefDatabase implementation has internal caches this method
+	 * will trigger that all these caches are cleared.
+	 * <p>
+	 * Implementors should overwrite this method if they use any kind of caches.
+	 */
+	public void refresh() {
+	}
 }

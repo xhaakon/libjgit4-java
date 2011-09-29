@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2010, Chris Aniszczyk <caniszczyk@gmail.com>
  * Copyright (C) 2008, Marek Zawirski <marek.zawirski@gmail.com>
  * and other copyright owners as documented in the project's IP log.
  *
@@ -46,9 +47,10 @@ package org.eclipse.jgit.pgm;
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.PushCommand;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
@@ -57,9 +59,9 @@ import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
+import org.eclipse.jgit.transport.RemoteRefUpdate.Status;
 import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.URIish;
-import org.eclipse.jgit.transport.RemoteRefUpdate.Status;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.Option;
 
@@ -75,14 +77,10 @@ class Push extends TextBuiltin {
 	private final List<RefSpec> refSpecs = new ArrayList<RefSpec>();
 
 	@Option(name = "--all")
-	void addAll(final boolean ignored) {
-		refSpecs.add(Transport.REFSPEC_PUSH_ALL);
-	}
+	private boolean all;
 
 	@Option(name = "--tags")
-	void addTags(final boolean ignored) {
-		refSpecs.add(Transport.REFSPEC_TAGS);
-	}
+	private boolean tags;
 
 	@Option(name = "--verbose", aliases = { "-v" })
 	private boolean verbose = false;
@@ -108,37 +106,25 @@ class Push extends TextBuiltin {
 
 	@Override
 	protected void run() throws Exception {
-		if (force) {
-			final List<RefSpec> orig = new ArrayList<RefSpec>(refSpecs);
-			refSpecs.clear();
-			for (final RefSpec spec : orig)
-				refSpecs.add(spec.setForceUpdate(true));
-		}
-
-		final List<Transport> transports;
-		transports = Transport.openAll(db, remote, Transport.Operation.PUSH);
-		for (final Transport transport : transports) {
-			if (0 <= timeout)
-				transport.setTimeout(timeout);
-			transport.setPushThin(thin);
-			if (receivePack != null)
-				transport.setOptionReceivePack(receivePack);
-			transport.setDryRun(dryRun);
-
-			final Collection<RemoteRefUpdate> toPush = transport
-					.findRemoteRefUpdatesFor(refSpecs);
-
-			final URIish uri = transport.getURI();
-			final PushResult result;
-			try {
-				result = transport.push(new TextProgressMonitor(), toPush);
-			} finally {
-				transport.close();
-			}
-
+		Git git = new Git(db);
+		PushCommand push = git.push();
+		push.setDryRun(dryRun);
+		push.setForce(force);
+		push.setProgressMonitor(new TextProgressMonitor());
+		push.setReceivePack(receivePack);
+		push.setRefSpecs(refSpecs);
+		if (all)
+			push.setPushAll();
+		if (tags)
+			push.setPushTags();
+		push.setRemote(remote);
+		push.setThin(thin);
+		push.setTimeout(timeout);
+		Iterable<PushResult> results = push.call();
+		for (PushResult result : results) {
 			ObjectReader reader = db.newObjectReader();
 			try {
-				printPushResult(reader, uri, result);
+				printPushResult(reader, result.getURI(), result);
 			} finally {
 				reader.release();
 			}

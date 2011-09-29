@@ -63,13 +63,16 @@ import java.util.Collections;
 import java.util.List;
 
 import org.eclipse.jgit.JGitText;
+import org.eclipse.jgit.diff.DiffAlgorithm.SupportedAlgorithm;
 import org.eclipse.jgit.diff.DiffEntry.ChangeType;
+import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.LargeObjectException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.AbbreviatedObjectId;
 import org.eclipse.jgit.lib.AnyObjectId;
+import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
@@ -89,7 +92,9 @@ import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.WorkingTreeIterator;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
+import org.eclipse.jgit.treewalk.filter.IndexDiffFilter;
 import org.eclipse.jgit.treewalk.filter.NotIgnoredFilter;
+import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.eclipse.jgit.util.QuotedString;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
@@ -117,6 +122,8 @@ public class DiffFormatter {
 	private int context = 3;
 
 	private int abbreviationLength = 7;
+
+	private DiffAlgorithm diffAlgorithm;
 
 	private RawTextComparator comparator = RawTextComparator.DEFAULT;
 
@@ -176,6 +183,12 @@ public class DiffFormatter {
 			setNewPrefix("");
 		}
 		setDetectRenames(dc.isRenameDetectionEnabled());
+
+		diffAlgorithm = DiffAlgorithm.getAlgorithm(db.getConfig().getEnum(
+				ConfigConstants.CONFIG_DIFF_SECTION, null,
+				ConfigConstants.CONFIG_KEY_ALGORITHM,
+				SupportedAlgorithm.HISTOGRAM));
+
 	}
 
 	/**
@@ -204,6 +217,17 @@ public class DiffFormatter {
 			throw new IllegalArgumentException(
 					JGitText.get().abbreviationLengthMustBeNonNegative);
 		abbreviationLength = count;
+	}
+
+	/**
+	 * Set the algorithm that constructs difference output.
+	 *
+	 * @param alg
+	 *            the algorithm to produce text file differences.
+	 * @see HistogramDiff
+	 */
+	public void setDiffAlgorithm(DiffAlgorithm alg) {
+		diffAlgorithm = alg;
 	}
 
 	/**
@@ -410,20 +434,18 @@ public class DiffFormatter {
 		assertHaveRepository();
 
 		TreeWalk walk = new TreeWalk(reader);
-		walk.reset();
 		walk.addTree(a);
 		walk.addTree(b);
 		walk.setRecursive(true);
 
-		TreeFilter filter = pathFilter;
-
-		if (a instanceof WorkingTreeIterator)
-			filter = AndTreeFilter.create(filter, new NotIgnoredFilter(0));
-		if (b instanceof WorkingTreeIterator)
-			filter = AndTreeFilter.create(filter, new NotIgnoredFilter(1));
-		if (!(pathFilter instanceof FollowFilter))
-			filter = AndTreeFilter.create(filter, TreeFilter.ANY_DIFF);
-		walk.setFilter(filter);
+		TreeFilter filter = getDiffTreeFilterFor(a, b);
+		if (pathFilter instanceof FollowFilter) {
+			walk.setFilter(AndTreeFilter.create(
+					PathFilter.create(((FollowFilter) pathFilter).getPath()),
+					filter));
+		} else {
+			walk.setFilter(AndTreeFilter.create(pathFilter, filter));
+		}
 
 		source = new ContentSource.Pair(source(a), source(b));
 
@@ -438,12 +460,6 @@ public class DiffFormatter {
 			walk.reset();
 			walk.addTree(a);
 			walk.addTree(b);
-
-			filter = TreeFilter.ANY_DIFF;
-			if (a instanceof WorkingTreeIterator)
-				filter = AndTreeFilter.create(new NotIgnoredFilter(0), filter);
-			if (b instanceof WorkingTreeIterator)
-				filter = AndTreeFilter.create(new NotIgnoredFilter(1), filter);
 			walk.setFilter(filter);
 
 			if (renameDetector == null)
@@ -454,6 +470,22 @@ public class DiffFormatter {
 			files = detectRenames(files);
 
 		return files;
+	}
+
+	private static TreeFilter getDiffTreeFilterFor(AbstractTreeIterator a,
+			AbstractTreeIterator b) {
+		if (a instanceof DirCacheIterator && b instanceof WorkingTreeIterator)
+			return new IndexDiffFilter(0, 1);
+
+		if (a instanceof WorkingTreeIterator && b instanceof DirCacheIterator)
+			return new IndexDiffFilter(1, 0);
+
+		TreeFilter filter = TreeFilter.ANY_DIFF;
+		if (a instanceof WorkingTreeIterator)
+			filter = AndTreeFilter.create(new NotIgnoredFilter(0), filter);
+		if (b instanceof WorkingTreeIterator)
+			filter = AndTreeFilter.create(new NotIgnoredFilter(1), filter);
+		return filter;
 	}
 
 	private ContentSource source(AbstractTreeIterator iterator) {
@@ -869,8 +901,8 @@ public class DiffFormatter {
 				type = PatchType.BINARY;
 
 			} else {
-				res.a = new RawText(comparator, aRaw);
-				res.b = new RawText(comparator, bRaw);
+				res.a = new RawText(aRaw);
+				res.b = new RawText(bRaw);
 				editList = diff(res.a, res.b);
 				type = PatchType.UNIFIED;
 
@@ -893,7 +925,7 @@ public class DiffFormatter {
 	}
 
 	private EditList diff(RawText a, RawText b) {
-		return new MyersDiff<RawText>(comparator, a, b).getEdits();
+		return diffAlgorithm.diff(comparator, a, b);
 	}
 
 	private void assertHaveRepository() {
@@ -1029,16 +1061,29 @@ public class DiffFormatter {
 		}
 
 		if (!ent.getOldId().equals(ent.getNewId())) {
-			o.write(encodeASCII("index " //
-					+ format(ent.getOldId()) //
-					+ ".." //
-					+ format(ent.getNewId())));
-			if (oldMode.equals(newMode)) {
-				o.write(' ');
-				newMode.copyTo(o);
-			}
-			o.write('\n');
+			formatIndexLine(o, ent);
 		}
+	}
+
+	/**
+	 * @param o
+	 *            the stream the formatter will write line data to
+	 * @param ent
+	 *            the DiffEntry to create the FileHeader for
+	 * @throws IOException
+	 *             writing to the supplied stream failed.
+	 */
+	protected void formatIndexLine(OutputStream o, DiffEntry ent)
+			throws IOException {
+		o.write(encodeASCII("index " //
+				+ format(ent.getOldId()) //
+				+ ".." //
+				+ format(ent.getNewId())));
+		if (ent.getOldMode().equals(ent.getNewMode())) {
+			o.write(' ');
+			ent.getNewMode().copyTo(o);
+		}
+		o.write('\n');
 	}
 
 	private void formatOldNewPaths(ByteArrayOutputStream o, DiffEntry ent)

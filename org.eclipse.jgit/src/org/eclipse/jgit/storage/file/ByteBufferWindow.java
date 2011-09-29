@@ -45,9 +45,13 @@
 
 package org.eclipse.jgit.storage.file;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
+
+import org.eclipse.jgit.storage.pack.PackOutputStream;
 
 /**
  * A window for accessing git packs using a {@link ByteBuffer} for storage.
@@ -69,6 +73,23 @@ final class ByteBufferWindow extends ByteWindow {
 		n = Math.min(s.remaining(), n);
 		s.get(b, o, n);
 		return n;
+	}
+
+	@Override
+	void write(PackOutputStream out, long pos, int cnt, MessageDigest digest)
+			throws IOException {
+		final ByteBuffer s = buffer.slice();
+		s.position((int) (pos - start));
+
+		while (0 < cnt) {
+			byte[] buf = out.getCopyBuffer();
+			int n = Math.min(cnt, buf.length);
+			s.get(buf, 0, n);
+			out.write(buf, 0, n);
+			if (digest != null)
+				digest.update(buf, 0, n);
+			cnt -= n;
+		}
 	}
 
 	@Override

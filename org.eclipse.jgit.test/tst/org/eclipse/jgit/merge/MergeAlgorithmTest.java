@@ -43,61 +43,18 @@
 
 package org.eclipse.jgit.merge;
 
+import static org.junit.Assert.assertEquals;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-
-import junit.framework.TestCase;
 
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.lib.Constants;
+import org.junit.Test;
 
-public class MergeAlgorithmTest extends TestCase {
+public class MergeAlgorithmTest {
 	MergeFormatter fmt=new MergeFormatter();
-
-	// the texts which are used in this merge-tests are constructed by
-	// concatenating fixed chunks of text defined by the String constants
-	// A..Y. The common base text is always the text A+B+C+D+E+F+G+H+I+J.
-	// The two texts being merged are constructed by deleting some chunks
-	// or inserting new chunks. Some of the chunks are one-liners, others
-	// contain more than one line.
-	private static final String A = "aaa\n";
-	private static final String B = "bbbbb\nbb\nbbb\n";
-	private static final String C = "c\n";
-	private static final String D = "dd\n";
-	private static final String E = "ee\n";
-	private static final String F = "fff\nff\n";
-	private static final String G = "gg\n";
-	private static final String H = "h\nhhh\nhh\n";
-	private static final String I = "iiii\n";
-	private static final String J = "jj\n";
-	private static final String Z = "zzz\n";
-	private static final String Y = "y\n";
-
-	// constants which define how conflict-regions are expected to be reported.
-	private static final String XXX_0 = "<<<<<<< O\n";
-	private static final String XXX_1 = "=======\n";
-	private static final String XXX_2 = ">>>>>>> T\n";
-
-	// the common base from which all merges texts derive from
-	String base=A+B+C+D+E+F+G+H+I+J;
-
-	// the following constants define the merged texts. The name of the
-	// constants describe how they are created out of the common base. E.g.
-	// the constant named replace_XYZ_by_MNO stands for the text which is
-	// created from common base by replacing first chunk X by chunk M, then
-	// Y by N and then Z by O.
-	String replace_C_by_Z=A+B+Z+D+E+F+G+H+I+J;
-	String replace_A_by_Y=Y+B+C+D+E+F+G+H+I+J;
-	String replace_A_by_Z=Z+B+C+D+E+F+G+H+I+J;
-	String replace_J_by_Y=A+B+C+D+E+F+G+H+I+Y;
-	String replace_J_by_Z=A+B+C+D+E+F+G+H+I+Z;
-	String replace_BC_by_ZZ=A+Z+Z+D+E+F+G+H+I+J;
-	String replace_BCD_by_ZZZ=A+Z+Z+Z+E+F+G+H+I+J;
-	String replace_BD_by_ZZ=A+Z+C+Z+E+F+G+H+I+J;
-	String replace_BCDEGI_by_ZZZZZZ=A+Z+Z+Z+Z+F+Z+H+Z+J;
-	String replace_CEFGHJ_by_YYYYYY=A+B+Y+D+Y+Y+Y+Y+I+Y;
-	String replace_BDE_by_ZZY=A+Z+C+Z+Y+F+G+H+I+J;
 
 	/**
 	 * Check for a conflict where the second text was changed similar to the
@@ -105,10 +62,10 @@ public class MergeAlgorithmTest extends TestCase {
 	 *
 	 * @throws IOException
 	 */
+	@Test
 	public void testTwoConflictingModifications() throws IOException {
-		assertEquals(A + XXX_0 + B + XXX_1 + Z + XXX_2 + Z + D + E + F + G
-				+ H + I + J,
-				merge(base, replace_C_by_Z, replace_BC_by_ZZ));
+		assertEquals(t("a<b=Z>Zdefghij"),
+				merge("abcdefghij", "abZdefghij", "aZZdefghij"));
 	}
 
 	/**
@@ -118,10 +75,10 @@ public class MergeAlgorithmTest extends TestCase {
 	 *
 	 * @throws IOException
 	 */
+	@Test
 	public void testOneAgainstTwoConflictingModifications() throws IOException {
-		assertEquals(A + Z + XXX_0 + Z + XXX_1 + C + XXX_2 + Z + E + F
-				+ G + H + I + J,
-				merge(base, replace_BCD_by_ZZZ, replace_BD_by_ZZ));
+		assertEquals(t("aZ<Z=c>Zefghij"),
+				merge("abcdefghij", "aZZZefghij", "aZcZefghij"));
 	}
 
 	/**
@@ -130,9 +87,10 @@ public class MergeAlgorithmTest extends TestCase {
 	 *
 	 * @throws IOException
 	 */
+	@Test
 	public void testNoAgainstOneModification() throws IOException {
-		assertEquals(replace_BD_by_ZZ.toString(),
-				merge(base, base, replace_BD_by_ZZ));
+		assertEquals(t("aZcZefghij"),
+				merge("abcdefghij", "abcdefghij", "aZcZefghij"));
 	}
 
 	/**
@@ -141,9 +99,10 @@ public class MergeAlgorithmTest extends TestCase {
 	 *
 	 * @throws IOException
 	 */
+	@Test
 	public void testTwoNonConflictingModifications() throws IOException {
-		assertEquals(Y + B + Z + D + E + F + G + H + I + J,
-			merge(base, replace_C_by_Z, replace_A_by_Y));
+		assertEquals(t("YbZdefghij"),
+				merge("abcdefghij", "abZdefghij", "Ybcdefghij"));
 	}
 
 	/**
@@ -152,12 +111,10 @@ public class MergeAlgorithmTest extends TestCase {
 	 *
 	 * @throws IOException
 	 */
+	@Test
 	public void testTwoComplicatedModifications() throws IOException {
-		assertEquals(A + XXX_0 + Z + Z + Z + Z + F + Z + H + XXX_1 + B + Y + D
-				+ Y + Y + Y + Y + XXX_2 + Z + Y,
-				merge(base,
-						replace_BCDEGI_by_ZZZZZZ,
-						replace_CEFGHJ_by_YYYYYY));
+		assertEquals(t("a<ZZZZfZhZj=bYdYYYYiY>"),
+				merge("abcdefghij", "aZZZZfZhZj", "abYdYYYYiY"));
 	}
 
 	/**
@@ -165,9 +122,10 @@ public class MergeAlgorithmTest extends TestCase {
 	 *
 	 * @throws IOException
 	 */
+	@Test
 	public void testConflictAtStart() throws IOException {
-		assertEquals(XXX_0 + Z + XXX_1 + Y + XXX_2 + B + C + D + E + F + G + H
-				+ I + J, merge(base, replace_A_by_Z, replace_A_by_Y));
+		assertEquals(t("<Z=Y>bcdefghij"),
+				merge("abcdefghij", "Zbcdefghij", "Ybcdefghij"));
 	}
 
 	/**
@@ -175,8 +133,10 @@ public class MergeAlgorithmTest extends TestCase {
 	 *
 	 * @throws IOException
 	 */
+	@Test
 	public void testConflictAtEnd() throws IOException {
-		assertEquals(A+B+C+D+E+F+G+H+I+XXX_0+Z+XXX_1+Y+XXX_2, merge(base, replace_J_by_Z, replace_J_by_Y));
+		assertEquals(t("abcdefghi<Z=Y>"),
+				merge("abcdefghij", "abcdefghiZ", "abcdefghiY"));
 	}
 
 	/**
@@ -185,15 +145,109 @@ public class MergeAlgorithmTest extends TestCase {
 	 *
 	 * @throws IOException
 	 */
+	@Test
 	public void testSameModification() throws IOException {
-		assertEquals(replace_C_by_Z,
-				merge(base, replace_C_by_Z, replace_C_by_Z));
+		assertEquals(t("abZdefghij"),
+				merge("abcdefghij", "abZdefghij", "abZdefghij"));
+	}
+
+	/**
+	 * Check that a deleted vs. a modified line shows up as conflict (see Bug
+	 * 328551)
+	 *
+	 * @throws IOException
+	 */
+	@Test
+	public void testDeleteVsModify() throws IOException {
+		assertEquals(t("ab<=Z>defghij"),
+				merge("abcdefghij", "abdefghij", "abZdefghij"));
+	}
+
+	@Test
+	public void testInsertVsModify() throws IOException {
+		assertEquals(t("a<bZ=XY>"), merge("ab", "abZ", "aXY"));
+	}
+
+	@Test
+	public void testAdjacentModifications() throws IOException {
+		assertEquals(t("a<Zc=bY>d"), merge("abcd", "aZcd", "abYd"));
+	}
+
+	@Test
+	public void testSeperateModifications() throws IOException {
+		assertEquals(t("aZcYe"), merge("abcde", "aZcde", "abcYe"));
+	}
+
+	/**
+	 * Test merging two contents which do one similar modification and one
+	 * insertion is only done by one side. Between modification and insertion is
+	 * a block which is common between the two contents and the common base
+	 *
+	 * @throws IOException
+	 */
+	@Test
+	public void testTwoSimilarModsAndOneInsert() throws IOException {
+		assertEquals(t("IAAJ"), merge("iA", "IA", "IAAJ"));
+		assertEquals(t("aBcDde"), merge("abcde", "aBcde", "aBcDde"));
+		assertEquals(t("IAJ"), merge("iA", "IA", "IAJ"));
+		assertEquals(t("IAAAJ"), merge("iA", "IA", "IAAAJ"));
+		assertEquals(t("IAAAJCAB"), merge("iACAB", "IACAB", "IAAAJCAB"));
+		assertEquals(t("HIAAAJCAB"), merge("HiACAB", "HIACAB", "HIAAAJCAB"));
+		assertEquals(t("AGADEFHIAAAJCAB"),
+				merge("AGADEFHiACAB", "AGADEFHIACAB", "AGADEFHIAAAJCAB"));
+
+	}
+
+	/**
+	 * Test situations where (at least) one input value is the empty text
+	 *
+	 * @throws IOException
+	 */
+	@Test
+	public void testEmptyTexts() throws IOException {
+		// test modification against deletion
+		assertEquals(t("<AB=>"), merge("A", "AB", ""));
+		assertEquals(t("<=AB>"), merge("A", "", "AB"));
+
+		// test unmodified against deletion
+		assertEquals(t(""), merge("AB", "AB", ""));
+		assertEquals(t(""), merge("AB", "", "AB"));
+
+		// test deletion against deletion
+		assertEquals(t(""), merge("AB", "", ""));
 	}
 
 	private String merge(String commonBase, String ours, String theirs) throws IOException {
-		MergeResult r=MergeAlgorithm.merge(RawTextComparator.DEFAULT, new RawText(Constants.encode(commonBase)), new RawText(Constants.encode(ours)), new RawText(Constants.encode(theirs)));
+		MergeResult r = new MergeAlgorithm().merge(RawTextComparator.DEFAULT,
+				T(commonBase), T(ours), T(theirs));
 		ByteArrayOutputStream bo=new ByteArrayOutputStream(50);
 		fmt.formatMerge(bo, r, "B", "O", "T", Constants.CHARACTER_ENCODING);
 		return new String(bo.toByteArray(), Constants.CHARACTER_ENCODING);
+	}
+
+	public static String t(String text) {
+		StringBuilder r = new StringBuilder();
+		for (int i = 0; i < text.length(); i++) {
+			char c = text.charAt(i);
+			switch (c) {
+			case '<':
+				r.append("<<<<<<< O\n");
+				break;
+			case '=':
+				r.append("=======\n");
+				break;
+			case '>':
+				r.append(">>>>>>> T\n");
+				break;
+			default:
+				r.append(c);
+				r.append('\n');
+			}
+		}
+		return r.toString();
+	}
+
+	public static RawText T(String text) {
+		return new RawText(Constants.encode(t(text)));
 	}
 }

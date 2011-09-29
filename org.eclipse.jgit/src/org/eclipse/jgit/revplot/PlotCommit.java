@@ -59,6 +59,8 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 
 	static final PlotLane[] NO_LANES = {};
 
+	static final Ref[] NO_REFS = {};
+
 	PlotLane[] passingLanes;
 
 	PlotLane lane;
@@ -77,6 +79,7 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 		super(id);
 		passingLanes = NO_LANES;
 		children = NO_CHILDREN;
+		refs = NO_REFS;
 	}
 
 	void addPassingLane(final PlotLane c) {
@@ -142,6 +145,29 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 			if (a == c)
 				return true;
 		return false;
+	}
+
+	/**
+	 * Get the number of refs for this commit.
+	 *
+	 * @return number of refs; always a positive value but can be 0.
+	 */
+	public final int getRefCount() {
+		return refs.length;
+	}
+
+	/**
+	 * Get the nth Ref from this commit's ref list.
+	 *
+	 * @param nth
+	 *            ref index to obtain. Must be in the range 0 through
+	 *            {@link #getRefCount()}-1.
+	 * @return the specified ref.
+	 * @throws ArrayIndexOutOfBoundsException
+	 *             an invalid ref index was specified.
+	 */
+	public final Ref getRef(final int nth) {
+		return refs[nth];
 	}
 
 	/**

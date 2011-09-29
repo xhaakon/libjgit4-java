@@ -56,7 +56,7 @@ import org.eclipse.jgit.util.NB;
 
 /** Custom output stream to support {@link PackWriter}. */
 public final class PackOutputStream extends OutputStream {
-	private final int BYTES_TO_WRITE_BEFORE_CANCEL_CHECK = 128 * 1024;
+	private static final int BYTES_TO_WRITE_BEFORE_CANCEL_CHECK = 128 * 1024;
 
 	private final ProgressMonitor writeMonitor;
 
@@ -135,10 +135,10 @@ public final class PackOutputStream extends OutputStream {
 		out.flush();
 	}
 
-	void writeFileHeader(int version, int objectCount) throws IOException {
+	void writeFileHeader(int version, long objectCount) throws IOException {
 		System.arraycopy(Constants.PACK_SIGNATURE, 0, headerBuffer, 0, 4);
 		NB.encodeInt32(headerBuffer, 4, version);
-		NB.encodeInt32(headerBuffer, 8, objectCount);
+		NB.encodeInt32(headerBuffer, 8, (int) objectCount);
 		write(headerBuffer, 0, 12);
 	}
 
@@ -231,7 +231,7 @@ public final class PackOutputStream extends OutputStream {
 	}
 
 	/** @return total number of bytes written since stream start. */
-	long length() {
+	public long length() {
 		return count;
 	}
 

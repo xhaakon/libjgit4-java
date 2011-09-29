@@ -43,57 +43,43 @@
 
 package org.eclipse.jgit.diff;
 
-import java.util.AbstractList;
 import java.util.ArrayList;
 
 /** Specialized list of {@link Edit}s in a document. */
-public class EditList extends AbstractList<Edit> {
-	private final ArrayList<Edit> container;
+public class EditList extends ArrayList<Edit> {
+	private static final long serialVersionUID = 1L;
+
+	/**
+	 * Construct an edit list containing a single edit.
+	 *
+	 * @param edit
+	 *            the edit to return in the list.
+	 * @return list containing only {@code edit}.
+	 */
+	public static EditList singleton(Edit edit) {
+		EditList res = new EditList(1);
+		res.add(edit);
+		return res;
+	}
 
 	/** Create a new, empty edit list. */
 	public EditList() {
-		container = new ArrayList<Edit>();
+		super(16);
 	}
 
-	@Override
-	public int size() {
-		return container.size();
-	}
-
-	@Override
-	public Edit get(final int index) {
-		return container.get(index);
-	}
-
-	@Override
-	public Edit set(final int index, final Edit element) {
-		return container.set(index, element);
-	}
-
-	@Override
-	public void add(final int index, final Edit element) {
-		container.add(index, element);
-	}
-
-	@Override
-	public Edit remove(final int index) {
-		return container.remove(index);
-	}
-
-	@Override
-	public int hashCode() {
-		return container.hashCode();
-	}
-
-	@Override
-	public boolean equals(final Object o) {
-		if (o instanceof EditList)
-			return container.equals(((EditList) o).container);
-		return false;
+	/**
+	 * Create an empty edit list with the specified capacity.
+	 *
+	 * @param capacity
+	 *            the initial capacity of the edit list. If additional edits are
+	 *            added to the list, it will be grown to support them.
+	 */
+	public EditList(int capacity) {
+		super(capacity);
 	}
 
 	@Override
 	public String toString() {
-		return "EditList" + container.toString();
+		return "EditList" + super.toString();
 	}
 }
