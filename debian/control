@@ -10,7 +10,7 @@ Build-Depends: debhelper (>= 8~),
                javahelper (>= 0.32~),
                unzip,
                zip
-Standards-Version: 3.9.1
+Standards-Version: 3.9.2
 Vcs-Git: git://git.debian.org/git/pkg-java/eclipse-jgit.git
 Vcs-Browser: http://git.debian.org/?p=pkg-java/eclipse-jgit.git
 Homepage: http://www.eclipse.org/jgit/
