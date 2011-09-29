@@ -6,8 +6,7 @@ Uploaders: Niels Thykier <niels@thykier.net>,
            Benjamin Drung <bdrung@ubuntu.com>
 Build-Depends: debhelper (>= 8~),
                default-jdk,
-               eclipse-pde (>= 3.5.2),
-               eclipse-platform (>= 3.5.2),
+               eclipse-pde (>= 3.7~exp),
                javahelper (>= 0.32~),
                unzip,
                zip
@@ -18,7 +17,11 @@ Homepage: http://www.eclipse.org/jgit/
 
 Package: eclipse-jgit
 Architecture: all
-Depends: eclipse-platform (>= 3.5.2), ${misc:Depends}
-Description: Java implementation of GIT for eclipse
- I am so smart, I am so smart - S.M.A.T.
- ~Homer J. Simpson.
+Depends: eclipse-platform (>= 3.7~exp),
+         ${misc:Depends}
+Description: Java implementation of GIT for Eclipse
+ JGit is a lightweight, pure Java library implementing the Git version control
+ system:
+  * Repository access routines
+  * Network protocols
+  * Core version control algorithms
