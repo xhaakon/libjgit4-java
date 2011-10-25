@@ -1,5 +1,5 @@
-Format-Specification: http://svn.debian.org/wsvn/dep/web/deps/dep5.mdwn?op=file&rev=135
-Name: Eclipse-JGit
+Format: http://anonscm.debian.org/viewvc/dep/web/deps/dep5.mdwn?revision=202
+Upstream-Name: Eclipse-JGit
 
 Files: *
 Copyright: 2011, Abhishek Bhatnagar <abhatnag@redhat.com>
