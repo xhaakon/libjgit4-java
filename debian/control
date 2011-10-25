@@ -3,7 +3,8 @@ Priority: optional
 Section: devel
 Maintainer: Debian Java Maintainers <pkg-java-maintainers@lists.alioth.debian.org>
 Uploaders: Niels Thykier <niels@thykier.net>,
-           Benjamin Drung <bdrung@ubuntu.com>
+           Benjamin Drung <bdrung@ubuntu.com>,
+           Jakub Adam <jakub.adam@ktknet.cz>
 Build-Depends: debhelper (>= 8~),
                default-jdk,
                eclipse-pde (>= 3.7~exp),
