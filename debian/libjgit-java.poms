@@ -1,0 +1,6 @@
+pom.xml
+org.eclipse.jgit/pom.xml
+org.eclipse.jgit.ant/pom.xml
+org.eclipse.jgit.http.server/pom.xml
+org.eclipse.jgit.junit/pom.xml
+

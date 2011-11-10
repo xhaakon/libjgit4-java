@@ -1,28 +1,65 @@
-Source: eclipse-jgit
+Source: jgit
 Priority: optional
-Section: devel
+Section: java
 Maintainer: Debian Java Maintainers <pkg-java-maintainers@lists.alioth.debian.org>
 Uploaders: Niels Thykier <niels@thykier.net>,
            Benjamin Drung <bdrung@ubuntu.com>,
            Jakub Adam <jakub.adam@ktknet.cz>
 Build-Depends: debhelper (>= 8~),
+               cdbs,
+               javahelper,
                default-jdk,
-               eclipse-pde (>= 3.7~exp),
-               javahelper (>= 0.32~),
-               unzip,
-               zip
+               libargs4j-java,
+               libbuild-helper-maven-plugin-java,
+               libhamcrest-java,
+               libjsch-java,
+               libmaven-antrun-plugin-java,
+               libmaven-javadoc-plugin-java,
+               libmaven-shade-plugin-java,
+               maven-debian-helper,
+               maven-repo-helper
 Standards-Version: 3.9.2
 Vcs-Git: git://git.debian.org/git/pkg-java/eclipse-jgit.git
 Vcs-Browser: http://git.debian.org/?p=pkg-java/eclipse-jgit.git
 Homepage: http://www.eclipse.org/jgit/
 
-Package: eclipse-jgit
+Package: libjgit-java
 Architecture: all
-Depends: eclipse-platform (>= 3.7~exp),
+Depends: ${java:Depends},
          ${misc:Depends}
+Suggests: libjgit-java-doc
+Replaces: eclipse-jgit (<< 1.1.0-2~)
+Breaks: eclipse-jgit (<< 1.1.0-2~)
 Description: Java implementation of GIT for Eclipse
  JGit is a lightweight, pure Java library implementing the Git version control
  system:
   * Repository access routines
   * Network protocols
   * Core version control algorithms
+
+Package: libjgit-java-doc
+Architecture: all
+Section: doc
+Depends: ${misc:Depends}
+Suggests: libjgit-java
+Description: Java implementation of GIT for Eclipse
+ JGit is a lightweight, pure Java library implementing the Git version control
+ system:
+  * Repository access routines
+  * Network protocols
+  * Core version control algorithms
+ .
+ This package contains the Javadoc API documentation.
+
+Package: jgit-cli
+Architecture: all
+Section: devel
+Depends: libjgit-java (= ${source:Version}),
+         ${java:Depends},
+         ${misc:Depends}
+Description: Java implementation of GIT for Eclipse - Command line interface
+ JGit is a lightweight, pure Java library implementing the Git version control
+ system.
+ .
+ This package provides command line interface for user interaction with jgit.
+

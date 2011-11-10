@@ -1,0 +1,78 @@
+.TH JGIT 1 "November  11, 2011"
+.\" Please adjust this date whenever revising the manpage.
+.SH NAME
+jgit \- Pure Java GIT version control system implementation
+.SH SYNOPSIS
+.B jgit --git-dir GIT_DIR --help (-h) --show-stack-trace command [ARG ...]
+.SH DESCRIPTION
+.B JGit 
+is an implementaion of GIT VCS written in Java language.
+.PP
+.B Git 
+is a fast, scalable, distributed revision control system with an unusually rich
+command set that provides both high-level operations and full access to internals.
+.SH OPTIONS
+.TP
+.B \-\-git\-dir GIT_DIR
+Set the git repository to operate on
+.TP
+.B \-\-help (\-h)
+Display help text
+.TP
+.B \-\-show\-stack\-trace
+display the Java stack trace on exceptions
+.PP
+The most commonly used commands are:
+.TP 10
+.B add
+Add file contents to the index
+.TP 10
+.B branch
+List, create, or delete branches
+.TP 10
+.B checkout
+Checkout a branch to the working tree
+.TP 10
+.B clone
+Clone a repository into a new directory
+.TP 10
+.B commit
+Record changes to the repository
+.TP 10
+.B daemon
+Export repositories over git://
+.TP 10
+.B diff
+Show diffs
+.TP 10
+.B fetch
+Update remote refs from another repository
+.TP 10
+.B init
+Create an empty git repository
+.TP 10
+.B log
+View commit history
+.TP 10
+.B merge
+Merges two developement histories
+.TP 10
+.B push
+Update remote repository from local refs
+.TP 10
+.B rm
+Stop tracking a file
+.TP 10
+.B tag
+Create a tag
+.TP 10
+.B version
+Display the version of jgit
+.PP
+.SH AUTHOR
+JGit was written by Eclipse JGIT Project contributors,
+.B http://www.eclipse.org/jgit
+.PP
+This manual page was written by Jakub Adam <jakub.adam@ktknet.cz>,
+for the Debian project (but may be used by others).
+

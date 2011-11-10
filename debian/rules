@@ -1,13 +1,32 @@
 #!/usr/bin/make -f
 
-# Note: We use forceContextQualifier because the docs plugins use custom build
-#       scripts and don't work otherwise.
-BUILD_OPTIONS := -DjavacTarget=1.5 -DjavacSource=1.5 -DforceContextQualifier=v20101002
+include /usr/share/cdbs/1/rules/debhelper.mk
+include /usr/share/cdbs/1/class/javahelper.mk
+include /usr/share/cdbs/1/class/maven.mk
 
-export JAVA_HOME := /usr/lib/jvm/default-java
+VER := 1.1.0.201109151100-r
 
-%:
-	dh $@ --with eclipse-helper
+JAVA_HOME := /usr/lib/jvm/default-java
 
-override_jh_compilefeatures:
-	jh_compilefeatures --build-opts '$(BUILD_OPTIONS)'
+DEB_MAVEN_DOC_TARGET :=
+DEB_MAVEN_INSTALL_TARGET :=
+
+install/libjgit-java::
+	mh_installpoms -plibjgit-java
+	mh_installjar -plibjgit-java -l org.eclipse.jgit/pom.xml org.eclipse.jgit/target/org.eclipse.jgit-$(VER).jar
+	mh_installjar -plibjgit-java -l org.eclipse.jgit.ant/pom.xml org.eclipse.jgit.ant/target/org.eclipse.jgit.ant-$(VER).jar
+	mh_installjar -plibjgit-java -l org.eclipse.jgit.http.server/pom.xml org.eclipse.jgit.http.server/target/org.eclipse.jgit.http.server-$(VER).jar
+	mh_installjar -plibjgit-java -l org.eclipse.jgit.junit/pom.xml org.eclipse.jgit.junit/target/org.eclipse.jgit.junit-$(VER).jar
+	mh_unpatchpoms -plibjgit-java
+
+install/jgit-cli::
+	mh_installpoms -pjgit-cli
+	mh_installjar -pjgit-cli -l org.eclipse.jgit.console/pom.xml org.eclipse.jgit.console/target/org.eclipse.jgit.console-$(VER).jar
+	mh_installjar -pjgit-cli -l org.eclipse.jgit.iplog/pom.xml org.eclipse.jgit.iplog/target/org.eclipse.jgit.iplog-$(VER).jar
+	mh_installjar -pjgit-cli -l org.eclipse.jgit.pgm/pom.xml org.eclipse.jgit.pgm/target/org.eclipse.jgit.pgm-$(VER).jar
+	mh_installjar -pjgit-cli -l org.eclipse.jgit.ui/pom.xml org.eclipse.jgit.ui/target/org.eclipse.jgit.ui-$(VER).jar
+	mh_unpatchpoms -pjgit-cli
+
+	dh_install -pjgit-cli org.eclipse.jgit.pgm/jgit.sh /usr/bin
+	mv debian/jgit-cli/usr/bin/jgit.sh debian/jgit-cli/usr/bin/jgit
+
