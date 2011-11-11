@@ -63,3 +63,10 @@ Description: Java implementation of GIT for Eclipse - Command line interface
  .
  This package provides command line interface for user interaction with jgit.
 
+Package: eclipse-jgit
+Architecture: all
+Depends: libjgit-java, ${misc:Depends}
+Section: oldlibs
+Description: Transitional dummy package
+ This is a transitional dummy package to rename eclipse-jgit to libjgit-java.
+
