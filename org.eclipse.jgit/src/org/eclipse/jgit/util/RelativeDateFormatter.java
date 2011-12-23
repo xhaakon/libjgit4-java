@@ -75,7 +75,8 @@ public class RelativeDateFormatter {
 	@SuppressWarnings("boxing")
 	public static String format(Date when) {
 
-		long ageMillis = (System.currentTimeMillis() - when.getTime());
+		long ageMillis = SystemReader.getInstance().getCurrentTime()
+				- when.getTime();
 
 		// shouldn't happen in a perfect world
 		if (ageMillis < 0)
@@ -118,8 +119,10 @@ public class RelativeDateFormatter {
 					JGitText.get().year;
 			long months = round(ageMillis % YEAR_IN_MILLIS, MONTH_IN_MILLIS);
 			String monthLabel = (months > 1) ? JGitText.get().months : //
-					JGitText.get().month;
-			return MessageFormat.format(JGitText.get().yearsMonthsAgo,
+					(months == 1 ? JGitText.get().month : "");
+			return MessageFormat.format(
+					months == 0 ? JGitText.get().years0MonthsAgo : JGitText
+							.get().yearsMonthsAgo,
 					new Object[] { years, yearLabel, months, monthLabel });
 		}
 

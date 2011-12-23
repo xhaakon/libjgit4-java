@@ -174,7 +174,7 @@ public class DirCacheCheckout {
 	 * @param dc
 	 *            the (already locked) Dircache for this repo
 	 * @param mergeCommitTree
-	 *            the id of the tree of the
+	 *            the id of the tree we want to fast-forward to
 	 * @throws IOException
 	 */
 	public DirCacheCheckout(Repository repo, ObjectId headCommitTree,
@@ -352,12 +352,10 @@ public class DirCacheCheckout {
 					}
 				}
 			} else {
-				// There is no file/folder for that path in the working tree.
-				// The only entry we have is the index entry. If that entry is a
-				// conflict simply remove it. Otherwise keep that entry in the
-				// index
-				if (i.getDirCacheEntry().getStage() == 0)
-					keep(i.getDirCacheEntry());
+				// There is no file/folder for that path in the working tree,
+				// nor in the merge head.
+				// The only entry we have is the index entry. Like the case
+				// where there is a file with the same name, remove it,
 			}
 		}
 	}
@@ -396,10 +394,9 @@ public class DirCacheCheckout {
 				prescanOneTree();
 
 			if (!conflicts.isEmpty()) {
-				if (failOnConflict) {
-					dc.unlock();
+				if (failOnConflict)
 					throw new CheckoutConflictException(conflicts.toArray(new String[conflicts.size()]));
-				} else
+				else
 					cleanUpConflicts();
 			}
 
@@ -448,10 +445,8 @@ public class DirCacheCheckout {
 			}
 
 			// commit the index builder - a new index is persisted
-			if (!builder.commit()) {
-				dc.unlock();
+			if (!builder.commit())
 				throw new IndexWriteException();
-			}
 		} finally {
 			objectReader.release();
 		}

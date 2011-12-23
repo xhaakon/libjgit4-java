@@ -49,6 +49,7 @@ import static org.eclipse.jgit.storage.pack.StoredObjectRepresentation.PACK_WHOL
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 import java.security.MessageDigest;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -62,7 +63,9 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -141,6 +144,50 @@ import org.eclipse.jgit.util.TemporaryBuffer;
 public class PackWriter {
 	private static final int PACK_VERSION_GENERATED = 2;
 
+	private static final Map<WeakReference<PackWriter>, Boolean> instances =
+			new ConcurrentHashMap<WeakReference<PackWriter>, Boolean>();
+
+	private static final Iterable<PackWriter> instancesIterable = new Iterable<PackWriter>() {
+		public Iterator<PackWriter> iterator() {
+			return new Iterator<PackWriter>() {
+				private final Iterator<WeakReference<PackWriter>> it =
+						instances.keySet().iterator();
+				private PackWriter next;
+
+				public boolean hasNext() {
+					if (next != null)
+						return true;
+					while (it.hasNext()) {
+						WeakReference<PackWriter> ref = it.next();
+						next = ref.get();
+						if (next != null)
+							return true;
+						it.remove();
+					}
+					return false;
+				}
+
+				public PackWriter next() {
+					if (hasNext()) {
+						PackWriter result = next;
+						next = null;
+						return result;
+					}
+					throw new NoSuchElementException();
+				}
+
+				public void remove() {
+					throw new UnsupportedOperationException();
+				}
+			};
+		}
+	};
+
+	/** @return all allocated, non-released PackWriters instances. */
+	public static Iterable<PackWriter> getInstances() {
+		return instancesIterable;
+	}
+
 	@SuppressWarnings("unchecked")
 	private final BlockList<ObjectToPack> objectsLists[] = new BlockList[Constants.OBJ_TAG + 1];
 	{
@@ -173,6 +220,10 @@ public class PackWriter {
 	private final PackConfig config;
 
 	private final Statistics stats;
+
+	private final MutableState state;
+
+	private final WeakReference<PackWriter> selfRef;
 
 	private Statistics.ObjectType typeStats;
 
@@ -266,6 +317,9 @@ public class PackWriter {
 		reuseDeltas = config.isReuseDeltas();
 		reuseValidate = true; // be paranoid by default
 		stats = new Statistics();
+		state = new MutableState();
+		selfRef = new WeakReference<PackWriter>(this);
+		instances.put(selfRef, Boolean.TRUE);
 	}
 
 	/**
@@ -714,6 +768,7 @@ public class PackWriter {
 		if (!cachedPacks.isEmpty())
 			throw new IOException(JGitText.get().cachedPacksPreventsIndexCreation);
 
+		long writeStart = System.currentTimeMillis();
 		final List<ObjectToPack> list = sortByName();
 		final PackIndexWriter iw;
 		int indexVersion = config.getIndexVersion();
@@ -722,6 +777,7 @@ public class PackWriter {
 		else
 			iw = PackIndexWriter.createVersion(indexStream, indexVersion);
 		iw.write(list, packcsum);
+		stats.timeWriting += System.currentTimeMillis() - writeStart;
 	}
 
 	private List<ObjectToPack> sortByName() {
@@ -740,6 +796,37 @@ public class PackWriter {
 			Collections.sort(sortedByName);
 		}
 		return sortedByName;
+	}
+
+	private void beginPhase(PackingPhase phase, ProgressMonitor monitor,
+			long cnt) {
+		state.phase = phase;
+		String task;
+		switch (phase) {
+		case COUNTING:
+			task = JGitText.get().countingObjects;
+			break;
+		case GETTING_SIZES:
+			task = JGitText.get().searchForSizes;
+			break;
+		case FINDING_SOURCES:
+			task = JGitText.get().searchForReuse;
+			break;
+		case COMPRESSING:
+			task = JGitText.get().compressingObjects;
+			break;
+		case WRITING:
+			task = JGitText.get().writingObjects;
+			break;
+		default:
+			throw new IllegalArgumentException(
+					MessageFormat.format(JGitText.get().illegalPackingPhase, phase));
+		}
+		monitor.beginTask(task, (int) cnt);
+	}
+
+	private void endPhase(ProgressMonitor monitor) {
+		monitor.endTask();
 	}
 
 	/**
@@ -801,7 +888,7 @@ public class PackWriter {
 
 		long objCnt = getObjectCount();
 		stats.totalObjects = objCnt;
-		writeMonitor.beginTask(JGitText.get().writingObjects, (int) objCnt);
+		beginPhase(PackingPhase.WRITING, writeMonitor, objCnt);
 		long writeStart = System.currentTimeMillis();
 
 		out.writeFileHeader(PACK_VERSION_GENERATED, objCnt);
@@ -828,6 +915,7 @@ public class PackWriter {
 		stats.timeWriting = System.currentTimeMillis() - writeStart;
 		stats.totalBytes = out.length();
 		stats.reusedPacks = Collections.unmodifiableList(cachedPacks);
+		stats.depth = depth;
 
 		for (Statistics.ObjectType typeStat : stats.objectTypes) {
 			if (typeStat == null)
@@ -840,7 +928,7 @@ public class PackWriter {
 		}
 
 		reader.release();
-		writeMonitor.endTask();
+		endPhase(writeMonitor);
 	}
 
 	/**
@@ -852,6 +940,11 @@ public class PackWriter {
 		return stats;
 	}
 
+	/** @return snapshot of the current state of this PackWriter. */
+	public State getState() {
+		return state.snapshot();
+	}
+
 	/** Release all resources used by this writer. */
 	public void release() {
 		reader.release();
@@ -859,25 +952,26 @@ public class PackWriter {
 			myDeflater.end();
 			myDeflater = null;
 		}
+		instances.remove(selfRef);
 	}
 
 	private void searchForReuse(ProgressMonitor monitor) throws IOException {
-		int cnt = 0;
+		long cnt = 0;
 		cnt += objectsLists[Constants.OBJ_COMMIT].size();
 		cnt += objectsLists[Constants.OBJ_TREE].size();
 		cnt += objectsLists[Constants.OBJ_BLOB].size();
 		cnt += objectsLists[Constants.OBJ_TAG].size();
 
 		long start = System.currentTimeMillis();
-		monitor.beginTask(JGitText.get().searchForReuse, cnt);
+		beginPhase(PackingPhase.FINDING_SOURCES, monitor, cnt);
 
 		if (cnt <= 4096) {
 			// For small object counts, do everything as one list.
-			BlockList<ObjectToPack> tmp = new BlockList<ObjectToPack>(cnt);
+			BlockList<ObjectToPack> tmp = new BlockList<ObjectToPack>((int) cnt);
+			tmp.addAll(objectsLists[Constants.OBJ_TAG]);
 			tmp.addAll(objectsLists[Constants.OBJ_COMMIT]);
 			tmp.addAll(objectsLists[Constants.OBJ_TREE]);
 			tmp.addAll(objectsLists[Constants.OBJ_BLOB]);
-			tmp.addAll(objectsLists[Constants.OBJ_TAG]);
 			searchForReuse(monitor, tmp);
 			if (pruneCurrentObjectList) {
 				// If the list was pruned, we need to re-prune the main lists.
@@ -888,13 +982,13 @@ public class PackWriter {
 			}
 
 		} else {
+			searchForReuse(monitor, objectsLists[Constants.OBJ_TAG]);
 			searchForReuse(monitor, objectsLists[Constants.OBJ_COMMIT]);
 			searchForReuse(monitor, objectsLists[Constants.OBJ_TREE]);
 			searchForReuse(monitor, objectsLists[Constants.OBJ_BLOB]);
-			searchForReuse(monitor, objectsLists[Constants.OBJ_TAG]);
 		}
 
-		monitor.endTask();
+		endPhase(monitor);
 		stats.timeSearchingForReuse = System.currentTimeMillis() - start;
 	}
 
@@ -941,18 +1035,17 @@ public class PackWriter {
 		// abort with an exception if we actually had to have it.
 		//
 		final long sizingStart = System.currentTimeMillis();
-		monitor.beginTask(JGitText.get().searchForSizes, cnt);
+		beginPhase(PackingPhase.GETTING_SIZES, monitor, cnt);
 		AsyncObjectSizeQueue<ObjectToPack> sizeQueue = reader.getObjectSize(
 				Arrays.<ObjectToPack> asList(list).subList(0, cnt), false);
 		try {
 			final long limit = config.getBigFileThreshold();
 			for (;;) {
-				monitor.update(1);
-
 				try {
 					if (!sizeQueue.next())
 						break;
 				} catch (MissingObjectException notFound) {
+					monitor.update(1);
 					if (ignoreMissingUninteresting) {
 						ObjectToPack otp = sizeQueue.getCurrent();
 						if (otp != null && otp.isEdge()) {
@@ -982,11 +1075,12 @@ public class PackWriter {
 
 				else
 					otp.setWeight((int) sz);
+				monitor.update(1);
 			}
 		} finally {
 			sizeQueue.release();
 		}
-		monitor.endTask();
+		endPhase(monitor);
 		stats.timeSearchingForSizes = System.currentTimeMillis() - sizingStart;
 
 		// Sort the objects by path hash so like files are near each other,
@@ -1032,9 +1126,9 @@ public class PackWriter {
 			return;
 
 		final long searchStart = System.currentTimeMillis();
-		monitor.beginTask(JGitText.get().compressingObjects, nonEdgeCnt);
+		beginPhase(PackingPhase.COMPRESSING, monitor, nonEdgeCnt);
 		searchForDeltas(monitor, list, cnt);
-		monitor.endTask();
+		endPhase(monitor);
 		stats.deltaSearchNonEdgeObjects = nonEdgeCnt;
 		stats.timeCompressing = System.currentTimeMillis() - searchStart;
 
@@ -1302,10 +1396,10 @@ public class PackWriter {
 		otp.setCRC(out.getCRC32());
 	}
 
-	private void writeBase(PackOutputStream out, ObjectToPack baseInPack)
+	private void writeBase(PackOutputStream out, ObjectToPack base)
 			throws IOException {
-		if (baseInPack != null && !baseInPack.isWritten())
-			writeObjectImpl(out, baseInPack);
+		if (base != null && !base.isWritten() && !base.isEdge())
+			writeObjectImpl(out, base);
 	}
 
 	private void writeWholeObjectDeflate(PackOutputStream out,
@@ -1397,8 +1491,7 @@ public class PackWriter {
 			throws MissingObjectException, IOException,
 			IncorrectObjectTypeException {
 		final long countingStart = System.currentTimeMillis();
-		countingMonitor.beginTask(JGitText.get().countingObjects,
-				ProgressMonitor.UNKNOWN);
+		beginPhase(PackingPhase.COUNTING, countingMonitor, ProgressMonitor.UNKNOWN);
 
 		if (have == null)
 			have = Collections.emptySet();
@@ -1444,7 +1537,7 @@ public class PackWriter {
 					cachedPacks.addAll(shortCircuit);
 					for (CachedPack pack : shortCircuit)
 						countingMonitor.update((int) pack.getObjectCount());
-					countingMonitor.endTask();
+					endPhase(countingMonitor);
 					stats.timeCounting = System.currentTimeMillis() - countingStart;
 					return;
 				}
@@ -1534,8 +1627,8 @@ public class PackWriter {
 							wantObjs, haveObjs, pack);
 					commits = new BlockList<RevCommit>();
 
-					countingMonitor.endTask();
-					countingMonitor.beginTask(JGitText.get().countingObjects,
+					endPhase(countingMonitor);
+					beginPhase(PackingPhase.COUNTING, countingMonitor,
 							ProgressMonitor.UNKNOWN);
 					continue;
 				}
@@ -1622,7 +1715,7 @@ public class PackWriter {
 
 		for (CachedPack pack : cachedPacks)
 			countingMonitor.update((int) pack.getObjectCount());
-		countingMonitor.endTask();
+		endPhase(countingMonitor);
 		stats.timeCounting = System.currentTimeMillis() - countingStart;
 	}
 
@@ -1870,6 +1963,8 @@ public class PackWriter {
 
 		Collection<CachedPack> reusedPacks;
 
+		int depth;
+
 		int deltaSearchNonEdgeObjects;
 
 		int deltasFound;
@@ -2012,6 +2107,16 @@ public class PackWriter {
 			return objectTypes[typeCode];
 		}
 
+		/** @return true if the resulting pack file was a shallow pack. */
+		public boolean isShallow() {
+			return depth > 0;
+		}
+
+		/** @return depth (in commits) the pack includes if shallow. */
+		public int getDepth() {
+			return depth;
+		}
+
 		/**
 		 * @return time in milliseconds spent enumerating the objects that need
 		 *         to be included in the output. This time includes any restarts
@@ -2060,6 +2165,15 @@ public class PackWriter {
 			return timeWriting;
 		}
 
+		/** @return total time spent processing this pack. */
+		public long getTimeTotal() {
+			return timeCounting
+				+ timeSearchingForReuse
+				+ timeSearchingForSizes
+				+ timeCompressing
+				+ timeWriting;
+		}
+
 		/**
 		 * @return get the average output speed in terms of bytes-per-second.
 		 *         {@code getTotalBytes() / (getTimeWriting() / 1000.0)}.
@@ -2073,6 +2187,99 @@ public class PackWriter {
 			return MessageFormat.format(JGitText.get().packWriterStatistics, //
 					totalObjects, totalDeltas, //
 					reusedObjects, reusedDeltas);
+		}
+	}
+
+	private class MutableState {
+		/** Estimated size of a single ObjectToPack instance. */
+		// Assume 64-bit pointers, since this is just an estimate.
+		private static final long OBJECT_TO_PACK_SIZE =
+				(2 * 8)               // Object header
+				+ (2 * 8) + (2 * 8)   // ObjectToPack fields
+				+ (8 + 8)             // PackedObjectInfo fields
+				+ 8                   // ObjectIdOwnerMap fields
+				+ 40                  // AnyObjectId fields
+				+ 8;                  // Reference in BlockList
+
+		private final long totalDeltaSearchBytes;
+
+		private volatile PackingPhase phase;
+
+		MutableState() {
+			phase = PackingPhase.COUNTING;
+			if (config.isDeltaCompress()) {
+				int threads = config.getThreads();
+				if (threads <= 0)
+					threads = Runtime.getRuntime().availableProcessors();
+				totalDeltaSearchBytes = (threads * config.getDeltaSearchMemoryLimit())
+						+ config.getBigFileThreshold();
+			} else
+				totalDeltaSearchBytes = 0;
+		}
+
+		State snapshot() {
+			long objCnt = 0;
+			objCnt += objectsLists[Constants.OBJ_COMMIT].size();
+			objCnt += objectsLists[Constants.OBJ_TREE].size();
+			objCnt += objectsLists[Constants.OBJ_BLOB].size();
+			objCnt += objectsLists[Constants.OBJ_TAG].size();
+			// Exclude CachedPacks.
+
+			long bytesUsed = OBJECT_TO_PACK_SIZE * objCnt;
+			PackingPhase curr = phase;
+			if (curr == PackingPhase.COMPRESSING)
+				bytesUsed += totalDeltaSearchBytes;
+			return new State(curr, bytesUsed);
+		}
+	}
+
+	/** Possible states that a PackWriter can be in. */
+	public static enum PackingPhase {
+		/** Counting objects phase. */
+		COUNTING,
+
+		/** Getting sizes phase. */
+		GETTING_SIZES,
+
+		/** Finding sources phase. */
+		FINDING_SOURCES,
+
+		/** Compressing objects phase. */
+		COMPRESSING,
+
+		/** Writing objects phase. */
+		WRITING;
+	}
+
+	/** Summary of the current state of a PackWriter. */
+	public class State {
+		private final PackingPhase phase;
+
+		private final long bytesUsed;
+
+		State(PackingPhase phase, long bytesUsed) {
+			this.phase = phase;
+			this.bytesUsed = bytesUsed;
+		}
+
+		/** @return the PackConfig used to build the writer. */
+		public PackConfig getConfig() {
+			return config;
+		}
+
+		/** @return the current phase of the writer. */
+		public PackingPhase getPhase() {
+			return phase;
+		}
+
+		/** @return an estimate of the total memory used by the writer. */
+		public long estimateBytesUsed() {
+			return bytesUsed;
+		}
+
+		@Override
+		public String toString() {
+			return "PackWriter.State[" + phase + ", memory=" + bytesUsed + "]";
 		}
 	}
 }

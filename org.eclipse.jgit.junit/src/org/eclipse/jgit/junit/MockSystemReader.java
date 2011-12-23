@@ -48,6 +48,7 @@ package org.eclipse.jgit.junit;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -137,7 +138,46 @@ public class MockSystemReader extends SystemReader {
 
 	@Override
 	public int getTimezone(long when) {
-		return TimeZone.getTimeZone("GMT-03:30").getOffset(when) / (60 * 1000);
+		return getTimeZone().getOffset(when) / (60 * 1000);
 	}
 
+	@Override
+	public TimeZone getTimeZone() {
+		return TimeZone.getTimeZone("GMT-03:30");
+	}
+
+	@Override
+	public Locale getLocale() {
+		return Locale.US;
+	}
+
+	/**
+	 * Assign some properties for the currently executing platform
+	 */
+	public void setCurrentPlatform() {
+		setProperty("os.name", System.getProperty("os.name"));
+		setProperty("file.separator", System.getProperty("file.separator"));
+		setProperty("path.separator", System.getProperty("path.separator"));
+		setProperty("line.separator", System.getProperty("line.separator"));
+	}
+
+	/**
+	 * Emulate Windows
+	 */
+	public void setWindows() {
+		setProperty("os.name", "Windows");
+		setProperty("file.separator", "\\");
+		setProperty("path.separator", ";");
+		setProperty("line.separator", "\r\n");
+	}
+
+	/**
+	 * Emulate Unix
+	 */
+	public void setUnix() {
+		setProperty("os.name", "*nix"); // Essentially anything but Windows
+		setProperty("file.separator", "/");
+		setProperty("path.separator", ":");
+		setProperty("line.separator", "\n");
+	}
 }
