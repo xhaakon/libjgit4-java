@@ -70,7 +70,6 @@ import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryState;
-import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.FetchResult;
 
 /**
@@ -79,14 +78,11 @@ import org.eclipse.jgit.transport.FetchResult;
  * @see <a href="http://www.kernel.org/pub/software/scm/git/docs/git-pull.html"
  *      >Git documentation about Pull</a>
  */
-public class PullCommand extends GitCommand<PullResult> {
-	private int timeout = 0;
+public class PullCommand extends TransportCommand<PullCommand, PullResult> {
 
 	private final static String DOT = ".";
 
 	private ProgressMonitor monitor = NullProgressMonitor.INSTANCE;
-
-	private CredentialsProvider credentialsProvider;
 
 	/**
 	 * @param repo
@@ -96,34 +92,12 @@ public class PullCommand extends GitCommand<PullResult> {
 	}
 
 	/**
-	 * @param timeout
-	 *            in seconds
-	 * @return this instance
-	 */
-	public PullCommand setTimeout(int timeout) {
-		this.timeout = timeout;
-		return this;
-	}
-
-	/**
 	 * @param monitor
 	 *            a progress monitor
 	 * @return this instance
 	 */
 	public PullCommand setProgressMonitor(ProgressMonitor monitor) {
 		this.monitor = monitor;
-		return this;
-	}
-
-	/**
-	 * @param credentialsProvider
-	 *            the {@link CredentialsProvider} to use
-	 * @return this instance
-	 */
-	public PullCommand setCredentialsProvider(
-			CredentialsProvider credentialsProvider) {
-		checkCallable();
-		this.credentialsProvider = credentialsProvider;
 		return this;
 	}
 
@@ -138,7 +112,8 @@ public class PullCommand extends GitCommand<PullResult> {
 	 */
 	public PullResult call() throws WrongRepositoryStateException,
 			InvalidConfigurationException, DetachedHeadException,
-			InvalidRemoteException, CanceledException, RefNotFoundException {
+			InvalidRemoteException, CanceledException, RefNotFoundException,
+			NoHeadException {
 		checkCallable();
 
 		monitor.beginTask(JGitText.get().pullTaskName, 2);
@@ -146,6 +121,9 @@ public class PullCommand extends GitCommand<PullResult> {
 		String branchName;
 		try {
 			String fullBranch = repo.getFullBranch();
+			if (fullBranch == null)
+				throw new NoHeadException(
+						JGitText.get().pullOnRepoWithoutHEADCurrentlyNotSupported);
 			if (!fullBranch.startsWith(Constants.R_HEADS)) {
 				// we can not pull if HEAD is detached and branch is not
 				// specified explicitly
@@ -212,8 +190,7 @@ public class PullCommand extends GitCommand<PullResult> {
 			FetchCommand fetch = new FetchCommand(repo);
 			fetch.setRemote(remote);
 			fetch.setProgressMonitor(monitor);
-			fetch.setTimeout(this.timeout);
-			fetch.setCredentialsProvider(credentialsProvider);
+			configure(fetch);
 
 			fetchRes = fetch.call();
 		} else {

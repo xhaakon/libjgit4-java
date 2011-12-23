@@ -86,7 +86,7 @@ public class DirCacheEntry {
 	/** The second tree revision (usually called "theirs"). */
 	public static final int STAGE_3 = 3;
 
-	// private static final int P_CTIME = 0;
+	private static final int P_CTIME = 0;
 
 	// private static final int P_CTIME_NSEC = 4;
 
@@ -480,6 +480,26 @@ public class DirCacheEntry {
 	}
 
 	/**
+	 * Get the cached creation time of this file, in milliseconds.
+	 *
+	 * @return cached creation time of this file, in milliseconds since the
+	 *         Java epoch (midnight Jan 1, 1970 UTC).
+	 */
+	public long getCreationTime() {
+		return decodeTS(P_CTIME);
+	}
+
+	/**
+	 * Set the cached creation time of this file, using milliseconds.
+	 *
+	 * @param when
+	 *            new cached creation time of the file, in milliseconds.
+	 */
+	public void setCreationTime(final long when) {
+		encodeTS(P_CTIME, when);
+	}
+
+	/**
 	 * Get the cached last modification date of this file, in milliseconds.
 	 * <p>
 	 * One of the indicators that the file has been modified by an application
@@ -597,6 +617,16 @@ public class DirCacheEntry {
 	 */
 	public String getPathString() {
 		return toString(path);
+	}
+
+	/**
+	 * Use for debugging only !
+	 */
+	@Override
+	public String toString() {
+		return getFileMode() + " " + getLength() + " " + getLastModified()
+				+ " " + getObjectId() + " " + getStage() + " "
+				+ getPathString() + "\n";
 	}
 
 	/**

@@ -51,14 +51,22 @@ import static org.eclipse.jgit.util.RelativeDateFormatter.DAY_IN_MILLIS;
 
 import java.util.Date;
 
+import org.eclipse.jgit.junit.MockSystemReader;
 import org.eclipse.jgit.util.RelativeDateFormatter;
+import org.junit.Before;
 import org.junit.Test;
 
 public class RelativeDateFormatterTest {
 
+	@Before
+	public void setUp() {
+		SystemReader.setInstance(new MockSystemReader());
+	}
+
 	private void assertFormat(long ageFromNow, long timeUnit,
 			String expectedFormat) {
-		Date d = new Date(System.currentTimeMillis() - ageFromNow * timeUnit);
+		Date d = new Date(SystemReader.getInstance().getCurrentTime()
+				- ageFromNow * timeUnit);
 		String s = RelativeDateFormatter.format(d);
 		assertEquals(expectedFormat, s);
 	}
@@ -111,10 +119,10 @@ public class RelativeDateFormatterTest {
 
 	@Test
 	public void testFormatYearsMonths() {
-		assertFormat(366, DAY_IN_MILLIS, "1 year, 0 month ago");
+		assertFormat(366, DAY_IN_MILLIS, "1 year ago");
 		assertFormat(380, DAY_IN_MILLIS, "1 year, 1 month ago");
 		assertFormat(410, DAY_IN_MILLIS, "1 year, 2 months ago");
-		assertFormat(2, YEAR_IN_MILLIS, "2 years, 0 month ago");
+		assertFormat(2, YEAR_IN_MILLIS, "2 years ago");
 		assertFormat(1824, DAY_IN_MILLIS, "4 years, 12 months ago");
 	}
 

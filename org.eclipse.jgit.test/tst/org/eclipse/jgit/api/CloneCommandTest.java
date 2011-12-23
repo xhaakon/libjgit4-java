@@ -221,6 +221,7 @@ public class CloneCommandTest extends RepositoryTestCase {
 		command.setDirectory(directory);
 		command.setURI("file://" + git.getRepository().getWorkTree().getPath());
 		Git git2 = command.call();
+		addRepoToClose(git2.getRepository());
 		assertNotNull(git2);
 		// clone again
 		command = Git.cloneRepository();
@@ -234,5 +235,21 @@ public class CloneCommandTest extends RepositoryTestCase {
 			assertTrue(e.getMessage().contains("not an empty directory"));
 			assertTrue(e.getMessage().contains(dirName));
 		}
+	}
+
+	@Test
+	public void testCloneRepositoryWithMultipleHeadBranches() throws Exception {
+		git.checkout().setName(Constants.MASTER).call();
+		git.branchCreate().setName("a").call();
+
+		File directory = createTempDirectory("testCloneRepositoryWithMultipleHeadBranches");
+		CloneCommand clone = Git.cloneRepository();
+		clone.setDirectory(directory);
+		clone.setURI("file://" + git.getRepository().getWorkTree().getPath());
+		Git git2 = clone.call();
+		addRepoToClose(git2.getRepository());
+		assertNotNull(git2);
+
+		assertEquals(Constants.MASTER, git2.getRepository().getBranch());
 	}
 }

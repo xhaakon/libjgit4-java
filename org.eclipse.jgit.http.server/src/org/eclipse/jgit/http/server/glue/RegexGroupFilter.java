@@ -95,6 +95,6 @@ public class RegexGroupFilter implements Filter {
 	}
 
 	private static WrappedRequest[] groupsFor(final ServletRequest r) {
-		return (WrappedRequest[]) r.getAttribute(MetaServlet.REGEX_GROUPS);
+		return (WrappedRequest[]) r.getAttribute(MetaFilter.REGEX_GROUPS);
 	}
 }
