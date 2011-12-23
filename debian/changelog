@@ -1,3 +1,9 @@
+jgit (1.2.0-1) UNRELEASED; urgency=low
+
+  * New Upstream release.
+
+ -- Jakub Adam <jakub.adam@ktknet.cz>  Fri, 23 Dec 2011 21:21:25 +0100
+
 jgit (1.1.0-2) UNRELEASED; urgency=low
 
   * Rename source package to "jgit" as it is not dependent on Eclipse.
