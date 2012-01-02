@@ -1,11 +1,6 @@
-jgit (1.2.0-1) UNRELEASED; urgency=low
+jgit (1.2.0-1) unstable; urgency=low
 
   * New Upstream release.
-
- -- Jakub Adam <jakub.adam@ktknet.cz>  Fri, 23 Dec 2011 21:21:25 +0100
-
-jgit (1.1.0-2) UNRELEASED; urgency=low
-
   * Rename source package to "jgit" as it is not dependent on Eclipse.
   * Use Maven for building.
   * Build org.eclipse.jgit.http.server. (Closes: #647930)
@@ -13,7 +8,7 @@ jgit (1.1.0-2) UNRELEASED; urgency=low
     /usr/share/java. (Closes: #647071)
   * Build jgit console and package as jgit-cli.
 
- -- Jakub Adam <jakub.adam@ktknet.cz>  Tue, 08 Nov 2011 21:16:30 +0100
+ -- Jakub Adam <jakub.adam@ktknet.cz>  Fri, 23 Dec 2011 21:21:25 +0100
 
 eclipse-jgit (1.1.0-1) unstable; urgency=low
 
