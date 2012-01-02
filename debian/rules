@@ -33,3 +33,5 @@ install/libjgit-java-doc::
 	mv org.eclipse.jgit/target/apidocs org.eclipse.jgit/target/api
 	dh_install -plibjgit-java-doc org.eclipse.jgit/target/api /usr/share/doc/libjgit-java/
 
+clean::
+	rm -f mvn-build
