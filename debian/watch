@@ -1,0 +1,2 @@
+version=3
+http://eclipse.org/jgit/download .*/org.eclipse.jgit-(\d.\d.\d).\d+-r.jar
