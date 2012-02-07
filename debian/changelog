@@ -1,6 +1,8 @@
 jgit (1.2.0-2) UNRELEASED; urgency=low
 
   * Add d/watch.
+  * Migrate dependency on libservlet2.4-java to libservlet-2.5-java.
+    (Closes: #658807)
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Tue, 03 Jan 2012 19:49:36 +0100
 
