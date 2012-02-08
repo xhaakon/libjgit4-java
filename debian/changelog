@@ -1,4 +1,4 @@
-jgit (1.2.0-2) UNRELEASED; urgency=low
+jgit (1.2.0-2) unstable; urgency=low
 
   * Add d/watch.
   * Migrate dependency on libservlet2.4-java to libservlet-2.5-java.
