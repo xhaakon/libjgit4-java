@@ -111,6 +111,11 @@ public class RepositoryResolveTest extends SampleDataRepositoryTestCase {
 		assertEquals("1203b03dc816ccbb67773f28b3c19318654b0bc8",db.resolve("49322bb17d3acc9146f98c97d078513228bbf3c0~2").name());
 		assertEquals("bab66b48f836ed950c99134ef666436fb07a09a0",db.resolve("49322bb17d3acc9146f98c97d078513228bbf3c0~3").name());
 		assertEquals("bab66b48f836ed950c99134ef666436fb07a09a0",db.resolve("49322bb17d3acc9146f98c97d078513228bbf3c0~03").name());
+		assertEquals("6e1475206e57110fcef4b92320436c1e9872a322",db.resolve("49322bb17d3acc9146f98c97d078513228bbf3c0~").name());
+		assertEquals("1203b03dc816ccbb67773f28b3c19318654b0bc8",db.resolve("49322bb17d3acc9146f98c97d078513228bbf3c0~~").name());
+		assertEquals("bab66b48f836ed950c99134ef666436fb07a09a0",db.resolve("49322bb17d3acc9146f98c97d078513228bbf3c0~~~").name());
+		assertEquals("1203b03dc816ccbb67773f28b3c19318654b0bc8",db.resolve("49322bb17d3acc9146f98c97d078513228bbf3c0~~1").name());
+		assertEquals("1203b03dc816ccbb67773f28b3c19318654b0bc8",db.resolve("49322bb17d3acc9146f98c97d078513228bbf3c0~~~0").name());
 	}
 
 	@Test
@@ -213,6 +218,10 @@ public class RepositoryResolveTest extends SampleDataRepositoryTestCase {
 
 		assertEquals(b2_txt, db.resolve("b:b/b2.txt"));
 		assertEquals(b_root, db.resolve("b:"));
+		assertEquals(id("6020a3b8d5d636e549ccbd0c53e2764684bb3125"),
+				db.resolve("master:"));
+		assertEquals(id("10da5895682013006950e7da534b705252b03be6"),
+				db.resolve("master:b/b2.txt"));
 		assertEquals(master_txt, db.resolve(":master.txt"));
 		assertEquals(b3_b2_txt, db.resolve("b~3:b/b2.txt"));
 

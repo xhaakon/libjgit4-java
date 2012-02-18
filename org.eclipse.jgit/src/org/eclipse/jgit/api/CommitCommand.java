@@ -228,7 +228,10 @@ public class CommitCommand extends GitCommand<RevCommit> {
 							ru.setRefLogMessage(
 									prefix + revCommit.getShortMessage(), false);
 						}
-						ru.setExpectedOldObjectId(headId);
+						if (headId != null)
+							ru.setExpectedOldObjectId(headId);
+						else
+							ru.setExpectedOldObjectId(ObjectId.zeroId());
 						Result rc = ru.forceUpdate();
 						switch (rc) {
 						case NEW:
@@ -340,7 +343,7 @@ public class CommitCommand extends GitCommand<RevCommit> {
 					long entryLength = fTree.getEntryLength();
 					dcEntry.setLength(entryLength);
 					dcEntry.setLastModified(fTree.getEntryLastModified());
-					dcEntry.setFileMode(fTree.getEntryFileMode());
+					dcEntry.setFileMode(fTree.getIndexFileMode(dcTree));
 
 					boolean objectExists = (dcTree != null && fTree
 							.idEqual(dcTree))
@@ -348,12 +351,9 @@ public class CommitCommand extends GitCommand<RevCommit> {
 					if (objectExists) {
 						dcEntry.setObjectId(fTree.getEntryObjectId());
 					} else {
-						if (FileMode.GITLINK.equals(dcEntry.getFileMode())) {
-							// Do not check the content of submodule entries
-							// Use the old entry information instead.
-							dcEntry.copyMetaData(index.getEntry(dcEntry
-									.getPathString()));
-						} else {
+						if (FileMode.GITLINK.equals(dcEntry.getFileMode()))
+							dcEntry.setObjectId(fTree.getEntryObjectId());
+						else {
 							// insert object
 							if (inserter == null)
 								inserter = repo.newObjectInserter();
@@ -379,7 +379,10 @@ public class CommitCommand extends GitCommand<RevCommit> {
 					// add to temporary in-core index
 					dcBuilder.add(dcEntry);
 
-					if (emptyCommit && (hTree == null || !hTree.idEqual(fTree)))
+					if (emptyCommit
+							&& (hTree == null || !hTree.idEqual(fTree) || hTree
+									.getEntryRawMode() != fTree
+									.getEntryRawMode()))
 						// this is a change
 						emptyCommit = false;
 				} else {
