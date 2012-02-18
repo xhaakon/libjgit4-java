@@ -581,7 +581,9 @@ public class DiffFormatter {
 	}
 
 	/**
-	 * Format a patch script from a list of difference entries.
+	 * Format a patch script from a list of difference entries. Requires
+	 * {@link #scan(AbstractTreeIterator, AbstractTreeIterator)} to have been
+	 * called first.
 	 *
 	 * @param entries
 	 *            entries describing the affected files.
@@ -1088,6 +1090,9 @@ public class DiffFormatter {
 
 	private void formatOldNewPaths(ByteArrayOutputStream o, DiffEntry ent)
 			throws IOException {
+		if (ent.oldId.equals(ent.newId))
+			return;
+
 		final String oldp;
 		final String newp;
 

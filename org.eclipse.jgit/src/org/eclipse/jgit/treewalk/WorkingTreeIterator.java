@@ -72,10 +72,11 @@ import org.eclipse.jgit.ignore.IgnoreNode;
 import org.eclipse.jgit.ignore.IgnoreRule;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.CoreConfig;
+import org.eclipse.jgit.lib.CoreConfig.AutoCRLF;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.RepositoryBuilder;
+import org.eclipse.jgit.submodule.SubmoduleWalk;
 import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.io.EolCanonicalizingInputStream;
@@ -279,18 +280,16 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @return non-null submodule id
 	 */
 	protected byte[] idSubmodule(File directory, Entry e) {
-		final String gitDirPath = e.getName() + "/" + Constants.DOT_GIT;
-		final File submoduleGitDir = new File(directory, gitDirPath);
-		if (!submoduleGitDir.isDirectory())
-			return zeroid;
 		final Repository submoduleRepo;
 		try {
-			FS fs = repository != null ? repository.getFS() : FS.DETECTED;
-			submoduleRepo = new RepositoryBuilder().setGitDir(submoduleGitDir)
-					.setMustExist(true).setFS(fs).build();
+			submoduleRepo = SubmoduleWalk.getSubmoduleRepository(directory,
+					e.getName());
 		} catch (IOException exception) {
 			return zeroid;
 		}
+		if (submoduleRepo == null)
+			return zeroid;
+
 		final ObjectId head;
 		try {
 			head = submoduleRepo.resolve(Constants.HEAD);
@@ -395,10 +394,14 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	private ByteBuffer filterClean(byte[] src, int n)
 			throws IOException {
 		InputStream in = new ByteArrayInputStream(src);
-		return IO.readWholeStream(filterClean(in), n);
+		try {
+			return IO.readWholeStream(filterClean(in), n);
+		} finally {
+			safeClose(in);
+		}
 	}
 
-	private InputStream filterClean(InputStream in) {
+	private InputStream filterClean(InputStream in) throws IOException {
 		return new EolCanonicalizingInputStream(in);
 	}
 
@@ -494,7 +497,13 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 *             the file could not be opened for reading.
 	 */
 	public InputStream openEntryStream() throws IOException {
-		return current().openInputStream();
+		InputStream rawis = current().openInputStream();
+		InputStream is;
+		if (getOptions().getAutoCRLF() != AutoCRLF.FALSE)
+			is = new EolCanonicalizingInputStream(rawis);
+		else
+			is = rawis;
+		return is;
 	}
 
 	/**
@@ -744,6 +753,32 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			throw new IllegalStateException(MessageFormat.format(
 					JGitText.get().unexpectedCompareResult, diff.name()));
 		}
+	}
+
+	/**
+	 * Get the file mode to use for the current entry when it is to be updated
+	 * in the index.
+	 *
+	 * @param indexIter
+	 *            {@link DirCacheIterator} positioned at the same entry as this
+	 *            iterator or null if no {@link DirCacheIterator} is available
+	 *            at this iterator's current entry
+	 * @return index file mode
+	 */
+	public FileMode getIndexFileMode(final DirCacheIterator indexIter) {
+		final FileMode wtMode = getEntryFileMode();
+		if (indexIter == null)
+			return wtMode;
+		if (getOptions().isFileMode())
+			return wtMode;
+		final FileMode iMode = indexIter.getEntryFileMode();
+		if (FileMode.REGULAR_FILE == wtMode
+				&& FileMode.EXECUTABLE_FILE == iMode)
+			return iMode;
+		if (FileMode.EXECUTABLE_FILE == wtMode
+				&& FileMode.REGULAR_FILE == iMode)
+			return iMode;
+		return wtMode;
 	}
 
 	/**
