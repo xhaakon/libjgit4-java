@@ -1,5 +1,6 @@
-Format: http://anonscm.debian.org/viewvc/dep/web/deps/dep5.mdwn?revision=202
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0
 Upstream-Name: Eclipse-JGit
+Source: http://eclipse.org/jgit/
 
 Files: *
 Copyright: 2011, Abhishek Bhatnagar <abhatnag@redhat.com>
