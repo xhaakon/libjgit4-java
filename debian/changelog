@@ -3,6 +3,7 @@ jgit (2.0.0-1) UNRELEASED; urgency=low
   * New Upstream release.
   * Refreshed d/patches/debian-custom-build.patch.
   * Drop d/patches/tests-init-ant-project.patch. Applied upstream.
+  * Removed eclipse-jgit dummy transitional package.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Sat, 23 Jun 2012 16:15:32 +0200
 
