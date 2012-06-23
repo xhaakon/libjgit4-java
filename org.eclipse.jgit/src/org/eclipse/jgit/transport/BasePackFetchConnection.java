@@ -53,9 +53,9 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Set;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.errors.TransportException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.Constants;
@@ -120,25 +120,65 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 	 */
 	protected static final int MIN_CLIENT_BUFFER = 2 * 32 * 46 + 8;
 
-	static final String OPTION_INCLUDE_TAG = "include-tag";
+	/**
+	 * Include tags if we are also including the referenced objects.
+	 * @since 2.0
+	 */
+	public static final String OPTION_INCLUDE_TAG = "include-tag";
 
-	static final String OPTION_MULTI_ACK = "multi_ack";
+	/**
+	 * Mutli-ACK support for improved negotiation.
+	 * @since 2.0
+	 */
+	public static final String OPTION_MULTI_ACK = "multi_ack";
 
-	static final String OPTION_MULTI_ACK_DETAILED = "multi_ack_detailed";
+	/**
+	 * Mutli-ACK detailed support for improved negotiation.
+	 * @since 2.0
+	 */
+	public static final String OPTION_MULTI_ACK_DETAILED = "multi_ack_detailed";
 
-	static final String OPTION_THIN_PACK = "thin-pack";
+	/**
+	 * The client supports packs with deltas but not their bases.
+	 * @since 2.0
+	 */
+	public static final String OPTION_THIN_PACK = "thin-pack";
 
-	static final String OPTION_SIDE_BAND = "side-band";
+	/**
+	 * The client supports using the side-band for progress messages.
+	 * @since 2.0
+	 */
+	public static final String OPTION_SIDE_BAND = "side-band";
 
-	static final String OPTION_SIDE_BAND_64K = "side-band-64k";
+	/**
+	 * The client supports using the 64K side-band for progress messages.
+	 * @since 2.0
+	 */
+	public static final String OPTION_SIDE_BAND_64K = "side-band-64k";
 
-	static final String OPTION_OFS_DELTA = "ofs-delta";
+	/**
+	 * The client supports packs with OFS deltas.
+	 * @since 2.0
+	 */
+	public static final String OPTION_OFS_DELTA = "ofs-delta";
 
-	static final String OPTION_SHALLOW = "shallow";
+	/**
+	 * The client supports shallow fetches.
+	 * @since 2.0
+	 */
+	public static final String OPTION_SHALLOW = "shallow";
 
-	static final String OPTION_NO_PROGRESS = "no-progress";
+	/**
+	 * The client does not want progress messages and will ignore them.
+	 * @since 2.0
+	 */
+	public static final String OPTION_NO_PROGRESS = "no-progress";
 
-	static final String OPTION_NO_DONE = "no-done";
+	/**
+	 * The client supports receiving a pack before it has sent "done".
+	 * @since 2.0
+	 */
+	public static final String OPTION_NO_DONE = "no-done";
 
 	static enum MultiAck {
 		OFF, CONTINUE, DETAILED;
@@ -663,6 +703,7 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 	}
 
 	private void receivePack(final ProgressMonitor monitor) throws IOException {
+		onReceivePack();
 		InputStream input = in;
 		if (sideband)
 			input = new SideBandInputStream(input, monitor, getMessageWriter());
@@ -678,6 +719,17 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 		} finally {
 			ins.release();
 		}
+	}
+
+	/**
+	 * Notification event delivered just before the pack is received from the
+	 * network. This event can be used by RPC such as {@link TransportHttp} to
+	 * disable its request magic and ensure the pack stream is read correctly.
+	 *
+	 * @since 2.0
+	 */
+	protected void onReceivePack() {
+		// By default do nothing for TCP based protocols.
 	}
 
 	private static class CancelledException extends Exception {

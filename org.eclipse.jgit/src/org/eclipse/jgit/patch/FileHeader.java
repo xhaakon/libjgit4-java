@@ -59,9 +59,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.EditList;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AbbreviatedObjectId;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -218,7 +218,9 @@ public class FileHeader extends DiffEntry {
 		}
 
 		if (charsetGuess != null && charsetGuess.length != getParentCount() + 1)
-			throw new IllegalArgumentException(MessageFormat.format(JGitText.get().expectedCharacterEncodingGuesses, (getParentCount() + 1)));
+			throw new IllegalArgumentException(MessageFormat.format(
+					JGitText.get().expectedCharacterEncodingGuesses,
+					Integer.valueOf(getParentCount() + 1)));
 
 		if (trySimpleConversion(charsetGuess)) {
 			Charset cs = charsetGuess != null ? charsetGuess[0] : null;

@@ -67,9 +67,9 @@ import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.TransportException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ProgressMonitor;
@@ -149,8 +149,15 @@ public abstract class Transport {
 		try {
 			String line;
 			while ((line = br.readLine()) != null) {
-				if (line.length() > 0 && !line.startsWith("#"))
-					load(ldr, line);
+				line = line.trim();
+				if (line.length() == 0)
+					continue;
+				int comment = line.indexOf('#');
+				if (comment == 0)
+					continue;
+				if (comment != -1)
+					line = line.substring(0, comment).trim();
+				load(ldr, line);
 			}
 		} catch (IOException err) {
 			// If we failed during a read, ignore the error.

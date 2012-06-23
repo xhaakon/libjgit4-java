@@ -49,11 +49,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
 
 /**
@@ -62,7 +62,7 @@ import org.eclipse.jgit.revwalk.RevWalk;
  * @see <a href="http://www.kernel.org/pub/software/scm/git/docs/git-tag.html"
  *      >Git documentation about Tag</a>
  */
-public class ListTagCommand extends GitCommand<List<RevTag>> {
+public class ListTagCommand extends GitCommand<List<Ref>> {
 
 	/**
 	 * @param repo
@@ -72,29 +72,26 @@ public class ListTagCommand extends GitCommand<List<RevTag>> {
 	}
 
 	/**
-	 * @throws JGitInternalException
-	 *             upon internal failure
 	 * @return the tags available
 	 */
-	public List<RevTag> call() throws JGitInternalException {
+	public List<Ref> call() throws GitAPIException {
 		checkCallable();
 		Map<String, Ref> refList;
-		List<RevTag> tags = new ArrayList<RevTag>();
+		List<Ref> tags = new ArrayList<Ref>();
 		RevWalk revWalk = new RevWalk(repo);
 		try {
 			refList = repo.getRefDatabase().getRefs(Constants.R_TAGS);
 			for (Ref ref : refList.values()) {
-				RevTag tag = revWalk.parseTag(ref.getObjectId());
-				tags.add(tag);
+				tags.add(ref);
 			}
 		} catch (IOException e) {
 			throw new JGitInternalException(e.getMessage(), e);
 		} finally {
 			revWalk.release();
 		}
-		Collections.sort(tags, new Comparator<RevTag>() {
-			public int compare(RevTag o1, RevTag o2) {
-				return o1.getTagName().compareTo(o2.getTagName());
+		Collections.sort(tags, new Comparator<Ref>() {
+			public int compare(Ref o1, Ref o2) {
+				return o1.getName().compareTo(o2.getName());
 			}
 		});
 		setCallable(false);

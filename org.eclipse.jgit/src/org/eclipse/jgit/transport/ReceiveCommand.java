@@ -43,11 +43,18 @@
 
 package org.eclipse.jgit.transport;
 
+import java.io.IOException;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.RefUpdate;
 
 /**
- * A command being processed by {@link ReceivePack}.
+ * A command being processed by {@link BaseReceivePack}.
  * <p>
  * This command instance roughly translates to the server side representation of
  * the {@link RemoteRefUpdate} created by the client.
@@ -115,6 +122,27 @@ public class ReceiveCommand {
 		OK;
 	}
 
+	/**
+	 * Filter a list of commands according to result.
+	 *
+	 * @param commands
+	 *            commands to filter.
+	 * @param want
+	 *            desired status to filter by.
+	 * @return a copy of the command list containing only those commands with
+	 *         the desired status.
+	 * @since 2.0
+	 */
+	public static List<ReceiveCommand> filter(List<ReceiveCommand> commands,
+			final Result want) {
+		List<ReceiveCommand> r = new ArrayList<ReceiveCommand>(commands.size());
+		for (final ReceiveCommand cmd : commands) {
+			if (cmd.getResult() == want)
+				r.add(cmd);
+		}
+		return r;
+	}
+
 	private final ObjectId oldId;
 
 	private final ObjectId newId;
@@ -130,7 +158,7 @@ public class ReceiveCommand {
 	private String message;
 
 	/**
-	 * Create a new command for {@link ReceivePack}.
+	 * Create a new command for {@link BaseReceivePack}.
 	 *
 	 * @param oldId
 	 *            the old object id; must not be null. Use
@@ -153,6 +181,29 @@ public class ReceiveCommand {
 		if (ObjectId.zeroId().equals(newId))
 			type = Type.DELETE;
 		status = Result.NOT_ATTEMPTED;
+	}
+
+	/**
+	 * Create a new command for {@link BaseReceivePack}.
+	 *
+	 * @param oldId
+	 *            the old object id; must not be null. Use
+	 *            {@link ObjectId#zeroId()} to indicate a ref creation.
+	 * @param newId
+	 *            the new object id; must not be null. Use
+	 *            {@link ObjectId#zeroId()} to indicate a ref deletion.
+	 * @param name
+	 *            name of the ref being affected.
+	 * @param type
+	 *            type of the command.
+	 * @since 2.0
+	 */
+	public ReceiveCommand(final ObjectId oldId, final ObjectId newId,
+			final String name, final Type type) {
+		this.oldId = oldId;
+		this.newId = newId;
+		this.name = name;
+		this.type = type;
 	}
 
 	/** @return the old value the client thinks the ref has. */
@@ -213,12 +264,86 @@ public class ReceiveCommand {
 		message = m;
 	}
 
+	/**
+	 * Execute this command during a receive-pack session.
+	 * <p>
+	 * Sets the status of the command as a side effect.
+	 *
+	 * @param rp
+	 *            receive-pack session.
+	 * @since 2.0
+	 */
+	public void execute(final BaseReceivePack rp) {
+		try {
+			final RefUpdate ru = rp.getRepository().updateRef(getRefName());
+			ru.setRefLogIdent(rp.getRefLogIdent());
+			switch (getType()) {
+			case DELETE:
+				if (!ObjectId.zeroId().equals(getOldId())) {
+					// We can only do a CAS style delete if the client
+					// didn't bork its delete request by sending the
+					// wrong zero id rather than the advertised one.
+					//
+					ru.setExpectedOldObjectId(getOldId());
+				}
+				ru.setForceUpdate(true);
+				setResult(ru.delete(rp.getRevWalk()));
+				break;
+
+			case CREATE:
+			case UPDATE:
+			case UPDATE_NONFASTFORWARD:
+				ru.setForceUpdate(rp.isAllowNonFastForwards());
+				ru.setExpectedOldObjectId(getOldId());
+				ru.setNewObjectId(getNewId());
+				ru.setRefLogMessage("push", true);
+				setResult(ru.update(rp.getRevWalk()));
+				break;
+			}
+		} catch (IOException err) {
+			setResult(Result.REJECTED_OTHER_REASON, MessageFormat.format(
+					JGitText.get().lockError, err.getMessage()));
+		}
+	}
+
 	void setRef(final Ref r) {
 		ref = r;
 	}
 
 	void setType(final Type t) {
 		type = t;
+	}
+
+	private void setResult(final RefUpdate.Result r) {
+		switch (r) {
+		case NOT_ATTEMPTED:
+			setResult(Result.NOT_ATTEMPTED);
+			break;
+
+		case LOCK_FAILURE:
+		case IO_FAILURE:
+			setResult(Result.LOCK_FAILURE);
+			break;
+
+		case NO_CHANGE:
+		case NEW:
+		case FORCED:
+		case FAST_FORWARD:
+			setResult(Result.OK);
+			break;
+
+		case REJECTED:
+			setResult(Result.REJECTED_NONFASTFORWARD);
+			break;
+
+		case REJECTED_CURRENT_BRANCH:
+			setResult(Result.REJECTED_CURRENT_BRANCH);
+			break;
+
+		default:
+			setResult(Result.REJECTED_OTHER_REASON, r.name());
+			break;
+		}
 	}
 
 	@Override

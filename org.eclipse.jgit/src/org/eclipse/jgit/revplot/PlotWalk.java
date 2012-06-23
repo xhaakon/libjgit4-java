@@ -57,9 +57,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
@@ -172,6 +172,11 @@ public class PlotWalk extends RevWalk {
 				return ((RevCommit) o).getCommitTime();
 			if (o instanceof RevTag) {
 				RevTag tag = (RevTag) o;
+				try {
+					parseBody(tag);
+				} catch (IOException e) {
+					return 0;
+				}
 				PersonIdent who = tag.getTaggerIdent();
 				return who != null ? who.getWhen().getTime() : 0;
 			}

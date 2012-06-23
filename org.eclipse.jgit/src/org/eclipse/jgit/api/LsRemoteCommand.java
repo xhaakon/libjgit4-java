@@ -49,12 +49,12 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.TransportException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -106,27 +106,33 @@ public class LsRemoteCommand extends
 	 * Include refs/heads in references results
 	 *
 	 * @param heads
+	 * @return {@code this}
 	 */
-	public void setHeads(boolean heads) {
+	public LsRemoteCommand setHeads(boolean heads) {
 		this.heads = heads;
+		return this;
 	}
 
 	/**
 	 * Include refs/tags in references results
 	 *
 	 * @param tags
+	 * @return {@code this}
 	 */
-	public void setTags(boolean tags) {
+	public LsRemoteCommand setTags(boolean tags) {
 		this.tags = tags;
+		return this;
 	}
 
 	/**
 	 * The full path of git-upload-pack on the remote host
 	 *
 	 * @param uploadPack
+	 * @return {@code this}
 	 */
-	public void setUploadPack(String uploadPack) {
+	public LsRemoteCommand setUploadPack(String uploadPack) {
 		this.uploadPack = uploadPack;
+		return this;
 	}
 
 	/**
@@ -138,13 +144,12 @@ public class LsRemoteCommand extends
 	 * @return a collection of references in the remote repository
 	 * @throws InvalidRemoteException
 	 *             when called with an invalid remote uri
-	 * @throws JGitInternalException
-	 *             a low-level exception of JGit has occurred. The original
-	 *             exception can be retrieved by calling
-	 *             {@link Exception#getCause()}.
+	 * @throws org.eclipse.jgit.api.errors.TransportException
+	 *             for errors that occurs during transport
 	 */
 	public Collection<Ref> call() throws GitAPIException,
-			JGitInternalException {
+			InvalidRemoteException,
+			org.eclipse.jgit.api.errors.TransportException {
 		checkCallable();
 
 		Transport transport = null;
@@ -182,8 +187,8 @@ public class LsRemoteCommand extends
 					JGitText.get().exceptionCaughtDuringExecutionOfLsRemoteCommand,
 					e);
 		} catch (TransportException e) {
-				throw new org.eclipse.jgit.api.errors.TransportException(
-					JGitText.get().exceptionCaughtDuringExecutionOfLsRemoteCommand,
+			throw new org.eclipse.jgit.api.errors.TransportException(
+					e.getMessage(),
 					e);
 		} finally {
 			if (fc != null)

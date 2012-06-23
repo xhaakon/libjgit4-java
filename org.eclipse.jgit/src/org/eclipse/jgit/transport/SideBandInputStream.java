@@ -53,9 +53,9 @@ import java.text.MessageFormat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.errors.TransportException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.util.IO;
@@ -172,7 +172,9 @@ class SideBandInputStream extends InputStream {
 				eof = true;
 				throw new TransportException(PFX_REMOTE + readString(available));
 			default:
-				throw new PackProtocolException(MessageFormat.format(JGitText.get().invalidChannel, channel));
+				throw new PackProtocolException(
+						MessageFormat.format(JGitText.get().invalidChannel,
+								Integer.valueOf(channel)));
 			}
 		}
 	}

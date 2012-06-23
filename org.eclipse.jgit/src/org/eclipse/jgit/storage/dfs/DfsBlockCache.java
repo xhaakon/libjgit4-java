@@ -56,7 +56,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.eclipse.jgit.JGitText;
+import org.eclipse.jgit.internal.JGitText;
 
 /**
  * Caches slices of a {@link DfsPackFile} in memory for faster read access.
@@ -524,7 +524,6 @@ public final class DfsBlockCache {
 		return true;
 	}
 
-	@SuppressWarnings("unchecked")
 	private <T> T scan(HashEntry n, DfsPackKey pack, long position) {
 		Ref<T> r = scanRef(n, pack, position);
 		return r != null ? r.get() : null;

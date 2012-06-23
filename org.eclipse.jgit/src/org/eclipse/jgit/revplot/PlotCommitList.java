@@ -50,7 +50,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.TreeSet;
 
-import org.eclipse.jgit.JGitText;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.revwalk.RevCommitList;
 import org.eclipse.jgit.revwalk.RevWalk;
 
@@ -225,13 +225,13 @@ public class PlotCommitList<L extends PlotLane> extends
 		if (blockedPositions.get(commit.lane.getPosition())) {
 			int newPos = -1;
 			for (Integer pos : freePositions)
-				if (!blockedPositions.get(pos)) {
-					newPos = pos;
+				if (!blockedPositions.get(pos.intValue())) {
+					newPos = pos.intValue();
 					break;
 				}
 			if (newPos == -1)
 				newPos = positionsAllocated++;
-			freePositions.add(commit.lane.getPosition());
+			freePositions.add(Integer.valueOf(commit.lane.getPosition()));
 			activeLanes.remove(commit.lane);
 			commit.lane.position = newPos;
 			activeLanes.add(commit.lane);

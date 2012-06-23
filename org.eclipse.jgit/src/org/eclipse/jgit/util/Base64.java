@@ -10,7 +10,7 @@ import java.io.UnsupportedEncodingException;
 import java.text.MessageFormat;
 import java.util.Arrays;
 
-import org.eclipse.jgit.JGitText;
+import org.eclipse.jgit.internal.JGitText;
 
 /**
  * Encodes and decodes to and from Base64 notation.
@@ -284,8 +284,8 @@ public class Base64 {
 
 			} else if (sbiDecode != WHITE_SPACE_DEC)
 				throw new IllegalArgumentException(MessageFormat.format(
-						JGitText.get().badBase64InputCharacterAt, i,
-						source[i] & 0xff));
+						JGitText.get().badBase64InputCharacterAt,
+						Integer.valueOf(i), Integer.valueOf(source[i] & 0xff)));
 		}
 
 		if (outBuff.length == outBuffPosn)

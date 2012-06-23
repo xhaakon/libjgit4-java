@@ -50,8 +50,8 @@ import static org.eclipse.jgit.util.RawParseUtils.parseBase10;
 
 import java.text.MessageFormat;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.CorruptObjectException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.util.MutableInteger;
 
 /**
@@ -127,7 +127,8 @@ public class ObjectChecker {
 			break;
 		default:
 			throw new CorruptObjectException(MessageFormat.format(
-					JGitText.get().corruptObjectInvalidType2, objType));
+					JGitText.get().corruptObjectInvalidType2,
+					Integer.valueOf(objType)));
 		}
 	}
 
