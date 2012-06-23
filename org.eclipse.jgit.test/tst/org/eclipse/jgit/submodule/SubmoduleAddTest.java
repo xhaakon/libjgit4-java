@@ -50,15 +50,16 @@ import static org.junit.Assert.fail;
 import java.io.File;
 import java.text.MessageFormat;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.SubmoduleAddCommand;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEditor;
 import org.eclipse.jgit.dircache.DirCacheEditor.PathEdit;
 import org.eclipse.jgit.dircache.DirCacheEntry;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -66,6 +67,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryTestCase;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.junit.Test;
 
 /**
@@ -74,7 +76,7 @@ import org.junit.Test;
 public class SubmoduleAddTest extends RepositoryTestCase {
 
 	@Test
-	public void commandWithNullPath() {
+	public void commandWithNullPath() throws GitAPIException {
 		try {
 			new SubmoduleAddCommand(db).setURI("uri").call();
 			fail("Exception not thrown");
@@ -84,7 +86,7 @@ public class SubmoduleAddTest extends RepositoryTestCase {
 	}
 
 	@Test
-	public void commandWithEmptyPath() {
+	public void commandWithEmptyPath() throws GitAPIException {
 		try {
 			new SubmoduleAddCommand(db).setPath("").setURI("uri").call();
 			fail("Exception not thrown");
@@ -94,7 +96,7 @@ public class SubmoduleAddTest extends RepositoryTestCase {
 	}
 
 	@Test
-	public void commandWithNullUri() {
+	public void commandWithNullUri() throws GitAPIException {
 		try {
 			new SubmoduleAddCommand(db).setPath("sub").call();
 			fail("Exception not thrown");
@@ -104,7 +106,7 @@ public class SubmoduleAddTest extends RepositoryTestCase {
 	}
 
 	@Test
-	public void commandWithEmptyUri() {
+	public void commandWithEmptyUri() throws GitAPIException {
 		try {
 			new SubmoduleAddCommand(db).setPath("sub").setURI("").call();
 			fail("Exception not thrown");
@@ -211,5 +213,45 @@ public class SubmoduleAddTest extends RepositoryTestCase {
 		Status status = Git.wrap(db).status().call();
 		assertTrue(status.getAdded().contains(Constants.DOT_GIT_MODULES));
 		assertTrue(status.getAdded().contains(path));
+	}
+
+	@Test
+	public void addSubmoduleWithExistingSubmoduleDefined() throws Exception {
+		String path1 = "sub1";
+		String url1 = "git://server/repo1.git";
+		String path2 = "sub2";
+
+		FileBasedConfig modulesConfig = new FileBasedConfig(new File(
+				db.getWorkTree(), Constants.DOT_GIT_MODULES), db.getFS());
+		modulesConfig.setString(ConfigConstants.CONFIG_SUBMODULE_SECTION,
+				path1, ConfigConstants.CONFIG_KEY_PATH, path1);
+		modulesConfig.setString(ConfigConstants.CONFIG_SUBMODULE_SECTION,
+				path1, ConfigConstants.CONFIG_KEY_URL, url1);
+		modulesConfig.save();
+
+		Git git = new Git(db);
+		writeTrashFile("file.txt", "content");
+		git.add().addFilepattern("file.txt").call();
+		assertNotNull(git.commit().setMessage("create file").call());
+
+		SubmoduleAddCommand command = new SubmoduleAddCommand(db);
+		command.setPath(path2);
+		String url2 = db.getDirectory().toURI().toString();
+		command.setURI(url2);
+		assertNotNull(command.call());
+
+		modulesConfig.load();
+		assertEquals(path1, modulesConfig.getString(
+				ConfigConstants.CONFIG_SUBMODULE_SECTION, path1,
+				ConfigConstants.CONFIG_KEY_PATH));
+		assertEquals(url1, modulesConfig.getString(
+				ConfigConstants.CONFIG_SUBMODULE_SECTION, path1,
+				ConfigConstants.CONFIG_KEY_URL));
+		assertEquals(path2, modulesConfig.getString(
+				ConfigConstants.CONFIG_SUBMODULE_SECTION, path2,
+				ConfigConstants.CONFIG_KEY_PATH));
+		assertEquals(url2, modulesConfig.getString(
+				ConfigConstants.CONFIG_SUBMODULE_SECTION, path2,
+				ConfigConstants.CONFIG_KEY_URL));
 	}
 }

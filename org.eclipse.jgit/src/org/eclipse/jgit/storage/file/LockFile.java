@@ -56,8 +56,8 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.text.MessageFormat;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.LockFailedException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.util.FS;
@@ -501,6 +501,16 @@ public class LockFile {
 	/** @return get the {@link FileSnapshot} just before commit. */
 	public FileSnapshot getCommitSnapshot() {
 		return commitSnapshot;
+	}
+
+	/**
+	 * Update the commit snapshot {@link #getCommitSnapshot()} before commit.
+	 * <p>
+	 * This may be necessary if you need time stamp before commit occurs, e.g
+	 * while writing the index.
+	 */
+	public void createCommitSnapshot() {
+		saveStatInformation();
 	}
 
 	/**

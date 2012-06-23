@@ -57,10 +57,10 @@ import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 import java.util.zip.ZipException;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.LargeObjectException;
 import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.InflaterCache;
@@ -151,7 +151,7 @@ public class UnpackedObject {
 				int p = 1;
 				while ((c & 0x80) != 0) {
 					c = hdr[p++] & 0xff;
-					size += (c & 0x7f) << shift;
+					size += ((long) (c & 0x7f)) << shift;
 					shift += 7;
 				}
 
@@ -224,7 +224,7 @@ public class UnpackedObject {
 				int p = 1;
 				while ((c & 0x80) != 0) {
 					c = hdr[p++] & 0xff;
-					size += (c & 0x7f) << shift;
+					size += ((long) (c & 0x7f)) << shift;
 					shift += 7;
 				}
 				return size;

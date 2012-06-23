@@ -49,9 +49,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import org.eclipse.jgit.JGitText;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRefNameException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -75,7 +76,8 @@ public class StashListCommand extends GitCommand<Collection<RevCommit>> {
 		super(repo);
 	}
 
-	public Collection<RevCommit> call() throws Exception {
+	public Collection<RevCommit> call() throws GitAPIException,
+			InvalidRefNameException {
 		checkCallable();
 
 		try {

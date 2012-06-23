@@ -47,6 +47,8 @@ package org.eclipse.jgit.junit;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -90,6 +92,7 @@ public class MockSystemReader extends SystemReader {
 		init(Constants.GIT_COMMITTER_EMAIL_KEY);
 		userGitConfig = new MockConfig(null, null);
 		systemGitConfig = new MockConfig(null, null);
+		setCurrentPlatform();
 	}
 
 	private void init(final String n) {
@@ -149,6 +152,17 @@ public class MockSystemReader extends SystemReader {
 	@Override
 	public Locale getLocale() {
 		return Locale.US;
+	}
+
+	@Override
+	public SimpleDateFormat getSimpleDateFormat(String pattern) {
+		return new SimpleDateFormat(pattern, getLocale());
+	}
+
+	@Override
+	public DateFormat getDateTimeInstance(int dateStyle, int timeStyle) {
+		return DateFormat
+				.getDateTimeInstance(dateStyle, timeStyle, getLocale());
 	}
 
 	/**

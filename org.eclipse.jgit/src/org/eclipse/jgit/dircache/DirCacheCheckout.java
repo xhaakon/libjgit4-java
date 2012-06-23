@@ -52,18 +52,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.eclipse.jgit.JGitText;
 import org.eclipse.jgit.errors.CheckoutConflictException;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.IndexWriteException;
 import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.CoreConfig.AutoCRLF;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.CoreConfig.AutoCRLF;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
@@ -75,6 +76,7 @@ import org.eclipse.jgit.treewalk.WorkingTreeOptions;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FileUtils;
+import org.eclipse.jgit.util.SystemReader;
 import org.eclipse.jgit.util.io.AutoCRLFOutputStream;
 
 /**
@@ -304,6 +306,8 @@ public class DirCacheCheckout {
 	void processEntry(CanonicalTreeParser m, DirCacheBuildIterator i,
 			WorkingTreeIterator f) throws IOException {
 		if (m != null) {
+			if (!isValidPath(m))
+				throw new InvalidPathException(m.getEntryPathString());
 			// There is an entry in the merge commit. Means: we want to update
 			// what's currently in the index and working-tree to that one
 			if (i == null) {
@@ -506,11 +510,14 @@ public class DirCacheCheckout {
 	 * @throws IOException
 	 */
 
-	void processEntry(AbstractTreeIterator h, AbstractTreeIterator m,
+	void processEntry(CanonicalTreeParser h, CanonicalTreeParser m,
 			DirCacheBuildIterator i, WorkingTreeIterator f) throws IOException {
-		DirCacheEntry dce;
+		DirCacheEntry dce = i != null ? i.getDirCacheEntry() : null;
 
 		String name = walk.getPathString();
+
+		if (m != null && !isValidPath(m))
+			throw new InvalidPathException(m.getEntryPathString());
 
 		if (i == null && m == null && h == null) {
 			// File/Directory conflict case #20
@@ -577,13 +584,11 @@ public class DirCacheCheckout {
 
 		int ffMask = 0;
 		if (h != null)
-			ffMask = FileMode.TREE.equals(h.getEntryFileMode()) ? 0xD00 : 0xF00;
+			ffMask = FileMode.TREE.equals(hMode) ? 0xD00 : 0xF00;
 		if (i != null)
-			ffMask |= FileMode.TREE.equals(i.getEntryFileMode()) ? 0x0D0
-					: 0x0F0;
+			ffMask |= FileMode.TREE.equals(iMode) ? 0x0D0 : 0x0F0;
 		if (m != null)
-			ffMask |= FileMode.TREE.equals(m.getEntryFileMode()) ? 0x00D
-					: 0x00F;
+			ffMask |= FileMode.TREE.equals(mMode) ? 0x00D : 0x00F;
 
 		// Check whether we have a possible file/folder conflict. Therefore we
 		// need a least one file and one folder.
@@ -597,9 +602,9 @@ public class DirCacheCheckout {
 			switch (ffMask) {
 			case 0xDDF: // 1 2
 				if (isModified(name)) {
-					conflict(name, i.getDirCacheEntry(), h, m); // 1
+					conflict(name, dce, h, m); // 1
 				} else {
-					update(name, m.getEntryObjectId(), m.getEntryFileMode()); // 2
+					update(name, mId, mMode); // 2
 				}
 
 				break;
@@ -623,45 +628,44 @@ public class DirCacheCheckout {
 				// are found later
 				break;
 			case 0xD0F: // 19
-				update(name, mId, m.getEntryFileMode());
+				update(name, mId, mMode);
 				break;
 			case 0xDF0: // conflict without a rule
 			case 0x0FD: // 15
-				conflict(name, (i != null) ? i.getDirCacheEntry() : null, h, m);
+				conflict(name, dce, h, m);
 				break;
 			case 0xFDF: // 7 8 9
 				if (equalIdAndMode(hId, hMode, mId, mMode)) {
 					if (isModified(name))
-						conflict(name, i.getDirCacheEntry(), h, m); // 8
+						conflict(name, dce, h, m); // 8
 					else
-						update(name, mId, m.getEntryFileMode()); // 7
+						update(name, mId, mMode); // 7
 				} else if (!isModified(name))
-					update(name, mId, m.getEntryFileMode());  // 9
+					update(name, mId, mMode); // 9
 				else
 					// To be confirmed - this case is not in the table.
-					conflict(name, i.getDirCacheEntry(), h, m);
+					conflict(name, dce, h, m);
 				break;
 			case 0xFD0: // keep without a rule
-				keep(i.getDirCacheEntry());
+				keep(dce);
 				break;
 			case 0xFFD: // 12 13 14
-				if (equalIdAndMode(hId, hMode, iId, iMode)) {
-					dce = i.getDirCacheEntry();
+				if (equalIdAndMode(hId, hMode, iId, iMode))
 					if (f == null || f.isModified(dce, true))
 						conflict(name, dce, h, m);
 					else
 						remove(name);
-				} else
-					conflict(name, i.getDirCacheEntry(), h, m);
+				else
+					conflict(name, dce, h, m);
 				break;
 			case 0x0DF: // 16 17
 				if (!isModified(name))
-					update(name, mId, m.getEntryFileMode());
+					update(name, mId, mMode);
 				else
-					conflict(name, i.getDirCacheEntry(), h, m);
+					conflict(name, dce, h, m);
 				break;
 			default:
-				keep(i.getDirCacheEntry());
+				keep(dce);
 			}
 			return;
 		}
@@ -679,7 +683,7 @@ public class DirCacheCheckout {
 			// make sure not to overwrite untracked files
 			if (f != null) {
 				// A submodule is not a file. We should ignore it
-				if (!FileMode.GITLINK.equals(m.getEntryFileMode())) {
+				if (!FileMode.GITLINK.equals(mMode)) {
 					// a dirty worktree: the index is empty but we have a
 					// workingtree-file
 					if (mId == null
@@ -703,13 +707,12 @@ public class DirCacheCheckout {
 			 */
 
 			if (h == null)
-				update(name, mId, m.getEntryFileMode()); // 1
+				update(name, mId, mMode); // 1
 			else if (m == null)
 				remove(name); // 2
 			else
-				update(name, mId, m.getEntryFileMode()); // 3
+				update(name, mId, mMode); // 3
 		} else {
-			dce = i.getDirCacheEntry();
 			if (h == null) {
 				/**
 				 * <pre>
@@ -749,7 +752,7 @@ public class DirCacheCheckout {
 				 * </pre>
 				 */
 
-				if (dce.getFileMode() == FileMode.GITLINK) {
+				if (iMode == FileMode.GITLINK) {
 					// Submodules that disappear from the checkout must
 					// be removed from the index, but not deleted from disk.
 					remove(name);
@@ -772,12 +775,12 @@ public class DirCacheCheckout {
 					// For submodules just update the index with the new SHA-1
 					if (dce != null
 							&& FileMode.GITLINK.equals(dce.getFileMode())) {
-						update(name, mId, m.getEntryFileMode());
+						update(name, mId, mMode);
 					} else if (dce != null
 							&& (f == null || f.isModified(dce, true))) {
 						conflict(name, dce, h, m);
 					} else {
-						update(name, mId, m.getEntryFileMode());
+						update(name, mId, mMode);
 					}
 				} else {
 					keep(dce);
@@ -799,7 +802,7 @@ public class DirCacheCheckout {
 		DirCacheEntry entry;
 		if (e != null) {
 			entry = new DirCacheEntry(e.getPathString(), DirCacheEntry.STAGE_1);
-			entry.copyMetaData(e);
+			entry.copyMetaData(e, true);
 			builder.add(entry);
 		}
 
@@ -992,4 +995,102 @@ public class DirCacheCheckout {
 		else
 			entry.setLength((int) ol.getSize());
 	}
+
+	private static byte[][] forbidden;
+	static {
+		String[] list = new String[] { "AUX", "COM1", "COM2", "COM3", "COM4",
+				"COM5", "COM6", "COM7", "COM8", "COM9", "CON", "LPT1", "LPT2",
+				"LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "NUL",
+				"PRN" };
+		forbidden = new byte[list.length][];
+		for (int i = 0; i < list.length; ++i)
+			forbidden[i] = Constants.encodeASCII(list[i]);
+	}
+
+	private static boolean isValidPath(CanonicalTreeParser t) {
+		for (CanonicalTreeParser i = t; i != null; i = i.getParent())
+			if (!isValidPathSegment(i))
+				return false;
+		return true;
+	}
+
+	private static boolean isValidPathSegment(CanonicalTreeParser t) {
+		String osName = SystemReader.getInstance().getProperty("os.name");
+		boolean isWindows = "Windows".equals(osName);
+		boolean isOSX = "Darwin".equals(osName) || "Mac OS X".equals(osName);
+		boolean ignCase = isOSX || isWindows;
+
+		int ptr = t.getNameOffset();
+		byte[] raw = t.getEntryPathBuffer();
+		int end = ptr + t.getNameLength();
+
+		// Validate path component at this level of the tree
+		int start = ptr;
+		while (ptr < end) {
+			if (raw[ptr] == '/')
+				return false;
+			if (isWindows) {
+				if (raw[ptr] == '\\')
+					return false;
+				if (raw[ptr] == ':')
+					return false;
+			}
+			ptr++;
+		}
+		// '.' and '.'' are invalid here
+		if (ptr - start == 1) {
+			if (raw[start] == '.')
+				return false;
+		} else if (ptr - start == 2) {
+			if (raw[start] == '.')
+				if (raw[start + 1] == '.')
+					return false;
+		} else if (ptr - start == 4) {
+			// .git (possibly case insensitive) is disallowed
+			if (raw[start] == '.')
+				if (raw[start + 1] == 'g' || (ignCase && raw[start + 1] == 'G'))
+					if (raw[start + 2] == 'i'
+							|| (ignCase && raw[start + 2] == 'I'))
+						if (raw[start + 3] == 't'
+								|| (ignCase && raw[start + 3] == 'T'))
+							return false;
+		}
+		if (isWindows) {
+			// Space or period at end of file name is ignored by Windows.
+			// Treat this as a bad path for now. We may want to handle
+			// this as case insensitivity in the future.
+			if (raw[ptr - 1] == '.' || raw[ptr - 1] == ' ')
+				return false;
+			int i;
+			// Bad names, eliminate suffix first
+			for (i = start; i < ptr; ++i)
+				if (raw[i] == '.')
+					break;
+			int len = i - start;
+			if (len == 3 || len == 4) {
+				for (int j = 0; j < forbidden.length; ++j) {
+					if (forbidden[j].length == len) {
+						if (toUpper(raw[start]) < forbidden[j][0])
+							break;
+						int k;
+						for (k = 0; k < len; ++k) {
+							if (toUpper(raw[start + k]) != forbidden[j][k])
+								break;
+						}
+						if (k == len)
+							return false;
+					}
+				}
+			}
+		}
+
+		return true;
+	}
+
+	private static byte toUpper(byte b) {
+		if (b >= 'a' && b <= 'z')
+			return (byte) (b - ('a' - 'A'));
+		return b;
+	}
+
 }

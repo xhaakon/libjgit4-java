@@ -109,6 +109,18 @@ public class RebaseResult {
 			public boolean isSuccessful() {
 				return true;
 			}
+		},
+
+		/**
+		 * Continue with nothing left to commit (possibly want skip).
+		 *
+		 * @since 2.0
+		 */
+		NOTHING_TO_COMMIT {
+			@Override
+			public boolean isSuccessful() {
+				return false;
+			}
 		};
 
 		/**
@@ -126,6 +138,9 @@ public class RebaseResult {
 
 	static final RebaseResult FAST_FORWARD_RESULT = new RebaseResult(
 			Status.FAST_FORWARD);
+
+	static final RebaseResult NOTHING_TO_COMMIT_RESULT = new RebaseResult(
+			Status.NOTHING_TO_COMMIT);
 
 	private final Status status;
 
