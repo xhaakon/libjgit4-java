@@ -1,10 +1,10 @@
-jgit (2.0.0-2) UNRELEASED; urgency=low
+jgit (2.0.0-2) unstable; urgency=low
 
   * Add breaks on eclipse-egit (<< 2.0) to ensure egit is
     upgraded together with libjgit-java.
   * Work around issue with the maven clean rule.
 
- -- Niels Thykier <niels@thykier.net>  Wed, 27 Jun 2012 12:16:26 +0200
+ -- Niels Thykier <niels@thykier.net>  Wed, 27 Jun 2012 12:28:15 +0200
 
 jgit (2.0.0-1) unstable; urgency=low
 
