@@ -28,7 +28,7 @@ Depends: ${java:Depends},
          ${misc:Depends}
 Suggests: libjgit-java-doc
 Replaces: eclipse-jgit (<< 2.0.0)
-Breaks: eclipse-jgit (<< 2.0.0)
+Breaks: eclipse-jgit (<< 2.0.0), eclipse-egit (<< 2.0.0~)
 Description: Java implementation of GIT version control
  JGit is a lightweight, pure Java library implementing the Git version control
  system:
