@@ -35,3 +35,14 @@ install/libjgit-java-doc::
 
 clean::
 	rm -f mvn-build
+	rm -fr org.eclipse.jgit.ant.test/target/ \
+	       org.eclipse.jgit.ant/target/ \
+	       org.eclipse.jgit.console/target/ \
+	       org.eclipse.jgit.http.server/target/ \
+	       org.eclipse.jgit.iplog/target/ \
+	       org.eclipse.jgit.junit/target/ \
+	       org.eclipse.jgit.pgm.test/target/ \
+	       org.eclipse.jgit.pgm/target/ \
+	       org.eclipse.jgit.ui/target/ \
+	       org.eclipse.jgit/target/ \
+	       target/
