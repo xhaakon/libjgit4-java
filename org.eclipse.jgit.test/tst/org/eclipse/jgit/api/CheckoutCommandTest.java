@@ -43,6 +43,8 @@
  */
 package org.eclipse.jgit.api;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -217,6 +219,84 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 		git2.checkout().setName("remotes/origin/test").call();
 		assertEquals("[Test.txt, mode:100644, content:Some change]",
 				indexState(db2, CONTENT));
+	}
+
+	@Test
+	public void testCheckoutOfFileWithInexistentParentDir() throws Exception {
+		File a = writeTrashFile("dir/a.txt", "A");
+		writeTrashFile("dir/b.txt", "A");
+		git.add().addFilepattern("dir/a.txt").addFilepattern("dir/b.txt")
+				.call();
+		git.commit().setMessage("Added dir").call();
+
+		File dir = new File(db.getWorkTree(), "dir");
+		FileUtils.delete(dir, FileUtils.RECURSIVE);
+
+		git.checkout().addPath("dir/a.txt").call();
+		assertTrue(a.exists());
+	}
+
+	@Test
+	public void testCheckoutOfDirectoryShouldBeRecursive() throws Exception {
+		File a = writeTrashFile("dir/a.txt", "A");
+		File b = writeTrashFile("dir/sub/b.txt", "B");
+		git.add().addFilepattern("dir").call();
+		git.commit().setMessage("Added dir").call();
+
+		write(a, "modified");
+		write(b, "modified");
+		git.checkout().addPath("dir").call();
+
+		assertThat(read(a), is("A"));
+		assertThat(read(b), is("B"));
+	}
+
+	@Test
+	public void testCheckoutAllPaths() throws Exception {
+		File a = writeTrashFile("dir/a.txt", "A");
+		File b = writeTrashFile("dir/sub/b.txt", "B");
+		git.add().addFilepattern("dir").call();
+		git.commit().setMessage("Added dir").call();
+
+		write(a, "modified");
+		write(b, "modified");
+		git.checkout().setAllPaths(true).call();
+
+		assertThat(read(a), is("A"));
+		assertThat(read(b), is("B"));
+	}
+
+	@Test
+	public void testCheckoutWithStartPoint() throws Exception {
+		File a = writeTrashFile("a.txt", "A");
+		git.add().addFilepattern("a.txt").call();
+		RevCommit first = git.commit().setMessage("Added a").call();
+
+		write(a, "other");
+		git.commit().setAll(true).setMessage("Other").call();
+
+		git.checkout().setCreateBranch(true).setName("a")
+				.setStartPoint(first.getId().getName()).call();
+
+		assertThat(read(a), is("A"));
+	}
+
+	@Test
+	public void testCheckoutWithStartPointOnlyCertainFiles() throws Exception {
+		File a = writeTrashFile("a.txt", "A");
+		File b = writeTrashFile("b.txt", "B");
+		git.add().addFilepattern("a.txt").addFilepattern("b.txt").call();
+		RevCommit first = git.commit().setMessage("First").call();
+
+		write(a, "other");
+		write(b, "other");
+		git.commit().setAll(true).setMessage("Other").call();
+
+		git.checkout().setCreateBranch(true).setName("a")
+				.setStartPoint(first.getId().getName()).addPath("a.txt").call();
+
+		assertThat(read(a), is("A"));
+		assertThat(read(b), is("other"));
 	}
 
 	@Test

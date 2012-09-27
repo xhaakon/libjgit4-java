@@ -23,13 +23,14 @@ org.eclipse.jgit.pgm.ReceivePack
 org.eclipse.jgit.pgm.RevList
 org.eclipse.jgit.pgm.RevParse
 org.eclipse.jgit.pgm.Rm
-org.eclipse.jgit.pgm.ShowRev
+org.eclipse.jgit.pgm.Show
 org.eclipse.jgit.pgm.ShowRef
 org.eclipse.jgit.pgm.Tag
 org.eclipse.jgit.pgm.UploadPack
 org.eclipse.jgit.pgm.Version
 
 org.eclipse.jgit.pgm.debug.DiffAlgorithms
+org.eclipse.jgit.pgm.debug.Gc
 org.eclipse.jgit.pgm.debug.MakeCacheTree
 org.eclipse.jgit.pgm.debug.ReadDirCache
 org.eclipse.jgit.pgm.debug.RebuildCommitGraph

@@ -89,7 +89,7 @@ public abstract class FS {
 	 * @return detected file system abstraction
 	 */
 	public static FS detect(Boolean cygwinUsed) {
-		if (FS_Win32.isWin32()) {
+		if (SystemReader.getInstance().isWindows()) {
 			if (cygwinUsed == null)
 				cygwinUsed = Boolean.valueOf(FS_Win32_Cygwin.isCygwin());
 			if (cygwinUsed.booleanValue())
@@ -134,6 +134,13 @@ public abstract class FS {
 	 *         executable bit information; false otherwise.
 	 */
 	public abstract boolean supportsExecute();
+
+	/**
+	 * Is this file system case sensitive
+	 *
+	 * @return true if this implementation is case sensitive
+	 */
+	public abstract boolean isCaseSensitive();
 
 	/**
 	 * Determine if the file is executable (or not).
