@@ -1,3 +1,9 @@
+jgit (2.1.0-1) UNRELEASED; urgency=low
+
+  * New Upstream release.
+
+ -- Jakub Adam <jakub.adam@ktknet.cz>  Thu, 27 Sep 2012 16:54:42 +0200
+
 jgit (2.0.0-2) unstable; urgency=low
 
   * Add breaks on eclipse-egit (<< 2.0) to ensure egit is
