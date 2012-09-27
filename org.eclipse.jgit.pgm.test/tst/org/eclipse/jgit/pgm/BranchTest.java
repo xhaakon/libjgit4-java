@@ -62,4 +62,10 @@ public class BranchTest extends CLIRepositoryTestCase {
 		assertEquals("* master 6fd41be initial commit",
 				execute("git branch -v")[0]);
 	}
+
+	@Test
+	public void testExistingBranch() throws Exception {
+		assertEquals("A branch named 'master' already exists.",
+				execute("git branch master")[0]);
+	}
 }

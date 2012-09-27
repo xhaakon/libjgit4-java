@@ -56,7 +56,9 @@ import java.util.Collections;
 import java.util.List;
 
 import org.eclipse.jgit.lib.Config;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.SampleDataRepositoryTestCase;
+import org.eclipse.jgit.storage.file.FileRepository;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -209,7 +211,19 @@ public class TransportTest extends SampleDataRepositoryTestCase {
 		assertEquals("refs/remotes/test/a", tru.getLocalName());
 		assertEquals("refs/heads/a", tru.getRemoteName());
 		assertEquals(db.resolve("refs/heads/a"), tru.getNewObjectId());
-		assertNull(tru.getOldObjectId());
+		assertEquals(ObjectId.zeroId(), tru.getOldObjectId());
+	}
+
+	@Test
+	public void testLocalTransportWithRelativePath() throws Exception {
+		FileRepository other = createWorkRepository();
+		String otherDir = other.getWorkTree().getName();
+
+		RemoteConfig config = new RemoteConfig(db.getConfig(), "other");
+		config.addURI(new URIish("../" + otherDir));
+
+		// Should not throw NoRemoteRepositoryException
+		transport = Transport.open(db, config);
 	}
 
 	@Test

@@ -135,11 +135,11 @@ public abstract class PackParser {
 
 	private boolean allowThin;
 
-	private boolean checkObjectCollisions;
-
 	private boolean needBaseObjectIds;
 
 	private boolean checkEofAfterPackFooter;
+
+	private boolean expectDataAfterPackFooter;
 
 	private long objectCount;
 
@@ -204,7 +204,6 @@ public abstract class PackParser {
 		objectDigest = Constants.newMessageDigest();
 		tempObjectId = new MutableObjectId();
 		packDigest = Constants.newMessageDigest();
-		checkObjectCollisions = true;
 	}
 
 	/** @return true if a thin pack (missing base objects) is permitted. */
@@ -223,35 +222,6 @@ public abstract class PackParser {
 	 */
 	public void setAllowThin(final boolean allow) {
 		allowThin = allow;
-	}
-
-	/** @return if true received objects are verified to prevent collisions. */
-	public boolean isCheckObjectCollisions() {
-		return checkObjectCollisions;
-	}
-
-	/**
-	 * Enable checking for collisions with existing objects.
-	 * <p>
-	 * By default PackParser looks for each received object in the repository.
-	 * If the object already exists, the existing object is compared
-	 * byte-for-byte with the newly received copy to ensure they are identical.
-	 * The receive is aborted with an exception if any byte differs. This check
-	 * is necessary to prevent an evil attacker from supplying a replacement
-	 * object into this repository in the event that a discovery enabling SHA-1
-	 * collisions is made.
-	 * <p>
-	 * This check may be very costly to perform, and some repositories may have
-	 * other ways to segregate newly received object data. The check is enabled
-	 * by default, but can be explicitly disabled if the implementation can
-	 * provide the same guarantee, or is willing to accept the risks associated
-	 * with bypassing the check.
-	 *
-	 * @param check
-	 *            true to enable collision checking (strongly encouraged).
-	 */
-	public void setCheckObjectCollisions(boolean check) {
-		checkObjectCollisions = check;
 	}
 
 	/**
@@ -303,6 +273,21 @@ public abstract class PackParser {
 	 */
 	public void setCheckEofAfterPackFooter(boolean b) {
 		checkEofAfterPackFooter = b;
+	}
+
+	/** @return true if there is data expected after the pack footer. */
+	public boolean isExpectDataAfterPackFooter() {
+		return expectDataAfterPackFooter;
+	}
+
+	/**
+	 * @param e
+	 *            true if there is additional data in InputStream after pack.
+	 *            This requires the InputStream to support the mark and reset
+	 *            functions.
+	 */
+	public void setExpectDataAfterPackFooter(boolean e) {
+		expectDataAfterPackFooter = e;
 	}
 
 	/** @return the new objects that were sent by the user */
@@ -826,6 +811,13 @@ public abstract class PackParser {
 	}
 
 	private void readPackHeader() throws IOException {
+		if (expectDataAfterPackFooter) {
+			if (!in.markSupported())
+				throw new IOException(
+						JGitText.get().inputStreamMustSupportMark);
+			in.mark(buf.length);
+		}
+
 		final int hdrln = Constants.PACK_SIGNATURE.length + 4 + 4;
 		final int p = fill(Source.INPUT, hdrln);
 		for (int k = 0; k < Constants.PACK_SIGNATURE.length; k++)
@@ -851,23 +843,19 @@ public abstract class PackParser {
 		System.arraycopy(buf, c, srcHash, 0, 20);
 		use(20);
 
-		// The input stream should be at EOF at this point. We do not support
-		// yielding back any remaining buffered data after the pack footer, so
-		// protocols that embed a pack stream are required to either end their
-		// stream with the pack, or embed the pack with a framing system like
-		// the SideBandInputStream does.
-
-		if (bAvail != 0)
+		if (bAvail != 0 && !expectDataAfterPackFooter)
 			throw new CorruptObjectException(MessageFormat.format(
 					JGitText.get().expectedEOFReceived,
 					"\\x" + Integer.toHexString(buf[bOffset] & 0xff)));
-
 		if (isCheckEofAfterPackFooter()) {
 			int eof = in.read();
 			if (0 <= eof)
 				throw new CorruptObjectException(MessageFormat.format(
 						JGitText.get().expectedEOFReceived,
 						"\\x" + Integer.toHexString(eof)));
+		} else if (bAvail > 0 && expectDataAfterPackFooter) {
+			in.reset();
+			IO.skipFully(in, bOffset);
 		}
 
 		if (!Arrays.equals(actHash, srcHash))
@@ -984,8 +972,7 @@ public abstract class PackParser {
 			}
 			inf.close();
 			tempObjectId.fromRaw(objectDigest.digest(), 0);
-			checkContentLater = isCheckObjectCollisions()
-					&& readCurs.has(tempObjectId);
+			checkContentLater = readCurs.has(tempObjectId);
 			data = null;
 
 		} else {
@@ -1017,19 +1004,17 @@ public abstract class PackParser {
 			}
 		}
 
-		if (isCheckObjectCollisions()) {
-			try {
-				final ObjectLoader ldr = readCurs.open(id, type);
-				final byte[] existingData = ldr.getCachedBytes(data.length);
-				if (!Arrays.equals(data, existingData)) {
-					throw new IOException(MessageFormat.format(
-							JGitText.get().collisionOn, id.name()));
-				}
-			} catch (MissingObjectException notLocal) {
-				// This is OK, we don't have a copy of the object locally
-				// but the API throws when we try to read it as usually its
-				// an error to read something that doesn't exist.
+		try {
+			final ObjectLoader ldr = readCurs.open(id, type);
+			final byte[] existingData = ldr.getCachedBytes(data.length);
+			if (!Arrays.equals(data, existingData)) {
+				throw new IOException(MessageFormat.format(
+						JGitText.get().collisionOn, id.name()));
 			}
+		} catch (MissingObjectException notLocal) {
+			// This is OK, we don't have a copy of the object locally
+			// but the API throws when we try to read it as usually its
+			// an error to read something that doesn't exist.
 		}
 	}
 
@@ -1142,7 +1127,14 @@ public abstract class PackParser {
 	private void sync() throws IOException {
 		packDigest.update(buf, 0, bOffset);
 		onStoreStream(buf, 0, bOffset);
-		if (bAvail > 0)
+		if (expectDataAfterPackFooter) {
+			if (bAvail > 0) {
+				in.reset();
+				IO.skipFully(in, bOffset);
+				bAvail = 0;
+			}
+			in.mark(buf.length);
+		} else if (bAvail > 0)
 			System.arraycopy(buf, bOffset, buf, 0, bAvail);
 		bBase += bOffset;
 		bOffset = 0;

@@ -2,7 +2,7 @@
  * Copyright (C) 2007, Dave Watson <dwatson@mimvista.com>
  * Copyright (C) 2008-2010, Google Inc.
  * Copyright (C) 2006-2010, Robin Rosenberg <robin.rosenberg@dewire.com>
- * Copyright (C) 2006-2008, Shawn O. Pearce <spearce@spearce.org>
+ * Copyright (C) 2006-2012, Shawn O. Pearce <spearce@spearce.org>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -51,6 +51,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.text.MessageFormat;
 import java.util.Collection;
 import java.util.Collections;
@@ -79,8 +80,11 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.storage.file.CheckoutEntry;
 import org.eclipse.jgit.storage.file.ReflogEntry;
 import org.eclipse.jgit.storage.file.ReflogReader;
+import org.eclipse.jgit.transport.RefSpec;
+import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FileUtils;
@@ -376,25 +380,63 @@ public abstract class Repository {
 			throws AmbiguousObjectException, IOException {
 		RevWalk rw = new RevWalk(this);
 		try {
-			return resolve(rw, revstr);
+			Object resolved = resolve(rw, revstr);
+			if (resolved instanceof String) {
+				return getRef((String) resolved).getLeaf().getObjectId();
+			} else {
+				return (ObjectId) resolved;
+			}
 		} finally {
 			rw.release();
 		}
 	}
 
-	private ObjectId resolve(final RevWalk rw, final String revstr) throws IOException {
-		char[] rev = revstr.toCharArray();
-		RevObject ref = null;
-		for (int i = 0; i < rev.length; ++i) {
-			switch (rev[i]) {
+	/**
+	 * Simplify an expression, but unlike {@link #resolve(String)} it will not
+	 * resolve a branch passed or resulting from the expression, such as @{-}.
+	 * Thus this method can be used to process an expression to a method that
+	 * expects a branch or revision id.
+	 *
+	 * @param revstr
+	 * @return object id or ref name from resolved expression
+	 * @throws AmbiguousObjectException
+	 * @throws IOException
+	 */
+	public String simplify(final String revstr)
+			throws AmbiguousObjectException, IOException {
+		RevWalk rw = new RevWalk(this);
+		try {
+			Object resolved = resolve(rw, revstr);
+			if (resolved != null)
+				if (resolved instanceof String)
+					return (String) resolved;
+				else
+					return ((AnyObjectId) resolved).getName();
+			return null;
+		} finally {
+			rw.release();
+		}
+	}
+
+	private Object resolve(final RevWalk rw, final String revstr)
+			throws IOException {
+		char[] revChars = revstr.toCharArray();
+		RevObject rev = null;
+		String name = null;
+		int done = 0;
+		for (int i = 0; i < revChars.length; ++i) {
+			switch (revChars[i]) {
 			case '^':
-				if (ref == null) {
-					ref = parseSimple(rw, new String(rev, 0, i));
-					if (ref == null)
+				if (rev == null) {
+					if (name == null)
+						name = new String(revChars, done, i);
+					rev = parseSimple(rw, name);
+					name = null;
+					if (rev == null)
 						return null;
 				}
-				if (i + 1 < rev.length) {
-					switch (rev[i + 1]) {
+				if (i + 1 < revChars.length) {
+					switch (revChars[i + 1]) {
 					case '0':
 					case '1':
 					case '2':
@@ -406,12 +448,13 @@ public abstract class Repository {
 					case '8':
 					case '9':
 						int j;
-						ref = rw.parseCommit(ref);
-						for (j = i + 1; j < rev.length; ++j) {
-							if (!Character.isDigit(rev[j]))
+						rev = rw.parseCommit(rev);
+						for (j = i + 1; j < revChars.length; ++j) {
+							if (!Character.isDigit(revChars[j]))
 								break;
 						}
-						String parentnum = new String(rev, i + 1, j - i - 1);
+						String parentnum = new String(revChars, i + 1, j - i
+								- 1);
 						int pnum;
 						try {
 							pnum = Integer.parseInt(parentnum);
@@ -421,85 +464,89 @@ public abstract class Repository {
 									revstr);
 						}
 						if (pnum != 0) {
-							RevCommit commit = (RevCommit) ref;
+							RevCommit commit = (RevCommit) rev;
 							if (pnum > commit.getParentCount())
-								ref = null;
+								rev = null;
 							else
-								ref = commit.getParent(pnum - 1);
+								rev = commit.getParent(pnum - 1);
 						}
 						i = j - 1;
+						done = i;
 						break;
 					case '{':
 						int k;
 						String item = null;
-						for (k = i + 2; k < rev.length; ++k) {
-							if (rev[k] == '}') {
-								item = new String(rev, i + 2, k - i - 2);
+						for (k = i + 2; k < revChars.length; ++k) {
+							if (revChars[k] == '}') {
+								item = new String(revChars, i + 2, k - i - 2);
 								break;
 							}
 						}
 						i = k;
 						if (item != null)
 							if (item.equals("tree")) {
-								ref = rw.parseTree(ref);
+								rev = rw.parseTree(rev);
 							} else if (item.equals("commit")) {
-								ref = rw.parseCommit(ref);
+								rev = rw.parseCommit(rev);
 							} else if (item.equals("blob")) {
-								ref = rw.peel(ref);
-								if (!(ref instanceof RevBlob))
-									throw new IncorrectObjectTypeException(ref,
+								rev = rw.peel(rev);
+								if (!(rev instanceof RevBlob))
+									throw new IncorrectObjectTypeException(rev,
 											Constants.TYPE_BLOB);
 							} else if (item.equals("")) {
-								ref = rw.peel(ref);
+								rev = rw.peel(rev);
 							} else
 								throw new RevisionSyntaxException(revstr);
 						else
 							throw new RevisionSyntaxException(revstr);
+						done = k;
 						break;
 					default:
-						ref = rw.parseAny(ref);
-						if (ref instanceof RevCommit) {
-							RevCommit commit = ((RevCommit) ref);
+						rev = rw.parseAny(rev);
+						if (rev instanceof RevCommit) {
+							RevCommit commit = ((RevCommit) rev);
 							if (commit.getParentCount() == 0)
-								ref = null;
+								rev = null;
 							else
-								ref = commit.getParent(0);
+								rev = commit.getParent(0);
 						} else
-							throw new IncorrectObjectTypeException(ref,
+							throw new IncorrectObjectTypeException(rev,
 									Constants.TYPE_COMMIT);
 
 					}
 				} else {
-					ref = rw.peel(ref);
-					if (ref instanceof RevCommit) {
-						RevCommit commit = ((RevCommit) ref);
+					rev = rw.peel(rev);
+					if (rev instanceof RevCommit) {
+						RevCommit commit = ((RevCommit) rev);
 						if (commit.getParentCount() == 0)
-							ref = null;
+							rev = null;
 						else
-							ref = commit.getParent(0);
+							rev = commit.getParent(0);
 					} else
-						throw new IncorrectObjectTypeException(ref,
+						throw new IncorrectObjectTypeException(rev,
 								Constants.TYPE_COMMIT);
 				}
 				break;
 			case '~':
-				if (ref == null) {
-					ref = parseSimple(rw, new String(rev, 0, i));
-					if (ref == null)
+				if (rev == null) {
+					if (name == null)
+						name = new String(revChars, done, i);
+					rev = parseSimple(rw, name);
+					if (rev == null)
 						return null;
 				}
-				ref = rw.peel(ref);
-				if (!(ref instanceof RevCommit))
-					throw new IncorrectObjectTypeException(ref,
+				rev = rw.peel(rev);
+				if (!(rev instanceof RevCommit))
+					throw new IncorrectObjectTypeException(rev,
 							Constants.TYPE_COMMIT);
 				int l;
-				for (l = i + 1; l < rev.length; ++l) {
-					if (!Character.isDigit(rev[l]))
+				for (l = i + 1; l < revChars.length; ++l) {
+					if (!Character.isDigit(revChars[l]))
 						break;
 				}
 				int dist;
 				if (l - i > 1) {
-					String distnum = new String(rev, i + 1, l - i - 1);
+					String distnum = new String(revChars, i + 1, l - i - 1);
 					try {
 						dist = Integer.parseInt(distnum);
 					} catch (NumberFormatException e) {
@@ -509,71 +556,131 @@ public abstract class Repository {
 				} else
 					dist = 1;
 				while (dist > 0) {
-					RevCommit commit = (RevCommit) ref;
+					RevCommit commit = (RevCommit) rev;
 					if (commit.getParentCount() == 0) {
-						ref = null;
+						rev = null;
 						break;
 					}
 					commit = commit.getParent(0);
 					rw.parseHeaders(commit);
-					ref = commit;
+					rev = commit;
 					--dist;
 				}
 				i = l - 1;
 				break;
 			case '@':
+				if (rev != null)
+					throw new RevisionSyntaxException(revstr);
 				int m;
 				String time = null;
-				for (m = i + 2; m < rev.length; ++m) {
-					if (rev[m] == '}') {
-						time = new String(rev, i + 2, m - i - 2);
+				for (m = i + 2; m < revChars.length; ++m) {
+					if (revChars[m] == '}') {
+						time = new String(revChars, i + 2, m - i - 2);
 						break;
 					}
 				}
 				if (time != null) {
-					String refName = new String(rev, 0, i);
-					Ref resolved = getRefDatabase().getRef(refName);
-					if (resolved == null)
-						return null;
-					ref = resolveReflog(rw, resolved, time);
+					if (time.equals("upstream")) {
+						if (name == null)
+							name = new String(revChars, done, i);
+						if (name.equals(""))
+							// Currently checked out branch, HEAD if
+							// detached
+							name = Constants.HEAD;
+						Ref ref = getRef(name);
+						if (ref == null)
+							return null;
+						if (ref.isSymbolic())
+							ref = ref.getLeaf();
+						name = ref.getName();
+
+						RemoteConfig remoteConfig;
+						try {
+							remoteConfig = new RemoteConfig(getConfig(),
+									"origin");
+						} catch (URISyntaxException e) {
+							throw new RevisionSyntaxException(revstr);
+						}
+						String remoteBranchName = getConfig()
+								.getString(
+										ConfigConstants.CONFIG_BRANCH_SECTION,
+								Repository.shortenRefName(ref.getName()),
+										ConfigConstants.CONFIG_KEY_MERGE);
+						List<RefSpec> fetchRefSpecs = remoteConfig
+								.getFetchRefSpecs();
+						for (RefSpec refSpec : fetchRefSpecs) {
+							if (refSpec.matchSource(remoteBranchName)) {
+								RefSpec expandFromSource = refSpec
+										.expandFromSource(remoteBranchName);
+								name = expandFromSource.getDestination();
+								break;
+							}
+						}
+						if (name == null)
+							throw new RevisionSyntaxException(revstr);
+					} else if (time.matches("^-\\d+$")) {
+						if (name != null)
+							throw new RevisionSyntaxException(revstr);
+						else {
+							String previousCheckout = resolveReflogCheckout(-Integer
+									.parseInt(time));
+							if (ObjectId.isId(previousCheckout))
+								rev = parseSimple(rw, previousCheckout);
+							else
+								name = previousCheckout;
+						}
+					} else {
+						if (name == null)
+							name = new String(revChars, done, i);
+						if (name.equals(""))
+							name = Constants.HEAD;
+						Ref ref = getRef(name);
+						if (ref == null)
+							return null;
+						// @{n} means current branch, not HEAD@{1} unless
+						// detached
+						if (ref.isSymbolic())
+							ref = ref.getLeaf();
+						rev = resolveReflog(rw, ref, time);
+						name = null;
+					}
 					i = m;
 				} else
-					i = m - 1;
+					throw new RevisionSyntaxException(revstr);
 				break;
 			case ':': {
 				RevTree tree;
-				if (ref == null) {
-					// We might not yet have parsed the left hand side.
-					ObjectId id;
-					try {
-						if (i == 0)
-							id = resolve(rw, Constants.HEAD);
-						else
-							id = resolve(rw, new String(rev, 0, i));
-					} catch (RevisionSyntaxException badSyntax) {
-						throw new RevisionSyntaxException(revstr);
-					}
-					if (id == null)
-						return null;
-					tree = rw.parseTree(id);
-				} else {
-					tree = rw.parseTree(ref);
+				if (rev == null) {
+					if (name == null)
+						name = new String(revChars, done, i);
+					if (name.equals(""))
+						name = Constants.HEAD;
+					rev = parseSimple(rw, name);
 				}
-
-				if (i == rev.length - 1)
+				if (rev == null)
+					return null;
+				tree = rw.parseTree(rev);
+				if (i == revChars.length - 1)
 					return tree.copy();
 
 				TreeWalk tw = TreeWalk.forPath(rw.getObjectReader(),
-						new String(rev, i + 1, rev.length - i - 1), tree);
+						new String(revChars, i + 1, revChars.length - i - 1),
+						tree);
 				return tw != null ? tw.getObjectId(0) : null;
 			}
-
 			default:
-				if (ref != null)
+				if (rev != null)
 					throw new RevisionSyntaxException(revstr);
 			}
 		}
-		return ref != null ? ref.copy() : resolveSimple(revstr);
+		if (rev != null)
+			return rev.copy();
+		if (name != null)
+			return name;
+		name = revstr.substring(done);
+		if (getRef(name) != null)
+			return name;
+		return resolveSimple(name);
 	}
 
 	private static boolean isHex(char c) {
@@ -620,6 +727,19 @@ public abstract class Repository {
 		return null;
 	}
 
+	private String resolveReflogCheckout(int checkoutNo)
+			throws IOException {
+		List<ReflogEntry> reflogEntries = new ReflogReader(this, Constants.HEAD)
+				.getReverseEntries();
+		for (ReflogEntry entry : reflogEntries) {
+			CheckoutEntry checkout = entry.parseCheckout();
+			if (checkout != null)
+				if (checkoutNo-- == 1)
+					return checkout.getFromBranch();
+		}
+		return null;
+	}
+
 	private RevCommit resolveReflog(RevWalk rw, Ref ref, String time)
 			throws IOException {
 		int number;
@@ -629,10 +749,7 @@ public abstract class Repository {
 			throw new RevisionSyntaxException(MessageFormat.format(
 					JGitText.get().invalidReflogRevision, time));
 		}
-		if (number < 0)
-			throw new RevisionSyntaxException(MessageFormat.format(
-					JGitText.get().invalidReflogRevision, time));
-
+		assert number >= 0;
 		ReflogReader reader = new ReflogReader(this, ref.getName());
 		ReflogEntry entry = reader.getReverseEntry(number);
 		if (entry == null)
@@ -1125,24 +1242,14 @@ public abstract class Repository {
 	 *             See {@link #isBare()}.
 	 */
 	public String readMergeCommitMsg() throws IOException, NoWorkTreeException {
-		if (isBare() || getDirectory() == null)
-			throw new NoWorkTreeException();
-
-		File mergeMsgFile = new File(getDirectory(), Constants.MERGE_MSG);
-		try {
-			return RawParseUtils.decode(IO.readFully(mergeMsgFile));
-		} catch (FileNotFoundException e) {
-			// MERGE_MSG file has disappeared in the meantime
-			// ignore it
-			return null;
-		}
+		return readCommitMsgFile(Constants.MERGE_MSG);
 	}
 
 	/**
 	 * Write new content to the file $GIT_DIR/MERGE_MSG. In this file operations
 	 * triggering a merge will store a template for the commit message of the
 	 * merge commit. If <code>null</code> is specified as message the file will
-	 * be deleted
+	 * be deleted.
 	 *
 	 * @param msg
 	 *            the message which should be written or <code>null</code> to
@@ -1152,16 +1259,7 @@ public abstract class Repository {
 	 */
 	public void writeMergeCommitMsg(String msg) throws IOException {
 		File mergeMsgFile = new File(gitDir, Constants.MERGE_MSG);
-		if (msg != null) {
-			FileOutputStream fos = new FileOutputStream(mergeMsgFile);
-			try {
-				fos.write(msg.getBytes(Constants.CHARACTER_ENCODING));
-			} finally {
-				fos.close();
-			}
-		} else {
-			FileUtils.delete(mergeMsgFile, FileUtils.SKIP_MISSING);
-		}
+		writeCommitMsg(mergeMsgFile, msg);
 	}
 
 	/**
@@ -1169,9 +1267,9 @@ public abstract class Repository {
 	 * file operations triggering a merge will store the IDs of all heads which
 	 * should be merged together with HEAD.
 	 *
-	 * @return a list of commits which IDs are listed in the MERGE_HEAD
-	 *         file or {@code null} if this file doesn't exist. Also if the file
-	 *         exists but is empty {@code null} will be returned
+	 * @return a list of commits which IDs are listed in the MERGE_HEAD file or
+	 *         {@code null} if this file doesn't exist. Also if the file exists
+	 *         but is empty {@code null} will be returned
 	 * @throws IOException
 	 * @throws NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
@@ -1278,6 +1376,65 @@ public abstract class Repository {
 
 		byte[] raw = readGitDirectoryFile(Constants.ORIG_HEAD);
 		return raw != null ? ObjectId.fromString(raw, 0) : null;
+	}
+
+	/**
+	 * Return the information stored in the file $GIT_DIR/SQUASH_MSG. In this
+	 * file operations triggering a squashed merge will store a template for the
+	 * commit message of the squash commit.
+	 *
+	 * @return a String containing the content of the SQUASH_MSG file or
+	 *         {@code null} if this file doesn't exist
+	 * @throws IOException
+	 * @throws NoWorkTreeException
+	 *             if this is bare, which implies it has no working directory.
+	 *             See {@link #isBare()}.
+	 */
+	public String readSquashCommitMsg() throws IOException {
+		return readCommitMsgFile(Constants.SQUASH_MSG);
+	}
+
+	/**
+	 * Write new content to the file $GIT_DIR/SQUASH_MSG. In this file
+	 * operations triggering a squashed merge will store a template for the
+	 * commit message of the squash commit. If <code>null</code> is specified as
+	 * message the file will be deleted.
+	 *
+	 * @param msg
+	 *            the message which should be written or <code>null</code> to
+	 *            delete the file
+	 *
+	 * @throws IOException
+	 */
+	public void writeSquashCommitMsg(String msg) throws IOException {
+		File squashMsgFile = new File(gitDir, Constants.SQUASH_MSG);
+		writeCommitMsg(squashMsgFile, msg);
+	}
+
+	private String readCommitMsgFile(String msgFilename) throws IOException {
+		if (isBare() || getDirectory() == null)
+			throw new NoWorkTreeException();
+
+		File mergeMsgFile = new File(getDirectory(), msgFilename);
+		try {
+			return RawParseUtils.decode(IO.readFully(mergeMsgFile));
+		} catch (FileNotFoundException e) {
+			// the file has disappeared in the meantime ignore it
+			return null;
+		}
+	}
+
+	private void writeCommitMsg(File msgFile, String msg) throws IOException {
+		if (msg != null) {
+			FileOutputStream fos = new FileOutputStream(msgFile);
+			try {
+				fos.write(msg.getBytes(Constants.CHARACTER_ENCODING));
+			} finally {
+				fos.close();
+			}
+		} else {
+			FileUtils.delete(msgFile, FileUtils.SKIP_MISSING);
+		}
 	}
 
 	/**

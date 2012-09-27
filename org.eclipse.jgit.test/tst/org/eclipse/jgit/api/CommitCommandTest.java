@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011, GitHub Inc.
+ * Copyright (C) 2011-2012, GitHub Inc.
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -44,6 +44,7 @@ package org.eclipse.jgit.api;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -68,7 +69,7 @@ import org.eclipse.jgit.util.FS;
 import org.junit.Test;
 
 /**
- * Unit tests of {@link CommitCommand}
+ * Unit tests of {@link CommitCommand}.
  */
 public class CommitCommandTest extends RepositoryTestCase {
 
@@ -106,6 +107,11 @@ public class CommitCommandTest extends RepositoryTestCase {
 			}
 
 			public boolean canExecute(File f) {
+				return true;
+			}
+
+			@Override
+			public boolean isCaseSensitive() {
 				return true;
 			}
 		};
@@ -148,6 +154,11 @@ public class CommitCommandTest extends RepositoryTestCase {
 			public boolean canExecute(File f) {
 				return false;
 			}
+
+			@Override
+			public boolean isCaseSensitive() {
+				return true;
+			}
 		};
 
 		config = db.getConfig();
@@ -178,6 +189,7 @@ public class CommitCommandTest extends RepositoryTestCase {
 		command.setURI(uri);
 		Repository repo = command.call();
 		assertNotNull(repo);
+		addRepoToClose(repo);
 
 		SubmoduleWalk generator = SubmoduleWalk.forIndex(db);
 		assertTrue(generator.next());
@@ -186,7 +198,9 @@ public class CommitCommandTest extends RepositoryTestCase {
 		assertEquals(uri, generator.getModulesUrl());
 		assertEquals(path, generator.getModulesPath());
 		assertEquals(uri, generator.getConfigUrl());
-		assertNotNull(generator.getRepository());
+		Repository subModRepo = generator.getRepository();
+		addRepoToClose(subModRepo);
+		assertNotNull(subModRepo);
 		assertEquals(commit, repo.resolve(Constants.HEAD));
 
 		RevCommit submoduleCommit = git.commit().setMessage("submodule add")
@@ -223,6 +237,7 @@ public class CommitCommandTest extends RepositoryTestCase {
 		command.setURI(uri);
 		Repository repo = command.call();
 		assertNotNull(repo);
+		addRepoToClose(repo);
 
 		SubmoduleWalk generator = SubmoduleWalk.forIndex(db);
 		assertTrue(generator.next());
@@ -231,7 +246,9 @@ public class CommitCommandTest extends RepositoryTestCase {
 		assertEquals(uri, generator.getModulesUrl());
 		assertEquals(path, generator.getModulesPath());
 		assertEquals(uri, generator.getConfigUrl());
-		assertNotNull(generator.getRepository());
+		Repository subModRepo = generator.getRepository();
+		addRepoToClose(subModRepo);
+		assertNotNull(subModRepo);
 		assertEquals(commit2, repo.resolve(Constants.HEAD));
 
 		RevCommit submoduleAddCommit = git.commit().setMessage("submodule add")
@@ -364,5 +381,43 @@ public class CommitCommandTest extends RepositoryTestCase {
 		cache = db.readDirCache();
 		assertEquals(file1Size, cache.getEntry("file1.txt").getLength());
 		assertEquals(0, cache.getEntry("file2.txt").getLength());
+	}
+
+	@Test
+	public void commitAfterSquashMerge() throws Exception {
+		Git git = new Git(db);
+
+		writeTrashFile("file1", "file1");
+		git.add().addFilepattern("file1").call();
+		RevCommit first = git.commit().setMessage("initial commit").call();
+
+		assertTrue(new File(db.getWorkTree(), "file1").exists());
+		createBranch(first, "refs/heads/branch1");
+		checkoutBranch("refs/heads/branch1");
+
+		writeTrashFile("file2", "file2");
+		git.add().addFilepattern("file2").call();
+		git.commit().setMessage("second commit").call();
+		assertTrue(new File(db.getWorkTree(), "file2").exists());
+
+		checkoutBranch("refs/heads/master");
+
+		MergeResult result = git.merge().include(db.getRef("branch1"))
+				.setSquash(true).call();
+
+		assertTrue(new File(db.getWorkTree(), "file1").exists());
+		assertTrue(new File(db.getWorkTree(), "file2").exists());
+		assertEquals(MergeResult.MergeStatus.FAST_FORWARD_SQUASHED,
+				result.getMergeStatus());
+
+		// comment not set, should be inferred from SQUASH_MSG
+		RevCommit squashedCommit = git.commit().call();
+
+		assertEquals(1, squashedCommit.getParentCount());
+		assertNull(db.readSquashCommitMsg());
+		assertEquals("commit: Squashed commit of the following:", db
+				.getReflogReader(Constants.HEAD).getLastEntry().getComment());
+		assertEquals("commit: Squashed commit of the following:", db
+				.getReflogReader(db.getBranch()).getLastEntry().getComment());
 	}
 }
