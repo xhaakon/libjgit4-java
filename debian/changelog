@@ -1,6 +1,7 @@
 jgit (2.1.0-1) UNRELEASED; urgency=low
 
   * New Upstream release.
+  * Refreshed debian-custom-build.patch.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Thu, 27 Sep 2012 16:54:42 +0200
 
