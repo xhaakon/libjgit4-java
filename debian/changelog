@@ -1,4 +1,4 @@
-jgit (2.1.0-1) UNRELEASED; urgency=low
+jgit (2.1.0-1) unstable; urgency=low
 
   * New Upstream release.
   * Refreshed debian-custom-build.patch.
