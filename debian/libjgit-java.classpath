@@ -1,4 +1,4 @@
-usr/share/java/org.eclipse.jgit.jar /usr/share/java/jsch.jar
-usr/share/java/org.eclipse.jgit.ant.jar /usr/share/java/org.eclipse.jgit.jar /usr/share/java/ant.jar
-usr/share/java/org.eclipse.jgit.http.server.jar /usr/share/java/org.eclipse.jgit.jar /usr/share/java/servlet-api-2.5.jar
-usr/share/java/org.eclipse.jgit.junit.jar /usr/share/java/org.eclipse.jgit.jar /usr/share/java/junit4.jar
+usr/share/java/org.eclipse.jgit.jar jsch.jar
+usr/share/java/org.eclipse.jgit.ant.jar org.eclipse.jgit.jar ant.jar
+usr/share/java/org.eclipse.jgit.http.server.jar org.eclipse.jgit.jar servlet-api-2.5.jar
+usr/share/java/org.eclipse.jgit.junit.jar org.eclipse.jgit.jar junit4.jar
