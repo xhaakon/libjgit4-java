@@ -1,4 +1,4 @@
 usr/share/java/org.eclipse.jgit.console.jar org.eclipse.jgit.jar jsch.jar
 usr/share/java/org.eclipse.jgit.iplog.jar org.eclipse.jgit.jar
-usr/share/java/org.eclipse.jgit.pgm.jar org.eclipse.jgit.jar org.eclipse.jgit.ui.jar args4j.jar org.eclipse.jgit.iplog.jar
+usr/share/java/org.eclipse.jgit.pgm.jar org.eclipse.jgit.jar org.eclipse.jgit.ui.jar args4j.jar org.eclipse.jgit.iplog.jar commons-compress.jar
 usr/share/java/org.eclipse.jgit.ui.jar org.eclipse.jgit.jar jsch.jar
