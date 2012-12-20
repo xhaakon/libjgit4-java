@@ -42,6 +42,7 @@
  */
 package org.eclipse.jgit.storage.file;
 
+import static java.lang.Integer.valueOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -51,6 +52,7 @@ import java.io.File;
 import java.util.Collection;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
@@ -66,6 +68,7 @@ import org.eclipse.jgit.junit.TestRepository;
 import org.eclipse.jgit.junit.TestRepository.BranchBuilder;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.junit.TestRepository.CommitBuilder;
+import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.EmptyProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.RepositoryTestCase;
@@ -132,9 +135,9 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 				syncPoint.await();
 				try {
 					gc.packRefs();
-					return 0;
+					return valueOf(0);
 				} catch (IOException e) {
-					return 1;
+					return valueOf(1);
 				}
 			}
 		};
@@ -142,7 +145,7 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 		try {
 			Future<Integer> p1 = pool.submit(packRefs);
 			Future<Integer> p2 = pool.submit(packRefs);
-			assertTrue(p1.get() + p2.get() == 1);
+			assertEquals(1, p1.get().intValue() + p2.get().intValue());
 		} finally {
 			pool.shutdown();
 			pool.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
@@ -255,7 +258,7 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 				try {
 					gc.setProgressMonitor(this);
 					gc.repack();
-					return 0;
+					return valueOf(0);
 				} catch (IOException e) {
 					// leave the syncPoint in broken state so any awaiting
 					// threads and any threads that call await in the future get
@@ -266,7 +269,7 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 					} catch (InterruptedException ignored) {
 						//
 					}
-					return 1;
+					return valueOf(1);
 				}
 			}
 		}
@@ -280,7 +283,7 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 			DoRepack repack2 = new DoRepack();
 			Future<Integer> result1 = pool.submit(repack1);
 			Future<Integer> result2 = pool.submit(repack2);
-			assertTrue(result1.get() + result2.get() == 0);
+			assertEquals(0, result1.get().intValue() + result2.get().intValue());
 		} finally {
 			pool.shutdown();
 			pool.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
@@ -291,12 +294,8 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 
 	@Test
 	public void nonReferencedNonExpiredObject_notPruned() throws Exception {
-		long start = now();
-
-		fsTick();
 		RevBlob a = tr.blob("a");
-		long delta = now() - start;
-		gc.setExpireAgeMillis(delta);
+		gc.setExpire(new Date(lastModified(a)));
 		gc.prune(Collections.<ObjectId> emptySet());
 		assertTrue(repo.hasObject(a));
 	}
@@ -322,13 +321,11 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 	@Test
 	public void nonReferencedObjects_onlyExpiredPruned() throws Exception {
 		RevBlob a = tr.blob("a");
-
-		fsTick();
-		long start = now();
+		gc.setExpire(new Date(lastModified(a) + 1));
 
 		fsTick();
 		RevBlob b = tr.blob("b");
-		gc.setExpireAgeMillis(now() - start);
+
 		gc.prune(Collections.<ObjectId> emptySet());
 		assertFalse(repo.hasObject(a));
 		assertTrue(repo.hasObject(b));
@@ -700,8 +697,8 @@ public class GCTest extends LocalDiskRepositoryTestCase {
 		return tip;
 	}
 
-	private static long now() {
-		return System.currentTimeMillis();
+	private long lastModified(AnyObjectId objectId) {
+		return repo.getObjectDatabase().fileFor(objectId).lastModified();
 	}
 
 	private static void fsTick() throws InterruptedException, IOException {

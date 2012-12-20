@@ -662,6 +662,7 @@ public class GC {
 						JGitText.get().cannotCreateIndexfile, tmpIdx.getPath()));
 
 			// write the packfile
+			@SuppressWarnings("resource" /* java 7 */)
 			FileChannel channel = new FileOutputStream(tmpPack).getChannel();
 			OutputStream channelStream = Channels.newOutputStream(channel);
 			try {
@@ -673,6 +674,7 @@ public class GC {
 			}
 
 			// write the packindex
+			@SuppressWarnings("resource")
 			FileChannel idxChannel = new FileOutputStream(tmpIdx).getChannel();
 			OutputStream idxStream = Channels.newOutputStream(idxChannel);
 			try {
@@ -838,12 +840,15 @@ public class GC {
 
 	/**
 	 * During gc() or prune() each unreferenced, loose object which has been
-	 * created or modified after <code>expire</code> will not be pruned. Only
-	 * older objects may be pruned. If set to null then every object is a
+	 * created or modified after or at <code>expire</code> will not be pruned.
+	 * Only older objects may be pruned. If set to null then every object is a
 	 * candidate for pruning.
 	 *
 	 * @param expire
-	 *            minimal age of objects to be pruned in milliseconds.
+	 *            instant in time which defines object expiration
+	 *            objects with modification time before this instant are expired
+	 *            objects with modification time newer or equal to this instant
+	 *            are not expired
 	 */
 	public void setExpire(Date expire) {
 		this.expire = expire;

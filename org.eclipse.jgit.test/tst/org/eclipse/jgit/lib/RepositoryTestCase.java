@@ -58,6 +58,8 @@ import java.io.Reader;
 import java.util.Map;
 import java.util.TreeSet;
 
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheBuilder;
 import org.eclipse.jgit.dircache.DirCacheCheckout;
@@ -106,6 +108,10 @@ public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
 			final String data)
 			throws IOException {
 		return JGitTestUtil.writeTrashFile(db, subdir, name, data);
+	}
+
+	protected String read(final String name) throws IOException {
+		return JGitTestUtil.read(db, name);
 	}
 
 	protected void deleteTrashFile(final String name) throws IOException {
@@ -365,6 +371,8 @@ public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
 	public static long fsTick(File lastFile) throws InterruptedException,
 			IOException {
 		long sleepTime = 1;
+		if (lastFile != null && !lastFile.exists())
+			throw new FileNotFoundException(lastFile.getPath());
 		File tmp = File.createTempFile("FileTreeIteratorWithTimeControl", null);
 		try {
 			long startTime = (lastFile == null) ? tmp.lastModified() : lastFile
@@ -432,4 +440,55 @@ public abstract class RepositoryTestCase extends LocalDiskRepositoryTestCase {
 					}
 				return f;
 			}
+
+	/**
+	 * Commit a file with the specified contents on the specified branch,
+	 * creating the branch if it didn't exist before.
+	 * <p>
+	 * It switches back to the original branch after the commit if there was
+	 * one.
+	 *
+	 * @param filename
+	 * @param contents
+	 * @param branch
+	 * @return the created commit
+	 */
+	protected RevCommit commitFile(String filename, String contents, String branch) {
+		try {
+			Git git = new Git(db);
+			String originalBranch = git.getRepository().getFullBranch();
+			if (git.getRepository().getRef(branch) == null)
+				git.branchCreate().setName(branch).call();
+			git.checkout().setName(branch).call();
+			writeTrashFile(filename, contents);
+			git.add().addFilepattern(filename).call();
+			RevCommit commit = git.commit()
+					.setMessage(branch + ": " + filename).call();
+			if (originalBranch != null)
+				git.checkout().setName(originalBranch).call();
+			return commit;
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		} catch (GitAPIException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	protected DirCacheEntry createEntry(final String path, final FileMode mode) {
+		return createEntry(path, mode, DirCacheEntry.STAGE_0, path);
+	}
+
+	protected DirCacheEntry createEntry(final String path, final FileMode mode,
+			final String content) {
+		return createEntry(path, mode, DirCacheEntry.STAGE_0, content);
+	}
+
+	protected DirCacheEntry createEntry(final String path, final FileMode mode,
+			final int stage, final String content) {
+		final DirCacheEntry entry = new DirCacheEntry(path, stage);
+		entry.setFileMode(mode);
+		entry.setObjectId(new ObjectInserter.Formatter().idFor(
+				Constants.OBJ_BLOB, Constants.encode(content)));
+		return entry;
+	}
 }

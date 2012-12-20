@@ -47,6 +47,8 @@
 
 package org.eclipse.jgit.pgm;
 
+import static java.lang.Character.valueOf;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.MessageFormat;
@@ -63,7 +65,7 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 	@Option(name = "--verbose", aliases = { "-v" }, usage = "usage_beMoreVerbose")
 	private boolean verbose;
 
-	protected void showFetchResult(final FetchResult r) {
+	protected void showFetchResult(final FetchResult r) throws IOException {
 		ObjectReader reader = db.newObjectReader();
 		try {
 			boolean shownURI = false;
@@ -77,13 +79,14 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 				final String dst = abbreviateRef(u.getLocalName(), true);
 
 				if (!shownURI) {
-					out.println(MessageFormat.format(CLIText.get().fromURI,
+					outw.println(MessageFormat.format(CLIText.get().fromURI,
 							r.getURI()));
 					shownURI = true;
 				}
 
-				out.format(" %c %-17s %-10s -> %s", type, longType, src, dst);
-				out.println();
+				outw.format(" %c %-17s %-10s -> %s", valueOf(type), longType,
+						src, dst);
+				outw.println();
 			}
 		} finally {
 			reader.release();

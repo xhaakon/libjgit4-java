@@ -53,13 +53,13 @@
 
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>jgit.tycho.parent</artifactId>
-  <version>2.1.0.201209190230-r</version>
+  <version>2.2.0.201212191850-r</version>
   <packaging>pom</packaging>
 
   <name>JGit Tycho Parent</name>
 
   <properties>
-    <tycho-version>0.15.0</tycho-version>
+    <tycho-version>0.16.0</tycho-version>
     <jetty-version>7.6.0.v20120127</jetty-version>
     <args4j-version>2.0.12</args4j-version>
     <jsch-version>0.1.44-1</jsch-version>
@@ -69,6 +69,7 @@
 
   <modules>
     <module>org.eclipse.jgit.feature</module>
+    <module>org.eclipse.jgit.orbit.feature</module>
     <module>org.eclipse.jgit.pgm.feature</module>
     <module>org.eclipse.jgit.source.feature</module>
     <module>org.eclipse.jgit.pgm.source.feature</module>
@@ -92,6 +93,14 @@
       <layout>p2</layout>
       <url>${orbit-site}</url>
     </repository>
+    <repository>
+      <!-- TODO replace this with an S- or better R-build as soon as a new one is available
+           we are using a private copy of an I-build since no S or R-build was available when
+           releasing jgit 2.2, see https://bugs.eclipse.org/bugs/show_bug.cgi?id=396199 -->
+      <id>temp-jgit-orbit</id>
+      <layout>p2</layout>
+      <url>http://download.eclipse.org/jgit/orbit/I20121212174845/repository/</url>
+    </repository>
   </repositories>
 
   <dependencies>
@@ -99,7 +108,7 @@
     <dependency>
       <groupId>org.eclipse.jgit</groupId>
       <artifactId>org.eclipse.jgit</artifactId>
-      <version>${project.version}</version>
+      <version>2.2.0.201212191850-r</version>
       <classifier>sources</classifier>
     </dependency>
     <dependency>

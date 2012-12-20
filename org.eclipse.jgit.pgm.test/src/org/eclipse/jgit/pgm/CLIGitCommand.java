@@ -42,10 +42,8 @@
  */
 package org.eclipse.jgit.pgm;
 
-import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,6 +70,16 @@ public class CLIGitCommand {
 
 	public static List<String> execute(String str, Repository db)
 			throws Exception {
+		try {
+			return IO.readLines(new String(rawExecute(str, db)));
+		} catch (Die e) {
+			return IO.readLines(MessageFormat.format(CLIText.get().fatalError,
+					e.getMessage()));
+		}
+	}
+
+	public static byte[] rawExecute(String str, Repository db)
+			throws Exception {
 		String[] args = split(str);
 		if (!args[0].equalsIgnoreCase("git") || args.length < 2)
 			throw new IllegalArgumentException(
@@ -84,23 +92,20 @@ public class CLIGitCommand {
 		clp.parseArgument(argv);
 
 		final TextBuiltin cmd = bean.getSubcommand();
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		cmd.outs = baos;
 		if (cmd.requiresRepository())
 			cmd.init(db, null);
 		else
 			cmd.init(null, null);
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		cmd.out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(
-				baos)));
 		try {
 			cmd.execute(bean.getArguments().toArray(
 					new String[bean.getArguments().size()]));
-		} catch (Die e) {
-			return IO.readLines(e.getMessage());
 		} finally {
-			if (cmd.out != null)
-				cmd.out.flush();
+			if (cmd.outw != null)
+				cmd.outw.flush();
 		}
-		return IO.readLines(baos.toString());
+		return baos.toByteArray();
 	}
 
 	/**
