@@ -5,6 +5,7 @@ jgit (2.2.0-1) UNRELEASED; urgency=low
   * Add dependency on libcommon-compress-java.
   * Move JGit Ant tasks into separate binary package. Avoids in most
     use cases unnecessary dependency on Ant.
+  * Bump Standards-Version to 3.9.4.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Thu, 20 Dec 2012 20:12:19 +0100
 

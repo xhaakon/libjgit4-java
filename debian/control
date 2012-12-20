@@ -18,7 +18,7 @@ Build-Depends: debhelper (>= 8~),
                libclirr-maven-plugin-java,
                maven-debian-helper,
                maven-repo-helper
-Standards-Version: 3.9.3
+Standards-Version: 3.9.4
 Vcs-Git: git://git.debian.org/git/pkg-java/eclipse-jgit.git
 Vcs-Browser: http://git.debian.org/?p=pkg-java/eclipse-jgit.git
 Homepage: http://www.eclipse.org/jgit/
