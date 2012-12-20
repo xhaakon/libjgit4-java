@@ -37,6 +37,21 @@ Description: Java implementation of GIT version control
   * Network protocols
   * Core version control algorithms
 
+Package: libjgit-ant-java
+Architecture: all
+Depends: libjgit-java (= ${source:Version}),
+         ${java:Depends},
+         ${misc:Depends}
+Description: Java implementation of GIT version control (Ant interface)
+ JGit is a lightweight, pure Java library implementing the Git version control
+ system:
+  * Repository access routines
+  * Network protocols
+  * Core version control algorithms
+ .
+ This package contains Ant tasks allowing build scripts to manipulate with
+ Git repositories through JGit library.
+
 Package: libjgit-java-doc
 Architecture: all
 Section: doc
