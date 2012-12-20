@@ -67,6 +67,7 @@ import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.PackIndex;
 import org.eclipse.jgit.storage.file.PackReverseIndex;
 import org.eclipse.jgit.storage.pack.BinaryDelta;
@@ -171,6 +172,15 @@ public final class DfsPackFile {
 		return packDesc;
 	}
 
+	/**
+	 * @return whether the pack index file is loaded and cached in memory.
+	 * @since 2.2
+	 */
+	public boolean isIndexLoaded() {
+		DfsBlockCache.Ref<PackIndex> idxref = index;
+		return idxref != null && idxref.get() != null;
+	}
+
 	/** @return bytes cached in memory for this pack, excluding the index. */
 	public long getCachedSize() {
 		return key.cachedSize.get();
@@ -205,6 +215,9 @@ public final class DfsPackFile {
 
 		if (invalid)
 			throw new PackInvalidException(getPackName());
+
+		Repository.getGlobalListenerList()
+				.dispatch(new BeforeDfsPackIndexLoadedEvent(this));
 
 		synchronized (initLock) {
 			idxref = index;

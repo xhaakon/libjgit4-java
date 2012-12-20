@@ -65,6 +65,13 @@ import org.eclipse.jgit.lib.PersonIdent;
 
 /** Handy utility functions to parse raw object contents. */
 public final class RawParseUtils {
+	/**
+	 * UTF-8 charset constant.
+	 *
+	 * @since 2.2
+	 */
+	public static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
+
 	private static final byte[] digits10;
 
 	private static final byte[] digits16;
