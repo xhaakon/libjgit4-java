@@ -1,2 +1,2 @@
 version=3
-http://eclipse.org/jgit/download .*/org.eclipse.jgit-(\d.\d.\d).\d+-r.jar
+http://git.eclipse.org/c/jgit/jgit.git/refs/tags .*/snapshot/jgit-(\d.\d.\d).\d+-r.tar.bz2
