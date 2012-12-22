@@ -1,4 +1,4 @@
-jgit (2.2.0-1) UNRELEASED; urgency=low
+jgit (2.2.0-1) experimental; urgency=low
 
   * New Upstream release.
   * Remove /usr/share/java prefix from Class-Path entries.
