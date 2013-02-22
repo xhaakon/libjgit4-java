@@ -25,7 +25,6 @@ install/libjgit-ant-java::
 install/jgit-cli::
 	mh_installpoms -pjgit-cli
 	mh_installjar -pjgit-cli -l org.eclipse.jgit.console/pom.xml org.eclipse.jgit.console/target/org.eclipse.jgit.console-*-r.jar
-	mh_installjar -pjgit-cli -l org.eclipse.jgit.iplog/pom.xml org.eclipse.jgit.iplog/target/org.eclipse.jgit.iplog-*-r.jar
 	mh_installjar -pjgit-cli -l org.eclipse.jgit.pgm/pom.xml org.eclipse.jgit.pgm/target/org.eclipse.jgit.pgm-*-r.jar
 	mh_installjar -pjgit-cli -l org.eclipse.jgit.ui/pom.xml org.eclipse.jgit.ui/target/org.eclipse.jgit.ui-*-r.jar
 	mh_unpatchpoms -pjgit-cli
@@ -43,7 +42,6 @@ clean::
 	       org.eclipse.jgit.ant/target/ \
 	       org.eclipse.jgit.console/target/ \
 	       org.eclipse.jgit.http.server/target/ \
-	       org.eclipse.jgit.iplog/target/ \
 	       org.eclipse.jgit.junit/target/ \
 	       org.eclipse.jgit.pgm.test/target/ \
 	       org.eclipse.jgit.pgm/target/ \
