@@ -17,7 +17,7 @@ Subject: debian-custom-build
  5 files changed, 24 insertions(+), 23 deletions(-)
 
 diff --git a/org.eclipse.jgit.http.server/pom.xml b/org.eclipse.jgit.http.server/pom.xml
-index a7ec27d..e2a2184 100644
+index b4f9b40..76eb318 100644
 --- a/org.eclipse.jgit.http.server/pom.xml
 +++ b/org.eclipse.jgit.http.server/pom.xml
 @@ -97,7 +97,7 @@
@@ -52,10 +52,10 @@ index 6b9ce40..3700d4f 100644
  
  java=java
 diff --git a/org.eclipse.jgit.pgm/pom.xml b/org.eclipse.jgit.pgm/pom.xml
-index b81cd89..479254d 100644
+index 5041272..174b11a 100644
 --- a/org.eclipse.jgit.pgm/pom.xml
 +++ b/org.eclipse.jgit.pgm/pom.xml
-@@ -105,7 +105,7 @@
+@@ -104,7 +104,7 @@
        </dependencies>
      </profile>
    </profiles>
@@ -64,7 +64,7 @@ index b81cd89..479254d 100644
    <build>
      <sourceDirectory>src/</sourceDirectory>
  
-@@ -124,7 +124,7 @@
+@@ -123,7 +123,7 @@
      </resources>
  
      <plugins>
@@ -73,7 +73,7 @@ index b81cd89..479254d 100644
          <artifactId>maven-jar-plugin</artifactId>
          <configuration>
            <archive>
-@@ -237,7 +237,7 @@
+@@ -236,7 +236,7 @@
              </configuration>
            </execution>
          </executions>
@@ -83,7 +83,7 @@ index b81cd89..479254d 100644
    </build>
  </project>
 diff --git a/org.eclipse.jgit/pom.xml b/org.eclipse.jgit/pom.xml
-index 22a7c76..32b50f0 100644
+index ecc09be..e769710 100644
 --- a/org.eclipse.jgit/pom.xml
 +++ b/org.eclipse.jgit/pom.xml
 @@ -115,7 +115,7 @@
@@ -121,10 +121,10 @@ index 22a7c76..32b50f0 100644
      </pluginManagement>
    </build>
 diff --git a/pom.xml b/pom.xml
-index 0a58a6d..dd47322 100644
+index cbf6aa1..da258ca 100644
 --- a/pom.xml
 +++ b/pom.xml
-@@ -215,11 +215,11 @@
+@@ -223,11 +223,11 @@
            <version>2.5</version>
          </plugin>
  
@@ -138,7 +138,7 @@ index 0a58a6d..dd47322 100644
  
          <plugin>
            <groupId>org.apache.maven.plugins</groupId>
-@@ -233,11 +233,11 @@
+@@ -241,11 +241,11 @@
            <version>2.5</version>
          </plugin>
  
@@ -152,7 +152,7 @@ index 0a58a6d..dd47322 100644
  
          <plugin>
            <groupId>org.apache.maven.plugins</groupId>
-@@ -257,7 +257,7 @@
+@@ -265,7 +265,7 @@
            <version>1.7</version>
          </plugin>
  
@@ -161,7 +161,7 @@ index 0a58a6d..dd47322 100644
            <groupId>org.codehaus.mojo</groupId>
            <artifactId>findbugs-maven-plugin</artifactId>
            <version>2.5.2</version>
-@@ -272,9 +272,9 @@
+@@ -280,9 +280,9 @@
                </goals>
              </execution>
            </executions>
@@ -173,7 +173,7 @@ index 0a58a6d..dd47322 100644
            <groupId>org.apache.maven.plugins</groupId>
            <artifactId>maven-pmd-plugin</artifactId>
            <version>2.7.1</version>
-@@ -292,7 +292,7 @@
+@@ -300,7 +300,7 @@
                </goals>
              </execution>
            </executions>
@@ -182,7 +182,7 @@ index 0a58a6d..dd47322 100644
  
          <plugin>
            <groupId>org.codehaus.mojo</groupId>
-@@ -362,6 +362,7 @@
+@@ -370,6 +370,7 @@
            <links>
              <link>http://java.sun.com/j2se/1.5.0/docs/api</link>
            </links>
@@ -190,7 +190,7 @@ index 0a58a6d..dd47322 100644
          </configuration>
          <executions>
            <execution>
-@@ -372,7 +373,7 @@
+@@ -380,7 +381,7 @@
            </execution>
          </executions>
        </plugin>
@@ -199,7 +199,7 @@ index 0a58a6d..dd47322 100644
          <groupId>org.apache.maven.plugins</groupId>
          <artifactId>maven-source-plugin</artifactId>
          <inherited>true</inherited>
-@@ -385,7 +386,7 @@
+@@ -393,7 +394,7 @@
              </goals>
            </execution>
          </executions>
@@ -208,8 +208,8 @@ index 0a58a6d..dd47322 100644
      </plugins>
    </build>
  
-@@ -470,11 +471,11 @@
-     <module>org.eclipse.jgit.iplog</module>
+@@ -483,11 +484,11 @@
+     <module>org.eclipse.jgit.http.server</module>
      <module>org.eclipse.jgit.pgm</module>
      <module>org.eclipse.jgit.junit</module>
 -    <module>org.eclipse.jgit.junit.http</module>
