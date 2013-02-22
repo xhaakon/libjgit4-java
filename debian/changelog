@@ -1,3 +1,9 @@
+jgit (2.3.1-1) UNRELEASED; urgency=low
+
+  * New Upstream release.
+
+ -- Jakub Adam <jakub.adam@ktknet.cz>  Fri, 22 Feb 2013 16:47:29 +0100
+
 jgit (2.2.0-1) experimental; urgency=low
 
   * New Upstream release.
