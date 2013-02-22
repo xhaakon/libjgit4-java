@@ -2,7 +2,7 @@
 <feature
       id="org.eclipse.jgit.pgm"
       label="%featureName"
-      version="2.2.0.201212191850-r"
+      version="2.3.1.201302201838-r"
       provider-name="%providerName">
 
    <description url="http://www.eclipse.org/jgit/">
@@ -23,19 +23,11 @@
    </url>
 
    <requires>
-      <import plugin="org.kohsuke.args4j" version="2.0.0" match="compatible"/>
-      <import feature="org.eclipse.jgit" version="2.2.0" match="equivalent"/>
+      <import feature="org.eclipse.jgit" version="2.3.1" match="equivalent"/>
    </requires>
 
    <plugin
          id="org.eclipse.jgit.pgm"
-         download-size="0"
-         install-size="0"
-         version="0.0.0"
-         unpack="false"/>
-
-   <plugin
-         id="org.eclipse.jgit.iplog"
          download-size="0"
          install-size="0"
          version="0.0.0"
@@ -48,4 +40,17 @@
          version="0.0.0"
          unpack="false"/>
 
+   <plugin
+         id="org.apache.commons.compress"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.kohsuke.args4j"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
 </feature>

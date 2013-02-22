@@ -62,11 +62,11 @@ import org.eclipse.jgit.dircache.DirCacheEditor.PathEdit;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
-import org.eclipse.jgit.lib.RepositoryTestCase;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.WorkingTreeIterator.MetadataDiff;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
@@ -253,14 +253,16 @@ public class FileTreeIteratorTest extends RepositoryTestCase {
 		// Hopefully fsTick will make sure our entry gets smudged
 		fsTick(f);
 		writeTrashFile("file", "content");
+		long lastModified = f.lastModified();
 		git.add().addFilepattern("file").call();
 		writeTrashFile("file", "conten2");
+		f.setLastModified(lastModified);
 		DirCacheEntry dce = db.readDirCache().getEntry("file");
 		FileTreeIterator fti = new FileTreeIterator(trash, db.getFS(), db
 				.getConfig().get(WorkingTreeOptions.KEY));
 		while (!fti.getEntryPathString().equals("file"))
 			fti.next(1);
-		// If the fsTick trick does not work we could skip the compareMetaData
+		// If the rounding trick does not work we could skip the compareMetaData
 		// test and hope that we are usually testing the intended code path.
 		assertEquals(MetadataDiff.SMUDGED, fti.compareMetadata(dce));
 		assertTrue(fti.isModified(dce, false));
@@ -462,7 +464,7 @@ public class FileTreeIteratorTest extends RepositoryTestCase {
 		assertFalse(tw.next());
 	}
 
-	private void assertEntry(String sha1string, String path, TreeWalk tw)
+	private static void assertEntry(String sha1string, String path, TreeWalk tw)
 			throws MissingObjectException, IncorrectObjectTypeException,
 			CorruptObjectException, IOException {
 		assertTrue(tw.next());

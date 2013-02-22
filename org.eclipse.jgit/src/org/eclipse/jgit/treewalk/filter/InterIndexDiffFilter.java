@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, Google Inc.
+ * Copyright (C) 2013, Robin Rosenberg <robin.rosenberg@dewire.com>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -41,60 +41,65 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package org.eclipse.jgit.iplog;
+package org.eclipse.jgit.treewalk.filter;
 
-import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import org.eclipse.jgit.dircache.DirCacheEntry;
+import org.eclipse.jgit.dircache.DirCacheIterator;
+import org.eclipse.jgit.treewalk.TreeWalk;
 
-/** A project contributor (non-committer). */
-class Contributor {
-	/** Sorts contributors by their name first name, then last name. */
-	static final Comparator<Contributor> COMPARATOR = new Comparator<Contributor>() {
-		public int compare(Contributor a, Contributor b) {
-			return a.name.compareTo(b.name);
-		}
-	};
-
-	private final String id;
-
-	private final String name;
-
-	private final List<SingleContribution> contributions = new ArrayList<SingleContribution>();
+/**
+ * A filter for extracting changes between two versions of the dircache. In
+ * addition to what {@link TreeFilter#ANY_DIFF} would do, it also detects
+ * changes that will affect decorations and show up in an attempt to commit.
+ */
+public final class InterIndexDiffFilter extends TreeFilter {
+	private static final int baseTree = 0;
 
 	/**
-	 * @param id
-	 * @param name
+	 * Predefined InterIndexDiffFilter for finding changes between two dircaches
 	 */
-	Contributor(String id, String name) {
-		this.id = id;
-		this.name = name;
+	public static final TreeFilter INSTANCE = new InterIndexDiffFilter();
+
+	@Override
+	public boolean include(final TreeWalk walker) {
+		final int n = walker.getTreeCount();
+		if (n == 1) // Assume they meant difference to empty tree.
+			return true;
+
+		final int m = walker.getRawMode(baseTree);
+		for (int i = 1; i < n; i++) {
+			DirCacheIterator baseDirCache = walker.getTree(baseTree,
+					DirCacheIterator.class);
+			DirCacheIterator newDirCache = walker.getTree(i,
+					DirCacheIterator.class);
+			if (baseDirCache != null && newDirCache != null) {
+				DirCacheEntry baseDci = baseDirCache.getDirCacheEntry();
+				DirCacheEntry newDci = newDirCache.getDirCacheEntry();
+				if (baseDci != null && newDci != null) {
+					if (baseDci.isAssumeValid() != newDci.isAssumeValid())
+						return true;
+					if (baseDci.isAssumeValid()) // && newDci.isAssumeValid()
+						return false;
+				}
+			}
+			if (walker.getRawMode(i) != m || !walker.idEqual(i, baseTree))
+				return true;
+		}
+		return false;
 	}
 
-	/** @return unique identity of this contributor in the foundation database. */
-	String getID() {
-		return id;
+	@Override
+	public boolean shouldBeRecursive() {
+		return false;
 	}
 
-	/** @return name of the contributor. */
-	String getName() {
-		return name;
-	}
-
-	/** @return all known contributions. */
-	Collection<SingleContribution> getContributions() {
-		return Collections.unmodifiableCollection(contributions);
-	}
-
-	void add(SingleContribution bug) {
-		contributions.add(bug);
+	@Override
+	public TreeFilter clone() {
+		return this;
 	}
 
 	@Override
 	public String toString() {
-		return MessageFormat.format(IpLogText.get().contributorString, getName());
+		return "INTERINDEX_DIFF"; //$NON-NLS-1$
 	}
 }

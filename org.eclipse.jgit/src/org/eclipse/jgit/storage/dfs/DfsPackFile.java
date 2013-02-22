@@ -45,6 +45,9 @@
 
 package org.eclipse.jgit.storage.dfs;
 
+import static org.eclipse.jgit.storage.pack.PackExt.PACK;
+import static org.eclipse.jgit.storage.pack.PackExt.INDEX;
+
 import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.IOException;
@@ -162,7 +165,7 @@ public final class DfsPackFile {
 		this.packDesc = desc;
 		this.key = key;
 
-		length = desc.getPackSize();
+		length = desc.getFileSize(PACK);
 		if (length <= 0)
 			length = -1;
 	}
@@ -187,7 +190,7 @@ public final class DfsPackFile {
 	}
 
 	private String getPackName() {
-		return packDesc.getPackName();
+		return packDesc.getFileName(PACK);
 	}
 
 	void setBlockSize(int newSize) {
@@ -229,7 +232,7 @@ public final class DfsPackFile {
 
 			PackIndex idx;
 			try {
-				ReadableChannel rc = ctx.db.openPackIndex(packDesc);
+				ReadableChannel rc = ctx.db.openFile(packDesc, INDEX);
 				try {
 					InputStream in = Channels.newInputStream(rc);
 					int wantSize = 8192;
@@ -246,13 +249,15 @@ public final class DfsPackFile {
 			} catch (EOFException e) {
 				invalid = true;
 				IOException e2 = new IOException(MessageFormat.format(
-						DfsText.get().shortReadOfIndex, packDesc.getIndexName()));
+						DfsText.get().shortReadOfIndex,
+						packDesc.getFileName(INDEX)));
 				e2.initCause(e);
 				throw e2;
 			} catch (IOException e) {
 				invalid = true;
 				IOException e2 = new IOException(MessageFormat.format(
-						DfsText.get().cannotReadIndex, packDesc.getIndexName()));
+						DfsText.get().cannotReadIndex,
+						packDesc.getFileName(INDEX)));
 				e2.initCause(e);
 				throw e2;
 			}
@@ -278,9 +283,11 @@ public final class DfsPackFile {
 					return revidx;
 			}
 
-			PackReverseIndex revidx = new PackReverseIndex(idx(ctx));
-			reverseIndex = cache.put(key, POS_REVERSE_INDEX,
-					packDesc.getReverseIndexSize(), revidx);
+			PackIndex idx = idx(ctx);
+			PackReverseIndex revidx = new PackReverseIndex(idx);
+			int sz = (int) Math.min(
+					idx.getObjectCount() * 8, Integer.MAX_VALUE);
+			reverseIndex = cache.put(key, POS_REVERSE_INDEX, sz, revidx);
 			return revidx;
 		}
 	}
@@ -616,7 +623,7 @@ public final class DfsPackFile {
 			throw new PackInvalidException(getPackName());
 
 		boolean close = true;
-		ReadableChannel rc = ctx.db.openPackFile(packDesc);
+		ReadableChannel rc = ctx.db.openFile(packDesc, PACK);
 		try {
 			// If the block alignment is not yet known, discover it. Prefer the
 			// larger size from either the cache or the file itself.

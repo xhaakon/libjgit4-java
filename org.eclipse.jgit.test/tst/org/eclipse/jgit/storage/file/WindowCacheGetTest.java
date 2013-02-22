@@ -56,10 +56,10 @@ import java.util.List;
 
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.junit.JGitTestUtil;
+import org.eclipse.jgit.junit.SampleDataRepositoryTestCase;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
-import org.eclipse.jgit.lib.SampleDataRepositoryTestCase;
 import org.eclipse.jgit.util.MutableInteger;
 import org.junit.Before;
 import org.junit.Test;
@@ -126,7 +126,7 @@ public class WindowCacheGetTest extends SampleDataRepositoryTestCase {
 		checkLimits(cfg);
 	}
 
-	private void checkLimits(final WindowCacheConfig cfg) {
+	private static void checkLimits(final WindowCacheConfig cfg) {
 		final WindowCache cache = WindowCache.getInstance();
 		assertTrue(cache.getOpenFiles() <= cfg.getPackedGitOpenFiles());
 		assertTrue(cache.getOpenBytes() <= cfg.getPackedGitLimit());

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, Google Inc.
+ * Copyright (C) 2013, Google Inc.
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -41,59 +41,47 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package org.eclipse.jgit.pgm.eclipse;
+package org.eclipse.jgit.storage.pack;
 
-import java.io.File;
-import java.net.Authenticator;
-import java.net.CookieHandler;
-import java.net.PasswordAuthentication;
-import java.net.URL;
+/** A pack file extension. */
+public class PackExt {
 
-import org.eclipse.jgit.iplog.IpLogMeta;
-import org.eclipse.jgit.iplog.SimpleCookieManager;
-import org.eclipse.jgit.pgm.CLIText;
-import org.eclipse.jgit.pgm.Command;
-import org.eclipse.jgit.pgm.TextBuiltin;
-import org.kohsuke.args4j.Option;
+	/** A pack file extension. */
+	public static final PackExt PACK = new PackExt("pack"); //$NON-NLS-1$
 
-@Command(name = "eclipse-ipzilla", common = false, usage = "usage_synchronizeIPZillaData")
-class Ipzilla extends TextBuiltin {
-	@Option(name = "--url", metaVar = "metaVar_url", usage = "usage_IPZillaURL")
-	private String url = "https://dev.eclipse.org/ipzilla/";
+	/** A pack index file extension. */
+	public static final PackExt INDEX = new PackExt("idx"); //$NON-NLS-1$
 
-	@Option(name = "--username", metaVar = "metaVar_user", usage = "usage_IPZillaUsername")
-	private String username;
+	private final String ext;
 
-	@Option(name = "--password", metaVar = "metaVar_pass", usage = "usage_IPZillaPassword")
-	private String password;
+	/**
+	 * @param ext
+	 *            the file extension.
+	 */
+	public PackExt(String ext) {
+		this.ext = ext;
+	}
 
-	@Option(name = "--file", aliases = { "-f" }, metaVar = "metaVar_file", usage = "usage_inputOutputFile")
-	private File output;
+	/** @return the file extension. */
+	public String getExtension() {
+		return ext;
+	}
 
 	@Override
-	protected void run() throws Exception {
-		if (CookieHandler.getDefault() == null)
-			CookieHandler.setDefault(new SimpleCookieManager());
-
-		final URL ipzilla = new URL(url);
-		if (username == null) {
-			final PasswordAuthentication auth = Authenticator
-					.requestPasswordAuthentication(ipzilla.getHost(), //
-							null, //
-							ipzilla.getPort(), //
-							ipzilla.getProtocol(), //
-							CLIText.get().IPZillaPasswordPrompt, //
-							ipzilla.getProtocol(), //
-							ipzilla, //
-							Authenticator.RequestorType.SERVER);
-			username = auth.getUserName();
-			password = new String(auth.getPassword());
+	public boolean equals(Object obj) {
+		if (obj instanceof PackExt) {
+			return ((PackExt) obj).getExtension().equals(getExtension());
 		}
+		return false;
+	}
 
-		if (output == null)
-			output = new File(db.getWorkTree(), IpLogMeta.IPLOG_CONFIG_FILE);
+	@Override
+	public int hashCode() {
+		return getExtension().hashCode();
+	}
 
-		IpLogMeta meta = new IpLogMeta();
-		meta.syncCQs(output, db.getFS(), ipzilla, username, password);
+	@Override
+	public String toString() {
+		return String.format("PackExt[%s]", getExtension()); //$NON-NLS-1$
 	}
 }

@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2010, Google Inc.
- * and other copyright owners as documented in the project's IP log.
+ * Copyright (C) 2012, Roberto Tyley <roberto.tyley@gmail.com>
  *
  * This program and the accompanying materials are made available
  * under the terms of the Eclipse Distribution License v1.0 which
@@ -41,59 +40,42 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package org.eclipse.jgit.iplog;
+package org.eclipse.jgit.storage.file;
 
-import java.util.Comparator;
-import java.util.Date;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
-/** A single contribution by a {@link Contributor}. */
-class SingleContribution {
-	/** Sorts contributors by their name first name, then last name. */
-	public static final Comparator<SingleContribution> COMPARATOR = new Comparator<SingleContribution>() {
-		public int compare(SingleContribution a, SingleContribution b) {
-			return a.created.compareTo(b.created);
+import org.eclipse.jgit.junit.RepositoryTestCase;
+import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
+import org.junit.Test;
+
+public class ObjectDirectoryTest extends RepositoryTestCase {
+
+	@Test
+	public void testConcurrentInsertionOfBlobsToTheSameNewFanOutDirectory()
+			throws Exception {
+		ExecutorService e = Executors.newCachedThreadPool();
+		for (int i=0; i < 100; ++i) {
+			ObjectDirectory db = createBareRepository().getObjectDatabase();
+			for (Future f : e.invokeAll(blobInsertersForTheSameFanOutDir(db))) {
+				f.get();
+			}
 		}
-	};
-
-	private final String id;
-
-	private String summary;
-
-	private Date created;
-
-	private String size;
-
-	/**
-	 * @param id
-	 * @param created
-	 * @param summary
-	 */
-	SingleContribution(String id, Date created, String summary) {
-		this.id = id;
-		this.summary = summary;
-		this.created = created;
 	}
 
-	/** @return unique identity of the contribution. */
-	String getID() {
-		return id;
+	private Collection<Callable<ObjectId>> blobInsertersForTheSameFanOutDir(
+			final ObjectDirectory db) {
+		Callable<ObjectId> callable = new Callable<ObjectId>() {
+			public ObjectId call() throws Exception {
+				return db.newInserter().insert(Constants.OBJ_BLOB, new byte[0]);
+			}
+		};
+		return Collections.nCopies(4, callable);
 	}
 
-	/** @return date the contribution was created. */
-	Date getCreated() {
-		return created;
-	}
-
-	/** @return summary of the contribution. */
-	String getSummary() {
-		return summary;
-	}
-
-	String getSize() {
-		return size;
-	}
-
-	void setSize(String sz) {
-		size = sz;
-	}
 }

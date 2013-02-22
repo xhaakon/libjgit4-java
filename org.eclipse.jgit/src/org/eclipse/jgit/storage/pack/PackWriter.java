@@ -103,7 +103,6 @@ import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevTree;
-import org.eclipse.jgit.storage.file.PackIndex;
 import org.eclipse.jgit.storage.file.PackIndexWriter;
 import org.eclipse.jgit.util.BlockList;
 import org.eclipse.jgit.util.TemporaryBuffer;
@@ -143,6 +142,18 @@ import org.eclipse.jgit.util.TemporaryBuffer;
  */
 public class PackWriter {
 	private static final int PACK_VERSION_GENERATED = 2;
+
+	/** A collection of object ids. */
+	public interface ObjectIdSet {
+		/**
+		 * Returns true if the objectId is contained within the collection.
+		 *
+		 * @param objectId
+		 *            the objectId to find
+		 * @return whether the collection contains the objectId.
+		 */
+		boolean contains(AnyObjectId objectId);
+	}
 
 	private static final Map<WeakReference<PackWriter>, Boolean> instances =
 			new ConcurrentHashMap<WeakReference<PackWriter>, Boolean>();
@@ -206,9 +217,9 @@ public class PackWriter {
 
 	private Set<ObjectId> tagTargets = Collections.emptySet();
 
-	private PackIndex[] excludeInPacks;
+	private ObjectIdSet[] excludeInPacks;
 
-	private PackIndex excludeInPackLast;
+	private ObjectIdSet excludeInPackLast;
 
 	private Deflater myDeflater;
 
@@ -508,18 +519,48 @@ public class PackWriter {
 	}
 
 	/**
+	 * Returns the object ids in the pack file that was created by this writer.
+	 *
+	 * This method can only be invoked after
+	 * {@link #writePack(ProgressMonitor, ProgressMonitor, OutputStream)} has
+	 * been invoked and completed successfully.
+	 *
+	 * @return number of objects in pack.
+	 * @throws IOException
+	 *             a cached pack cannot supply its object ids.
+	 */
+	public ObjectIdOwnerMap<ObjectIdOwnerMap.Entry> getObjectSet()
+			throws IOException {
+		if (!cachedPacks.isEmpty())
+			throw new IOException(
+					JGitText.get().cachedPacksPreventsListingObjects);
+
+		ObjectIdOwnerMap<ObjectIdOwnerMap.Entry> objs = new ObjectIdOwnerMap<
+				ObjectIdOwnerMap.Entry>();
+		for (BlockList<ObjectToPack> objList : objectsLists) {
+			if (objList != null) {
+				for (ObjectToPack otp : objList)
+					objs.add(new ObjectIdOwnerMap.Entry(otp) {
+						// A new entry that copies the ObjectId
+					});
+			}
+		}
+		return objs;
+	}
+
+	/**
 	 * Add a pack index whose contents should be excluded from the result.
 	 *
 	 * @param idx
 	 *            objects in this index will not be in the output pack.
 	 */
-	public void excludeObjects(PackIndex idx) {
+	public void excludeObjects(ObjectIdSet idx) {
 		if (excludeInPacks == null) {
-			excludeInPacks = new PackIndex[] { idx };
+			excludeInPacks = new ObjectIdSet[] { idx };
 			excludeInPackLast = idx;
 		} else {
 			int cnt = excludeInPacks.length;
-			PackIndex[] newList = new PackIndex[cnt + 1];
+			ObjectIdSet[] newList = new ObjectIdSet[cnt + 1];
 			System.arraycopy(excludeInPacks, 0, newList, 0, cnt);
 			newList[cnt] = idx;
 			excludeInPacks = newList;
@@ -1379,7 +1420,7 @@ public class PackWriter {
 					// Object writing already started, we cannot recover.
 					//
 					CorruptObjectException coe;
-					coe = new CorruptObjectException(otp, "");
+					coe = new CorruptObjectException(otp, ""); //$NON-NLS-1$
 					coe.initCause(gone);
 					throw coe;
 				}
@@ -1504,9 +1545,9 @@ public class PackWriter {
 		all.addAll(have);
 
 		final Map<ObjectId, CachedPack> tipToPack = new HashMap<ObjectId, CachedPack>();
-		final RevFlag inCachedPack = walker.newFlag("inCachedPack");
-		final RevFlag include = walker.newFlag("include");
-		final RevFlag added = walker.newFlag("added");
+		final RevFlag inCachedPack = walker.newFlag("inCachedPack"); //$NON-NLS-1$
+		final RevFlag include = walker.newFlag("include"); //$NON-NLS-1$
+		final RevFlag added = walker.newFlag("added"); //$NON-NLS-1$
 
 		final RevFlagSet keepOnRestart = new RevFlagSet();
 		keepOnRestart.add(inCachedPack);
@@ -1798,10 +1839,10 @@ public class PackWriter {
 	private boolean exclude(AnyObjectId objectId) {
 		if (excludeInPacks == null)
 			return false;
-		if (excludeInPackLast.hasObject(objectId))
+		if (excludeInPackLast.contains(objectId))
 			return true;
-		for (PackIndex idx : excludeInPacks) {
-			if (idx.hasObject(objectId)) {
+		for (ObjectIdSet idx : excludeInPacks) {
+			if (idx.contains(objectId)) {
 				excludeInPackLast = idx;
 				return true;
 			}
@@ -2279,6 +2320,7 @@ public class PackWriter {
 			return bytesUsed;
 		}
 
+		@SuppressWarnings("nls")
 		@Override
 		public String toString() {
 			return "PackWriter.State[" + phase + ", memory=" + bytesUsed + "]";
