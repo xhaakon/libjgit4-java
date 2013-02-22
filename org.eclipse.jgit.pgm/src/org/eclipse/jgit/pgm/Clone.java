@@ -110,7 +110,7 @@ class Clone extends AbstractFetchCommand {
 		dst = new FileRepository(gitdir);
 		dst.create();
 		final FileBasedConfig dstcfg = dst.getConfig();
-		dstcfg.setBoolean("core", null, "bare", false);
+		dstcfg.setBoolean("core", null, "bare", false); //$NON-NLS-1$ //$NON-NLS-2$
 		dstcfg.save();
 		db = dst;
 
@@ -131,8 +131,8 @@ class Clone extends AbstractFetchCommand {
 		final RemoteConfig rc = new RemoteConfig(dstcfg, remoteName);
 		rc.addURI(uri);
 		rc.addFetchRefSpec(new RefSpec().setForceUpdate(true)
-				.setSourceDestination(Constants.R_HEADS + "*",
-						Constants.R_REMOTES + remoteName + "/*"));
+				.setSourceDestination(Constants.R_HEADS + "*", //$NON-NLS-1$
+						Constants.R_REMOTES + remoteName + "/*")); //$NON-NLS-1$
 		rc.update(dstcfg);
 		dstcfg.save();
 	}
@@ -150,7 +150,7 @@ class Clone extends AbstractFetchCommand {
 		return r;
 	}
 
-	private Ref guessHEAD(final FetchResult result) {
+	private static Ref guessHEAD(final FetchResult result) {
 		final Ref idHEAD = result.getAdvertisedRef(Constants.HEAD);
 		final List<Ref> availableRefs = new ArrayList<Ref>();
 		Ref head = null;

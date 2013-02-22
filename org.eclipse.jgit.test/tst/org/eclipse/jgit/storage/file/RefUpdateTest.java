@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.eclipse.jgit.junit.SampleDataRepositoryTestCase;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -70,7 +71,6 @@ import org.eclipse.jgit.lib.RefRename;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.RefUpdate.Result;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.SampleDataRepositoryTestCase;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.junit.Test;
@@ -863,7 +863,7 @@ public class RefUpdateTest extends SampleDataRepositoryTestCase {
 				"HEAD").getReverseEntries().get(0).getComment());
 	}
 
-	private void writeReflog(Repository db, ObjectId newId, String msg,
+	private static void writeReflog(Repository db, ObjectId newId, String msg,
 			String refName) throws IOException {
 		RefDirectory refs = (RefDirectory) db.getRefDatabase();
 		RefDirectoryUpdate update = refs.newUpdate(refName, true);

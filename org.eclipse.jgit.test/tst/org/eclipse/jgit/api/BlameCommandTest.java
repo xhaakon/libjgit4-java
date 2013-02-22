@@ -46,7 +46,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import org.eclipse.jgit.blame.BlameResult;
-import org.eclipse.jgit.lib.RepositoryTestCase;
+import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.junit.Test;
 
@@ -55,7 +55,7 @@ import org.junit.Test;
  */
 public class BlameCommandTest extends RepositoryTestCase {
 
-	private String join(String... lines) {
+	private static String join(String... lines) {
 		StringBuilder joined = new StringBuilder();
 		for (String line : lines)
 			joined.append(line).append('\n');

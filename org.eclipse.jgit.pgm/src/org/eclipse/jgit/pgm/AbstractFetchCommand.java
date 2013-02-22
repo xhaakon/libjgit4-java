@@ -84,7 +84,7 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 					shownURI = true;
 				}
 
-				outw.format(" %c %-17s %-10s -> %s", valueOf(type), longType,
+				outw.format(" %c %-17s %-10s -> %s", valueOf(type), longType, //$NON-NLS-1$
 						src, dst);
 				outw.println();
 			}
@@ -128,7 +128,8 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 		writer.flush();
 	}
 
-	private String longTypeOf(ObjectReader reader, final TrackingRefUpdate u) {
+	private static String longTypeOf(ObjectReader reader,
+			final TrackingRefUpdate u) {
 		final RefUpdate.Result r = u.getResult();
 		if (r == RefUpdate.Result.LOCK_FAILURE)
 			return "[lock fail]";
@@ -150,21 +151,21 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 		if (r == RefUpdate.Result.FORCED) {
 			final String aOld = safeAbbreviate(reader, u.getOldObjectId());
 			final String aNew = safeAbbreviate(reader, u.getNewObjectId());
-			return aOld + "..." + aNew;
+			return aOld + "..." + aNew; //$NON-NLS-1$
 		}
 
 		if (r == RefUpdate.Result.FAST_FORWARD) {
 			final String aOld = safeAbbreviate(reader, u.getOldObjectId());
 			final String aNew = safeAbbreviate(reader, u.getNewObjectId());
-			return aOld + ".." + aNew;
+			return aOld + ".." + aNew; //$NON-NLS-1$
 		}
 
 		if (r == RefUpdate.Result.NO_CHANGE)
 			return "[up to date]";
-		return "[" + r.name() + "]";
+		return "[" + r.name() + "]"; //$NON-NLS-1$//$NON-NLS-2$
 	}
 
-	private String safeAbbreviate(ObjectReader reader, ObjectId id) {
+	private static String safeAbbreviate(ObjectReader reader, ObjectId id) {
 		try {
 			return reader.abbreviate(id).name();
 		} catch (IOException cannotAbbreviate) {

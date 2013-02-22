@@ -56,12 +56,12 @@ import java.io.IOException;
 import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode;
 import org.eclipse.jgit.api.MergeResult.MergeStatus;
 import org.eclipse.jgit.api.errors.NoHeadException;
+import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryState;
-import org.eclipse.jgit.lib.RepositoryTestCase;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -268,7 +268,8 @@ public class PullCommandTest extends RepositoryTestCase {
 		assertFileContentsEqual(targetFile, "Hello world");
 	}
 
-	private void writeToFile(File actFile, String string) throws IOException {
+	private static void writeToFile(File actFile, String string)
+			throws IOException {
 		FileOutputStream fos = null;
 		try {
 			fos = new FileOutputStream(actFile);
@@ -280,7 +281,7 @@ public class PullCommandTest extends RepositoryTestCase {
 		}
 	}
 
-	private void assertFileContentsEqual(File actFile, String string)
+	private static void assertFileContentsEqual(File actFile, String string)
 			throws IOException {
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		FileInputStream fis = null;

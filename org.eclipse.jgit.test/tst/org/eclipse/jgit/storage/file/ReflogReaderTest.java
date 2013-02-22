@@ -55,10 +55,10 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.List;
 
+import org.eclipse.jgit.junit.SampleDataRepositoryTestCase;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.lib.SampleDataRepositoryTestCase;
 import org.junit.Test;
 
 public class ReflogReaderTest extends SampleDataRepositoryTestCase {
@@ -110,7 +110,7 @@ public class ReflogReaderTest extends SampleDataRepositoryTestCase {
 				e.getComment());
 	}
 
-	private String iso(PersonIdent id) {
+	private static String iso(PersonIdent id) {
 		final SimpleDateFormat fmt;
 		fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 		fmt.setTimeZone(id.getTimeZone());

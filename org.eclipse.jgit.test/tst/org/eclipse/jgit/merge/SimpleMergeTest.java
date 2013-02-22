@@ -52,12 +52,12 @@ import java.io.IOException;
 
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheBuilder;
+import org.eclipse.jgit.junit.SampleDataRepositoryTestCase;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.PersonIdent;
-import org.eclipse.jgit.lib.SampleDataRepositoryTestCase;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.junit.Test;
 
@@ -373,12 +373,13 @@ public class SimpleMergeTest extends SampleDataRepositoryTestCase {
 		assertFalse(merge);
 	}
 
-	private void assertCorrectId(final DirCache treeT, final TreeWalk tw) {
+	private static void assertCorrectId(final DirCache treeT, final TreeWalk tw) {
 		assertEquals(treeT.getEntry(tw.getPathString()).getObjectId(), tw
 				.getObjectId(0));
 	}
 
-	private ObjectId commit(final ObjectInserter odi, final DirCache treeB,
+	private static ObjectId commit(final ObjectInserter odi,
+			final DirCache treeB,
 			final ObjectId[] parentIds) throws Exception {
 		final CommitBuilder c = new CommitBuilder();
 		c.setTreeId(treeB.writeTree(odi));

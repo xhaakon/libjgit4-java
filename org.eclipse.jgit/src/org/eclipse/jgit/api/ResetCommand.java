@@ -149,11 +149,13 @@ public class ResetCommand extends GitCommand<Ref> {
 			final boolean cherryPicking = state
 					.equals(RepositoryState.CHERRY_PICKING)
 					|| state.equals(RepositoryState.CHERRY_PICKING_RESOLVED);
+			final boolean reverting = state.equals(RepositoryState.REVERTING)
+					|| state.equals(RepositoryState.REVERTING_RESOLVED);
 
 			// resolve the ref to a commit
 			final ObjectId commitId;
 			try {
-				commitId = repo.resolve(ref + "^{commit}");
+				commitId = repo.resolve(ref + "^{commit}"); //$NON-NLS-1$
 				if (commitId == null) {
 					// @TODO throw an InvalidRefNameException. We can't do that
 					// now because this would break the API
@@ -219,6 +221,8 @@ public class ResetCommand extends GitCommand<Ref> {
 					resetMerge();
 				else if (cherryPicking)
 					resetCherryPick();
+				else if (reverting)
+					resetRevert();
 				else if (repo.readSquashCommitMsg() != null)
 					repo.writeSquashCommitMsg(null /* delete */);
 			}
@@ -253,7 +257,7 @@ public class ResetCommand extends GitCommand<Ref> {
 		if (!filepaths.isEmpty())
 			throw new JGitInternalException(MessageFormat.format(
 					JGitText.get().illegalCombinationOfArguments,
-					"[--mixed | --soft | --hard]", "<paths>..."));
+					"[--mixed | --soft | --hard]", "<paths>...")); //$NON-NLS-1$
 		this.mode = mode;
 		return this;
 	}
@@ -267,7 +271,7 @@ public class ResetCommand extends GitCommand<Ref> {
 		if (mode != null)
 			throw new JGitInternalException(MessageFormat.format(
 					JGitText.get().illegalCombinationOfArguments, "<paths>...",
-					"[--mixed | --soft | --hard]"));
+					"[--mixed | --soft | --hard]")); //$NON-NLS-1$
 		filepaths.add(file);
 		return this;
 	}
@@ -373,6 +377,11 @@ public class ResetCommand extends GitCommand<Ref> {
 
 	private void resetCherryPick() throws IOException {
 		repo.writeCherryPickHead(null);
+		repo.writeMergeCommitMsg(null);
+	}
+
+	private void resetRevert() throws IOException {
+		repo.writeRevertHead(null);
 		repo.writeMergeCommitMsg(null);
 	}
 

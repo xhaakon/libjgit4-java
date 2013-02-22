@@ -50,14 +50,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
-import org.eclipse.jgit.lib.RepositoryTestCase;
 import org.eclipse.jgit.lib.Tree;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.junit.Test;
 
+@SuppressWarnings("deprecation")
 public class TreeWalkBasicDiffTest extends RepositoryTestCase {
 	@Test
 	public void testMissingSubtree_DetectFileAdded_FileModified()

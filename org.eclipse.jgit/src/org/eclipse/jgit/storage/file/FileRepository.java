@@ -249,8 +249,8 @@ public class FileRepository extends Repository {
 		refs.create();
 		objectDatabase.create();
 
-		FileUtils.mkdir(new File(getDirectory(), "branches"));
-		FileUtils.mkdir(new File(getDirectory(), "hooks"));
+		FileUtils.mkdir(new File(getDirectory(), "branches")); //$NON-NLS-1$
+		FileUtils.mkdir(new File(getDirectory(), "hooks")); //$NON-NLS-1$
 
 		RefUpdate head = updateRef(Constants.HEAD);
 		head.disableRefLog();
@@ -258,7 +258,7 @@ public class FileRepository extends Repository {
 
 		final boolean fileMode;
 		if (getFS().supportsExecute()) {
-			File tmp = File.createTempFile("try", "execute", getDirectory());
+			File tmp = File.createTempFile("try", "execute", getDirectory()); //$NON-NLS-1$ //$NON-NLS-2$
 
 			getFS().setExecute(tmp, true);
 			final boolean on = getFS().canExecute(tmp);
@@ -369,14 +369,12 @@ public class FileRepository extends Repository {
 	 *
 	 * @param pack
 	 *            path of the pack file to open.
-	 * @param idx
-	 *            path of the corresponding index file.
 	 * @throws IOException
 	 *             index file could not be opened, read, or is not recognized as
 	 *             a Git pack file index.
 	 */
-	public void openPack(final File pack, final File idx) throws IOException {
-		objectDatabase.openPack(pack, idx);
+	public void openPack(final File pack) throws IOException {
+		objectDatabase.openPack(pack);
 	}
 
 	@Override

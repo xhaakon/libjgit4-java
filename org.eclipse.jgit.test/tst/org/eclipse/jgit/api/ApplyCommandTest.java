@@ -55,7 +55,7 @@ import org.eclipse.jgit.api.errors.PatchApplyException;
 import org.eclipse.jgit.api.errors.PatchFormatException;
 import org.eclipse.jgit.diff.DiffFormatterReflowTest;
 import org.eclipse.jgit.diff.RawText;
-import org.eclipse.jgit.lib.RepositoryTestCase;
+import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.junit.Test;
 
 public class ApplyCommandTest extends RepositoryTestCase {
@@ -178,7 +178,17 @@ public class ApplyCommandTest extends RepositoryTestCase {
 				b.getString(0, b.size(), false));
 	}
 
-	private byte[] readFile(final String patchFile) throws IOException {
+	@Test
+	public void testModifyNL1() throws Exception {
+		ApplyResult result = init("NL1");
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NL1"), result
+				.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "NL1"),
+				b.getString(0, b.size(), false));
+	}
+
+	private static byte[] readFile(final String patchFile) throws IOException {
 		final InputStream in = DiffFormatterReflowTest.class
 				.getResourceAsStream(patchFile);
 		if (in == null) {
