@@ -1,3 +1,10 @@
+jgit (2.3.1-2) unstable; urgency=low
+
+  * Team upload.
+  * Upload to unstable for jessie release cycle.
+
+ -- tony mancill <tmancill@debian.org>  Sun, 05 May 2013 18:50:33 -0700
+
 jgit (2.3.1-1) experimental; urgency=low
 
   * New Upstream release.
