@@ -9,35 +9,10 @@ Subject: debian-custom-build
 - add org.eclipse.jgit.pgm to jgit console classpath
 - don't build jgit console all-in-one executable
 ---
- org.eclipse.jgit.http.server/pom.xml |    4 ++--
- org.eclipse.jgit.pgm/jgit.sh         |    2 +-
- org.eclipse.jgit.pgm/pom.xml         |    6 +++---
- org.eclipse.jgit/pom.xml             |    8 ++++----
- pom.xml                              |   27 ++++++++++++++-------------
- 5 files changed, 24 insertions(+), 23 deletions(-)
+ org.eclipse.jgit.pgm/jgit.sh |    2 +-
+ pom.xml                      |    7 ++++---
+ 2 files changed, 5 insertions(+), 4 deletions(-)
 
-diff --git a/org.eclipse.jgit.http.server/pom.xml b/org.eclipse.jgit.http.server/pom.xml
-index b4f9b40..76eb318 100644
---- a/org.eclipse.jgit.http.server/pom.xml
-+++ b/org.eclipse.jgit.http.server/pom.xml
-@@ -97,7 +97,7 @@
-     </resources>
- 
-     <plugins>
--      <plugin>
-+      <!--plugin>
-         <groupId>org.apache.maven.plugins</groupId>
-         <artifactId>maven-source-plugin</artifactId>
-         <inherited>true</inherited>
-@@ -115,7 +115,7 @@
-             </configuration>
-           </execution>
-         </executions>
--      </plugin>
-+      </plugin-->
- 
-       <plugin>
-         <artifactId>maven-jar-plugin</artifactId>
 diff --git a/org.eclipse.jgit.pgm/jgit.sh b/org.eclipse.jgit.pgm/jgit.sh
 index 6b9ce40..3700d4f 100644
 --- a/org.eclipse.jgit.pgm/jgit.sh
@@ -51,138 +26,11 @@ index 6b9ce40..3700d4f 100644
  export CLASSPATH
  
  java=java
-diff --git a/org.eclipse.jgit.pgm/pom.xml b/org.eclipse.jgit.pgm/pom.xml
-index 5041272..174b11a 100644
---- a/org.eclipse.jgit.pgm/pom.xml
-+++ b/org.eclipse.jgit.pgm/pom.xml
-@@ -104,7 +104,7 @@
-       </dependencies>
-     </profile>
-   </profiles>
--
-+	
-   <build>
-     <sourceDirectory>src/</sourceDirectory>
- 
-@@ -123,7 +123,7 @@
-     </resources>
- 
-     <plugins>
--      <plugin>
-+      <!--plugin>
-         <artifactId>maven-jar-plugin</artifactId>
-         <configuration>
-           <archive>
-@@ -236,7 +236,7 @@
-             </configuration>
-           </execution>
-         </executions>
--      </plugin>
-+      </plugin-->
-     </plugins>
-   </build>
- </project>
-diff --git a/org.eclipse.jgit/pom.xml b/org.eclipse.jgit/pom.xml
-index ecc09be..e769710 100644
---- a/org.eclipse.jgit/pom.xml
-+++ b/org.eclipse.jgit/pom.xml
-@@ -115,7 +115,7 @@
-         </executions>
-       </plugin>
- 
--      <plugin>
-+      <!--plugin>
-         <groupId>org.apache.maven.plugins</groupId>
-         <artifactId>maven-source-plugin</artifactId>
-         <inherited>true</inherited>
-@@ -133,7 +133,7 @@
-             </configuration>
-           </execution>
-         </executions>
--      </plugin>
-+      </plugin-->
- 
-       <plugin>
-         <artifactId>maven-jar-plugin</artifactId>
-@@ -152,13 +152,13 @@
- 
-     <pluginManagement>
-       <plugins>
--        <plugin>
-+        <!--plugin>
-           <groupId>org.codehaus.mojo</groupId>
-           <artifactId>findbugs-maven-plugin</artifactId>
-           <configuration>
-             <excludeFilterFile>findBugs/FindBugsExcludeFilter.xml</excludeFilterFile>
-           </configuration>
--        </plugin>
-+        </plugin-->
-       </plugins>
-     </pluginManagement>
-   </build>
 diff --git a/pom.xml b/pom.xml
-index cbf6aa1..da258ca 100644
+index 4c27438..aff8b24 100644
 --- a/pom.xml
 +++ b/pom.xml
-@@ -223,11 +223,11 @@
-           <version>2.5</version>
-         </plugin>
- 
--        <plugin>
-+        <!--plugin>
-           <groupId>org.apache.maven.plugins</groupId>
-           <artifactId>maven-shade-plugin</artifactId>
-           <version>1.7.1</version>
--        </plugin>
-+        </plugin-->
- 
-         <plugin>
-           <groupId>org.apache.maven.plugins</groupId>
-@@ -241,11 +241,11 @@
-           <version>2.5</version>
-         </plugin>
- 
--        <plugin>
-+        <!--plugin>
-           <groupId>org.apache.maven.plugins</groupId>
-           <artifactId>maven-source-plugin</artifactId>
-           <version>2.2</version>
--        </plugin>
-+        </plugin-->
- 
-         <plugin>
-           <groupId>org.apache.maven.plugins</groupId>
-@@ -265,7 +265,7 @@
-           <version>1.7</version>
-         </plugin>
- 
--        <plugin>
-+        <!--plugin>
-           <groupId>org.codehaus.mojo</groupId>
-           <artifactId>findbugs-maven-plugin</artifactId>
-           <version>2.5.2</version>
-@@ -280,9 +280,9 @@
-               </goals>
-             </execution>
-           </executions>
--        </plugin>
-+        </plugin-->
- 
--        <plugin>
-+        <!--plugin>
-           <groupId>org.apache.maven.plugins</groupId>
-           <artifactId>maven-pmd-plugin</artifactId>
-           <version>2.7.1</version>
-@@ -300,7 +300,7 @@
-               </goals>
-             </execution>
-           </executions>
--        </plugin>
-+        </plugin-->
- 
-         <plugin>
-           <groupId>org.codehaus.mojo</groupId>
-@@ -370,6 +370,7 @@
+@@ -371,6 +371,7 @@
            <links>
              <link>http://java.sun.com/j2se/1.5.0/docs/api</link>
            </links>
@@ -190,25 +38,7 @@ index cbf6aa1..da258ca 100644
          </configuration>
          <executions>
            <execution>
-@@ -380,7 +381,7 @@
-           </execution>
-         </executions>
-       </plugin>
--      <plugin>
-+      <!--plugin>
-         <groupId>org.apache.maven.plugins</groupId>
-         <artifactId>maven-source-plugin</artifactId>
-         <inherited>true</inherited>
-@@ -393,7 +394,7 @@
-             </goals>
-           </execution>
-         </executions>
--      </plugin>
-+      </plugin-->
-     </plugins>
-   </build>
- 
-@@ -483,11 +484,11 @@
+@@ -503,11 +504,11 @@
      <module>org.eclipse.jgit.http.server</module>
      <module>org.eclipse.jgit.pgm</module>
      <module>org.eclipse.jgit.junit</module>
