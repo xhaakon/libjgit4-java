@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2011, Robin Rosenberg
+ * Copyright (C) 2011, 2013 Robin Rosenberg
+ * Copyright (C) 2013 Robin Stocker
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -65,6 +66,25 @@ public class AutoCRLFOutputStreamTest {
 		assertNoCrLf("\r\n\r\r", "\r\n\r\r");
 		assertNoCrLf("\r\n\r\n", "\r\n\r\n");
 		assertNoCrLf("\r\n\r\n\r", "\n\r\n\r");
+		assertNoCrLf("\0\n", "\0\n");
+	}
+
+	@Test
+	public void testBoundary() throws IOException {
+		for (int i = AutoCRLFOutputStream.BUFFER_SIZE - 10; i < AutoCRLFOutputStream.BUFFER_SIZE + 10; i++) {
+			String s1 = repeat("a", i);
+			assertNoCrLf(s1, s1);
+			String s2 = repeat("\0", i);
+			assertNoCrLf(s2, s2);
+		}
+	}
+
+	public static String repeat(String input, int size) {
+		StringBuilder sb = new StringBuilder(input.length() * size);
+		for (int i = 0; i < size; i++)
+			sb.append(input);
+		String s = sb.toString();
+		return s;
 	}
 
 	private void assertNoCrLf(String string, String string2) throws IOException {
@@ -81,8 +101,9 @@ public class AutoCRLFOutputStreamTest {
 			throws IOException {
 		byte[] inbytes = input.getBytes();
 		byte[] expectBytes = expect.getBytes();
-		for (int i = 0; i < 5; ++i) {
-			byte[] buf = new byte[i];
+		for (int i = -4; i < 5; ++i) {
+			int size = Math.abs(i);
+			byte[] buf = new byte[size];
 			InputStream in = new ByteArrayInputStream(inbytes);
 			ByteArrayOutputStream bos = new ByteArrayOutputStream();
 			OutputStream out = new AutoCRLFOutputStream(bos);
@@ -90,6 +111,13 @@ public class AutoCRLFOutputStreamTest {
 				int n;
 				while ((n = in.read(buf)) >= 0) {
 					out.write(buf, 0, n);
+				}
+			} else if (i < 0) {
+				int n;
+				while ((n = in.read(buf)) >= 0) {
+					byte[] b = new byte[n];
+					System.arraycopy(buf, 0, b, 0, n);
+					out.write(b);
 				}
 			} else {
 				int c;
@@ -100,7 +128,7 @@ public class AutoCRLFOutputStreamTest {
 			in.close();
 			out.close();
 			byte[] actualBytes = bos.toByteArray();
-			Assert.assertEquals("bufsize=" + i, encode(expectBytes),
+			Assert.assertEquals("bufsize=" + size, encode(expectBytes),
 					encode(actualBytes));
 		}
 	}

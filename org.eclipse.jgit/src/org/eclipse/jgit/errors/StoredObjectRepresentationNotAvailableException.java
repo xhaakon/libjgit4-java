@@ -43,7 +43,7 @@
 
 package org.eclipse.jgit.errors;
 
-import org.eclipse.jgit.storage.pack.ObjectToPack;
+import org.eclipse.jgit.internal.storage.pack.ObjectToPack;
 
 /** A previously selected representation is no longer available. */
 public class StoredObjectRepresentationNotAvailableException extends Exception {
@@ -54,6 +54,7 @@ public class StoredObjectRepresentationNotAvailableException extends Exception {
 	 *
 	 * @param otp
 	 *            the object whose current representation is no longer present.
+	 * @since 3.0
 	 */
 	public StoredObjectRepresentationNotAvailableException(ObjectToPack otp) {
 		// Do nothing.

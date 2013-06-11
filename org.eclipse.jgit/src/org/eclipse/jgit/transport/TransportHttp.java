@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008-2010, Google Inc.
  * Copyright (C) 2008, Shawn O. Pearce <spearce@spearce.org>
+ * Copyright (C) 2013, Matthias Sohn <matthias.sohn@sap.com>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -83,8 +84,10 @@ import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
@@ -93,6 +96,7 @@ import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.storage.file.RefDirectory;
 import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.Config.SectionParser;
 import org.eclipse.jgit.lib.Constants;
@@ -102,7 +106,6 @@ import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.SymbolicRef;
-import org.eclipse.jgit.storage.file.RefDirectory;
 import org.eclipse.jgit.util.HttpSupport;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.RawParseUtils;
@@ -532,6 +535,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 			ctx.init(null, trustAllCerts, null);
 			final HttpsURLConnection sslConn = (HttpsURLConnection) conn;
 			sslConn.setSSLSocketFactory(ctx.getSocketFactory());
+			sslConn.setHostnameVerifier(new DummyHostnameVerifier());
 		} catch (KeyManagementException e) {
 			throw new IOException(e.getMessage());
 		} catch (NoSuchAlgorithmException e) {
@@ -735,12 +739,12 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		@Override
 		protected void doFetch(final ProgressMonitor monitor,
-				final Collection<Ref> want, final Set<ObjectId> have)
-				throws TransportException {
+				final Collection<Ref> want, final Set<ObjectId> have,
+				final OutputStream outputStream) throws TransportException {
 			try {
 				svc = new MultiRequestService(SVC_UPLOAD_PACK);
 				init(svc.getInputStream(), svc.getOutputStream());
-				super.doFetch(monitor, want, have);
+				super.doFetch(monitor, want, have, outputStream);
 			} finally {
 				svc = null;
 			}
@@ -764,11 +768,11 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		}
 
 		protected void doPush(final ProgressMonitor monitor,
-				final Map<String, RemoteRefUpdate> refUpdates)
-				throws TransportException {
+				final Map<String, RemoteRefUpdate> refUpdates,
+				OutputStream outputStream) throws TransportException {
 			final Service svc = new MultiRequestService(SVC_RECEIVE_PACK);
 			init(svc.getInputStream(), svc.getOutputStream());
-			super.doPush(monitor, refUpdates);
+			super.doPush(monitor, refUpdates, outputStream);
 		}
 	}
 
@@ -978,6 +982,13 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		public void checkServerTrusted(X509Certificate[] certs, String authType) {
 			// no check
+		}
+	}
+
+	private static class DummyHostnameVerifier implements HostnameVerifier {
+		public boolean verify(String hostname, SSLSession session) {
+			// always accept
+			return true;
 		}
 	}
 }

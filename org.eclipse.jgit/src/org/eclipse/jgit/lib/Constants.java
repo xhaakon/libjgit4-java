@@ -265,6 +265,13 @@ public final class Constants {
 	/** Packed refs file */
 	public static final String PACKED_REFS = "packed-refs";
 
+	/**
+	 * Excludes-file
+	 *
+	 * @since 3.0
+	 */
+	public static final String INFO_EXCLUDE = "info/exclude";
+
 	/** The environment variable that contains the system user name */
 	public static final String OS_USER_NAME_KEY = "user.name";
 

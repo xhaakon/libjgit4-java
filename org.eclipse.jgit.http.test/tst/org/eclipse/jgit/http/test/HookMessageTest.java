@@ -47,6 +47,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -65,10 +67,9 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevBlob;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.storage.file.FileBasedConfig;
-import org.eclipse.jgit.storage.file.FileRepository;
 import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.ReceiveCommand;
@@ -83,7 +84,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class HookMessageTest extends HttpTestCase {
-	private FileRepository remoteRepository;
+	private Repository remoteRepository;
 
 	private URIish remoteURI;
 
@@ -91,7 +92,7 @@ public class HookMessageTest extends HttpTestCase {
 	public void setUp() throws Exception {
 		super.setUp();
 
-		final TestRepository<FileRepository> src = createTestRepository();
+		final TestRepository<Repository> src = createTestRepository();
 		final String srcName = src.getRepository().getDirectory().getName();
 
 		ServletContextHandler app = server.addContext("/git");
@@ -132,7 +133,7 @@ public class HookMessageTest extends HttpTestCase {
 		remoteRepository = src.getRepository();
 		remoteURI = toURIish(app, srcName);
 
-		FileBasedConfig cfg = remoteRepository.getConfig();
+		StoredConfig cfg = remoteRepository.getConfig();
 		cfg.setBoolean("http", null, "receivepack", true);
 		cfg.save();
 	}
@@ -180,4 +181,40 @@ public class HookMessageTest extends HttpTestCase {
 				+ "come back next year!\n", //
 				result.getMessages());
 	}
+
+	@Test
+	public void testPush_HookMessagesToOutputStream() throws Exception {
+		final TestRepository src = createTestRepository();
+		final RevBlob Q_txt = src.blob("new text");
+		final RevCommit Q = src.commit().add("Q", Q_txt).create();
+		final Repository db = src.getRepository();
+		final String dstName = Constants.R_HEADS + "new.branch";
+		Transport t;
+		PushResult result;
+
+		t = Transport.open(db, remoteURI);
+		OutputStream out = new ByteArrayOutputStream();
+		try {
+			final String srcExpr = Q.name();
+			final boolean forceUpdate = false;
+			final String localName = null;
+			final ObjectId oldId = null;
+
+			RemoteRefUpdate update = new RemoteRefUpdate(src.getRepository(),
+					srcExpr, dstName, forceUpdate, localName, oldId);
+			result = t.push(NullProgressMonitor.INSTANCE,
+					Collections.singleton(update), out);
+		} finally {
+			t.close();
+		}
+
+		String expectedMessage = "message line 1\n" //
+				+ "error: no soup for you!\n" //
+				+ "come back next year!\n";
+		assertEquals(expectedMessage, //
+				result.getMessages());
+
+		assertEquals(expectedMessage, out.toString());
+	}
+
 }

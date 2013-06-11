@@ -51,11 +51,11 @@ import java.util.Properties;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.storage.file.FileRepository;
+import org.eclipse.jgit.internal.storage.file.GC;
+import org.eclipse.jgit.internal.storage.file.GC.RepoStatistics;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.storage.file.FileRepository;
-import org.eclipse.jgit.storage.file.GC;
-import org.eclipse.jgit.storage.file.GC.RepoStatistics;
 import org.eclipse.jgit.util.GitDateParser;
 
 /**
@@ -126,6 +126,24 @@ public class GarbageCollectCommand extends GitCommand<Properties> {
 			throw new JGitInternalException(JGitText.get().gcFailed, e);
 		} catch (ParseException e) {
 			throw new JGitInternalException(JGitText.get().gcFailed, e);
+		}
+	}
+
+	/**
+	 * Computes and returns the repository statistics.
+	 *
+	 * @return the repository statistics
+	 * @throws GitAPIException
+	 *             thrown if the repository statistics cannot be computed
+	 * @since 3.0
+	 */
+	public Properties getStatistics() throws GitAPIException {
+		try {
+			GC gc = new GC((FileRepository) repo);
+			return toProperties(gc.getStatistics());
+		} catch (IOException e) {
+			throw new JGitInternalException(
+					JGitText.get().couldNotGetRepoStatistics, e);
 		}
 	}
 

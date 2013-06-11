@@ -70,7 +70,6 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevBlob;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.storage.file.FileRepository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
@@ -81,12 +80,12 @@ import org.junit.Test;
  * Unit tests of {@link SubmoduleWalk}
  */
 public class SubmoduleWalkTest extends RepositoryTestCase {
-	private TestRepository<FileRepository> testDb;
+	private TestRepository<Repository> testDb;
 
 	@Before
 	public void setUp() throws Exception {
 		super.setUp();
-		testDb = new TestRepository<FileRepository>(db);
+		testDb = new TestRepository<Repository>(db);
 	}
 
 	@Test
