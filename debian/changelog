@@ -2,6 +2,7 @@ jgit (3.0.0-1) UNRELEASED; urgency=low
 
   * New Upstream release.
   * Use maven.ignoreRules to remove unnecessary maven plugins.
+  * Add libjavaewah-java to Build-Depends.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Tue, 11 Jun 2013 19:22:57 +0200
 
