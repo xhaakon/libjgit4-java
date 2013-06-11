@@ -14,7 +14,6 @@ install/libjgit-java::
 	mh_installpoms -plibjgit-java
 	mh_installjar -plibjgit-java -l org.eclipse.jgit/pom.xml org.eclipse.jgit/target/org.eclipse.jgit-*-r.jar
 	mh_installjar -plibjgit-java -l org.eclipse.jgit.http.server/pom.xml org.eclipse.jgit.http.server/target/org.eclipse.jgit.http.server-*-r.jar
-	mh_installjar -plibjgit-java -l org.eclipse.jgit.junit/pom.xml org.eclipse.jgit.junit/target/org.eclipse.jgit.junit-*-r.jar
 	mh_unpatchpoms -plibjgit-java
 
 install/libjgit-ant-java::
