@@ -53,22 +53,23 @@
 
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>jgit.tycho.parent</artifactId>
-  <version>2.3.1.201302201838-r</version>
+  <version>3.0.0.201306101825-r</version>
   <packaging>pom</packaging>
 
   <name>JGit Tycho Parent</name>
 
   <properties>
-    <tycho-version>0.16.0</tycho-version>
+    <tycho-version>0.17.0</tycho-version>
     <jetty-version>7.6.0.v20120127</jetty-version>
     <args4j-version>2.0.21.v201301150030</args4j-version>
     <jsch-version>0.1.46.v201205102330</jsch-version>
     <eclipse-site>http://download.eclipse.org/releases/juno</eclipse-site>
-    <orbit-site>http://download.eclipse.org/tools/orbit/downloads/drops/R20130118183705/repository/</orbit-site>
+    <orbit-site>http://download.eclipse.org/tools/orbit/downloads/drops/R20130517111416/repository/</orbit-site>
   </properties>
 
   <modules>
     <module>org.eclipse.jgit.feature</module>
+    <module>org.eclipse.jgit.java7.feature</module>
     <module>org.eclipse.jgit.pgm.feature</module>
     <module>org.eclipse.jgit.source.feature</module>
     <module>org.eclipse.jgit.pgm.source.feature</module>
@@ -93,6 +94,20 @@
       <url>${orbit-site}</url>
     </repository>
   </repositories>
+
+  <distributionManagement>
+    <repository>
+      <id>repo.eclipse.org</id>
+      <name>JGit Maven Repository - Releases</name>
+      <url>https://repo.eclipse.org/content/repositories/jgit-releases/</url>
+    </repository>
+    <snapshotRepository>
+      <id>repo.eclipse.org</id>
+      <name>JGit Maven Repository - Snapshots</name>
+      <url>https://repo.eclipse.org/content/repositories/jgit-snapshots/</url>
+      <uniqueVersion>true</uniqueVersion>
+    </snapshotRepository>
+  </distributionManagement>
 
   <dependencies>
     <!-- sources artifacts so that we can place them in the features -->

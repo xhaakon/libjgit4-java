@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010, Mathias Kinzler <mathias.kinzler@sap.com>
  * Copyright (C) 2010, Chris Aniszczyk <caniszczyk@gmail.com>
+ * Copyright (C) 2012-2013, Robin Rosenberg
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -112,12 +113,6 @@ public class ConfigConstants {
 	/** The "blockSize" key */
 	public static final String CONFIG_KEY_BLOCK_SIZE = "blockSize";
 
-	/** The "readAheadLimit" key */
-	public static final String CONFIG_KEY_READ_AHEAD_LIMIT = "readAheadLimit";
-
-	/** The "readAheadThreads" key */
-	public static final String CONFIG_KEY_READ_AHEAD_THREADS = "readAheadThreads";
-
 	/** The "deltaBaseCacheLimit" key */
 	public static final String CONFIG_KEY_DELTA_BASE_CACHE_LIMIT = "deltaBaseCacheLimit";
 
@@ -194,4 +189,40 @@ public class ConfigConstants {
 
 	/** The "ff" key */
 	public static final String CONFIG_KEY_FF = "ff";
+
+	/**
+	 * The "checkstat" key
+	 * @since 3.0
+	 */
+	public static final String CONFIG_KEY_CHECKSTAT = "checkstat";
+
+	/**
+         * The "renamelimit" key in the "diff section"
+         * @since 3.0
+         */
+	public static final String CONFIG_KEY_RENAMELIMIT = "renamelimit";
+
+	/**
+         * The "noprefix" key in the "diff section"
+         * @since 3.0
+         */
+	public static final String CONFIG_KEY_NOPREFIX = "noprefix";
+
+	/**
+         * A "renamelimit" value in the "diff section"
+         * @since 3.0
+         */
+	public static final String CONFIG_RENAMELIMIT_COPY = "copy";
+
+	/**
+         * A "renamelimit" value in the "diff section"
+         * @since 3.0
+         */
+	public static final String CONFIG_RENAMELIMIT_COPIES = "copies";
+
+	/**
+         * The "renames" key in the "diff section"
+         * @since 3.0
+         */
+	public static final String CONFIG_KEY_RENAMES = "renames";
 }

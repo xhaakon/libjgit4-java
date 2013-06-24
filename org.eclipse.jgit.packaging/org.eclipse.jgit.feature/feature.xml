@@ -2,7 +2,7 @@
 <feature
       id="org.eclipse.jgit"
       label="%featureName"
-      version="2.3.1.201302201838-r"
+      version="3.0.0.201306101825-r"
       provider-name="%providerName">
 
    <description url="http://www.eclipse.org/jgit/">
@@ -35,4 +35,12 @@
          install-size="0"
          version="0.0.0"
          unpack="false"/>
+
+   <plugin
+         id="javaewah"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
 </feature>

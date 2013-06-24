@@ -45,7 +45,7 @@ package org.eclipse.jgit.transport;
 
 import java.util.List;
 
-import org.eclipse.jgit.storage.pack.PackWriter;
+import org.eclipse.jgit.internal.storage.pack.PackWriter;
 
 /**
  * {@link UploadPackLogger} that delegates to a list of other loggers.
@@ -78,6 +78,9 @@ public class UploadPackLoggerChain implements UploadPackLogger {
 			return new UploadPackLoggerChain(newLoggers, i);
 	}
 
+	/**
+	 * @since 3.0
+	 */
 	public void onPackStatistics(PackWriter.Statistics stats) {
 		for (int i = 0; i < count; i++)
 			loggers[i].onPackStatistics(stats);

@@ -43,7 +43,7 @@
 
 package org.eclipse.jgit.transport;
 
-import org.eclipse.jgit.storage.pack.PackWriter;
+import org.eclipse.jgit.internal.storage.pack.PackWriter;
 
 /**
  * Logs activity that occurred within {@link UploadPack}.
@@ -66,6 +66,7 @@ public interface UploadPackLogger {
 	 *
 	 * @param stats
 	 *            the statistics after sending a pack to the client.
+	 * @since 3.0
 	 */
 	public void onPackStatistics(PackWriter.Statistics stats);
 }

@@ -60,6 +60,7 @@ import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.storage.pack.PackWriter;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
@@ -77,7 +78,6 @@ import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.revwalk.filter.CommitTimeRevFilter;
 import org.eclipse.jgit.storage.pack.PackConfig;
-import org.eclipse.jgit.storage.pack.PackWriter;
 import org.eclipse.jgit.transport.BasePackFetchConnection.MultiAck;
 import org.eclipse.jgit.transport.RefAdvertiser.PacketLineOutRefAdvertiser;
 import org.eclipse.jgit.util.io.InterruptTimer;
@@ -537,6 +537,7 @@ public class UploadPack {
 	 * @return statistics about pack output, if a pack was sent. Null if no pack
 	 *         was sent, such as during the negotation phase of a smart HTTP
 	 *         connection, or if the client was already up-to-date.
+	 * @since 3.0
 	 */
 	public PackWriter.Statistics getPackStatistics() {
 		return statistics;
@@ -787,73 +788,23 @@ public class UploadPack {
 		preUploadHook.onBeginNegotiateRound(this, wantIds, peerHas.size());
 		if (peerHas.isEmpty())
 			return last;
+		if (wantAll.isEmpty() && !wantIds.isEmpty())
+			parseWants();
 
-		List<ObjectId> toParse = peerHas;
-		HashSet<ObjectId> peerHasSet = null;
-		boolean needMissing = false;
 		sentReady = false;
-
-		if (wantAll.isEmpty() && !wantIds.isEmpty()) {
-			// We have not yet parsed the want list. Parse it now.
-			peerHasSet = new HashSet<ObjectId>(peerHas);
-			int cnt = wantIds.size() + peerHasSet.size();
-			toParse = new ArrayList<ObjectId>(cnt);
-			toParse.addAll(wantIds);
-			toParse.addAll(peerHasSet);
-			needMissing = true;
-		}
-
-		Set<RevObject> notAdvertisedWants = null;
 		int haveCnt = 0;
-		AsyncRevObjectQueue q = walk.parseAny(toParse, needMissing);
+		walk.getObjectReader().setAvoidUnreachableObjects(true);
+		AsyncRevObjectQueue q = walk.parseAny(peerHas, false);
 		try {
 			for (;;) {
 				RevObject obj;
 				try {
 					obj = q.next();
 				} catch (MissingObjectException notFound) {
-					ObjectId id = notFound.getObjectId();
-					if (wantIds.contains(id)) {
-						String msg = MessageFormat.format(
-								JGitText.get().wantNotValid, id.name());
-						throw new PackProtocolException(msg, notFound);
-					}
 					continue;
 				}
 				if (obj == null)
 					break;
-
-				// If the object is still found in wantIds, the want
-				// list wasn't parsed earlier, and was done in this batch.
-				//
-				if (wantIds.remove(obj)) {
-					if (!advertised.contains(obj) && requestPolicy != RequestPolicy.ANY) {
-						if (notAdvertisedWants == null)
-							notAdvertisedWants = new HashSet<RevObject>();
-						notAdvertisedWants.add(obj);
-					}
-
-					if (!obj.has(WANT)) {
-						obj.add(WANT);
-						wantAll.add(obj);
-					}
-
-					if (!(obj instanceof RevCommit))
-						obj.add(SATISFIED);
-
-					if (obj instanceof RevTag) {
-						RevObject target = walk.peel(obj);
-						if (target instanceof RevCommit) {
-							if (!target.has(WANT)) {
-								target.add(WANT);
-								wantAll.add(target);
-							}
-						}
-					}
-
-					if (!peerHasSet.contains(obj))
-						continue;
-				}
 
 				last = obj;
 				haveCnt++;
@@ -889,25 +840,7 @@ public class UploadPack {
 			}
 		} finally {
 			q.release();
-		}
-
-		// If the client asked for non advertised object, check our policy.
-		if (notAdvertisedWants != null && !notAdvertisedWants.isEmpty()) {
-			switch (requestPolicy) {
-			case ADVERTISED:
-			default:
-				throw new PackProtocolException(MessageFormat.format(
-						JGitText.get().wantNotValid,
-						notAdvertisedWants.iterator().next().name()));
-
-			case REACHABLE_COMMIT:
-				checkNotAdvertisedWants(notAdvertisedWants);
-				break;
-
-			case ANY:
-				// Allow whatever was asked for.
-				break;
-			}
+			walk.getObjectReader().setAvoidUnreachableObjects(false);
 		}
 
 		int missCnt = peerHas.size() - haveCnt;
@@ -952,7 +885,61 @@ public class UploadPack {
 		return last;
 	}
 
-	private void checkNotAdvertisedWants(Set<RevObject> notAdvertisedWants)
+	private void parseWants() throws IOException {
+		AsyncRevObjectQueue q = walk.parseAny(wantIds, true);
+		try {
+			List<RevCommit> checkReachable = null;
+			RevObject obj;
+			while ((obj = q.next()) != null) {
+				if (!advertised.contains(obj)) {
+					switch (requestPolicy) {
+					case ADVERTISED:
+					default:
+						throw new PackProtocolException(MessageFormat.format(
+								JGitText.get().wantNotValid, obj));
+					case REACHABLE_COMMIT:
+						if (!(obj instanceof RevCommit)) {
+							throw new PackProtocolException(MessageFormat.format(
+								JGitText.get().wantNotValid, obj));
+						}
+						if (checkReachable == null)
+							checkReachable = new ArrayList<RevCommit>();
+						checkReachable.add((RevCommit) obj);
+						break;
+					case ANY:
+						break;
+					}
+				}
+				want(obj);
+
+				if (!(obj instanceof RevCommit))
+					obj.add(SATISFIED);
+				if (obj instanceof RevTag) {
+					obj = walk.peel(obj);
+					if (obj instanceof RevCommit)
+						want(obj);
+				}
+			}
+			if (checkReachable != null)
+				checkNotAdvertisedWants(checkReachable);
+			wantIds.clear();
+		} catch (MissingObjectException notFound) {
+			ObjectId id = notFound.getObjectId();
+			throw new PackProtocolException(MessageFormat.format(
+					JGitText.get().wantNotValid, id.name()), notFound);
+		} finally {
+			q.release();
+		}
+	}
+
+	private void want(RevObject obj) {
+		if (!obj.has(WANT)) {
+			obj.add(WANT);
+			wantAll.add(obj);
+		}
+	}
+
+	private void checkNotAdvertisedWants(List<RevCommit> notAdvertisedWants)
 			throws MissingObjectException, IncorrectObjectTypeException, IOException {
 		// Walk the requested commits back to the advertised commits.
 		// If any commit exists, a branch was deleted or rewound and
@@ -960,15 +947,8 @@ public class UploadPack {
 		// If the requested commit is merged into an advertised branch
 		// it will be marked UNINTERESTING and no commits return.
 
-		for (RevObject o : notAdvertisedWants) {
-			if (!(o instanceof RevCommit)) {
-				throw new PackProtocolException(MessageFormat.format(
-						JGitText.get().wantNotValid,
-						notAdvertisedWants.iterator().next().name()));
-			}
-			walk.markStart((RevCommit) o);
-		}
-
+		for (RevCommit c : notAdvertisedWants)
+			walk.markStart(c);
 		for (ObjectId id : advertised) {
 			try {
 				walk.markUninteresting(walk.parseCommit(id));
@@ -1136,7 +1116,9 @@ public class UploadPack {
 			cfg = new PackConfig(db);
 		final PackWriter pw = new PackWriter(cfg, walk.getObjectReader());
 		try {
+			pw.setIndexDisabled(true);
 			pw.setUseCachedPacks(true);
+			pw.setUseBitmaps(true);
 			pw.setReuseDeltaCommits(true);
 			pw.setDeltaBaseAsOffset(options.contains(OPTION_OFS_DELTA));
 			pw.setThin(options.contains(OPTION_THIN_PACK));
