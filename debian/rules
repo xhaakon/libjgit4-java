@@ -42,6 +42,7 @@ clean::
 	       org.eclipse.jgit.ant/target/ \
 	       org.eclipse.jgit.console/target/ \
 	       org.eclipse.jgit.http.server/target/ \
+	       org.eclipse.jgit.java7/target/ \
 	       org.eclipse.jgit.junit/target/ \
 	       org.eclipse.jgit.pgm.test/target/ \
 	       org.eclipse.jgit.pgm/target/ \
