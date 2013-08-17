@@ -1,2 +1,2 @@
-usr/share/java/org.eclipse.jgit.jar jsch.jar JavaEWAH.jar
+usr/share/java/org.eclipse.jgit.jar jsch.jar JavaEWAH.jar org.eclipse.jgit.java7.jar
 usr/share/java/org.eclipse.jgit.http.server.jar org.eclipse.jgit.jar servlet-api-2.5.jar
