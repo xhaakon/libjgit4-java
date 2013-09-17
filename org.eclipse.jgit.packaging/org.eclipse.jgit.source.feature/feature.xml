@@ -2,7 +2,7 @@
 <feature
       id="org.eclipse.jgit.source"
       label="%featureName"
-      version="3.0.0.201306101825-r"
+      version="3.0.3.201309161630-r"
       provider-name="%providerName">
 
    <description url="http://www.eclipse.org/jgit/">
@@ -24,6 +24,12 @@
 
    <plugin
          id="org.eclipse.jgit.source"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+   <plugin
+         id="org.eclipse.jgit.java7.source"
          download-size="0"
          install-size="0"
          version="0.0.0"
