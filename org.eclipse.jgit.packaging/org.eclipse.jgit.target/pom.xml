@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-   Copyright (C) 2009, Google Inc.
-   Copyright (C) 2008, Imran M Yousuf <imyousuf@smartitengineering.com>
-   Copyright (C) 2010, Matthias Sohn <matthias.sohn@sap.com>
+   Copyright (C) 2013, Matthias Sohn <matthias.sohn@sap.com>
    and other copyright owners as documented in the project's IP log.
 
    This program and the accompanying materials are made available
@@ -43,7 +41,6 @@
    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
    ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
-
 <project xmlns="http://maven.apache.org/POM/4.0.0"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
@@ -51,82 +48,11 @@
 
   <parent>
     <groupId>org.eclipse.jgit</groupId>
-    <artifactId>org.eclipse.jgit-parent</artifactId>
+    <artifactId>jgit.tycho.parent</artifactId>
     <version>3.0.3.201309161630-r</version>
   </parent>
 
-  <artifactId>org.eclipse.jgit.console</artifactId>
-  <name>JGit - Console User Interface</name>
-
-  <description>
-    Console based user interface
-  </description>
-
-  <properties>
-    <translate-qualifier/>
-  </properties>
-
-  <dependencies>
-    <dependency>
-      <groupId>org.eclipse.jgit</groupId>
-      <artifactId>org.eclipse.jgit</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-  </dependencies>
-
-  <build>
-    <sourceDirectory>src/</sourceDirectory>
-
-    <resources>
-      <resource>
-        <directory>.</directory>
-        <includes>
-          <include>plugin.properties</include>
-          <include>about.html</include>
-        </includes>
-      </resource>
-      <resource>
-        <directory>resources/</directory>
-      </resource>
-    </resources>
-
-    <plugins>
-      <plugin>
-        <artifactId>maven-jar-plugin</artifactId>
-        <configuration>
-          <archive>
-            <manifestFile>${bundle-manifest}</manifestFile>
-          </archive>
-        </configuration>
-      </plugin>
-
-      <plugin>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <configuration>
-          <source>1.6</source>
-          <target>1.6</target>
-          <encoding>UTF-8</encoding>
-        </configuration>
-      </plugin>
-
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>clirr-maven-plugin</artifactId>
-      </plugin>
-    </plugins>
-  </build>
-
-  <reporting>
-    <plugins>
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>clirr-maven-plugin</artifactId>
-        <version>${clirr-version}</version>
-        <configuration>
-          <comparisonVersion>${jgit-last-release-version}</comparisonVersion>
-          <minSeverity>info</minSeverity>
-        </configuration>
-      </plugin>
-    </plugins>
-  </reporting>
+  <artifactId>org.eclipse.jgit.target</artifactId>
+  <packaging>eclipse-target-definition</packaging>
+  <name>JGit Target Platform</name>
 </project>
