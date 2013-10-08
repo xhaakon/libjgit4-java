@@ -24,6 +24,7 @@ install/libjgit-ant-java::
 
 install/jgit-cli::
 	mh_installpoms -pjgit-cli
+	mh_installjar -pjgit-cli -l org.eclipse.jgit.archive/pom.xml org.eclipse.jgit.archive/target/org.eclipse.jgit.archive-*-r.jar
 	mh_installjar -pjgit-cli -l org.eclipse.jgit.console/pom.xml org.eclipse.jgit.console/target/org.eclipse.jgit.console-*-r.jar
 	mh_installjar -pjgit-cli -l org.eclipse.jgit.pgm/pom.xml org.eclipse.jgit.pgm/target/org.eclipse.jgit.pgm-*-r.jar
 	mh_installjar -pjgit-cli -l org.eclipse.jgit.ui/pom.xml org.eclipse.jgit.ui/target/org.eclipse.jgit.ui-*-r.jar
