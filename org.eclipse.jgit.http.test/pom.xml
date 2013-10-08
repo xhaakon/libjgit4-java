@@ -51,7 +51,7 @@
   <parent>
     <groupId>org.eclipse.jgit</groupId>
     <artifactId>org.eclipse.jgit-parent</artifactId>
-    <version>3.0.3.201309161630-r</version>
+    <version>3.1.0.201310021548-r</version>
   </parent>
 
   <artifactId>org.eclipse.jgit.http.test</artifactId>
@@ -126,7 +126,7 @@
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <argLine>-Djava.io.tmpdir=${project.build.directory}</argLine>
+          <argLine>-Djava.io.tmpdir=${project.build.directory}  -Xmx300m</argLine>
         </configuration>
       </plugin>
     </plugins>
