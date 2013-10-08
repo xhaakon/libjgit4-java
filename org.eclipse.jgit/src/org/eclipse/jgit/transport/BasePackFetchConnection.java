@@ -63,6 +63,7 @@ import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.Config.SectionParser;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.MutableObjectId;
+import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.ProgressMonitor;
@@ -181,6 +182,13 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 	 */
 	public static final String OPTION_NO_DONE = "no-done"; //$NON-NLS-1$
 
+	/**
+	 * The client supports fetching objects at the tip of any ref, even if not
+	 * advertised.
+	 * @since 3.1
+	 */
+	public static final String OPTION_ALLOW_TIP_SHA1_IN_WANT = "allow-tip-sha1-in-want"; //$NON-NLS-1$
+
 	static enum MultiAck {
 		OFF, CONTINUE, DETAILED;
 	}
@@ -214,6 +222,8 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 
 	private boolean noDone;
 
+	private boolean noProgress;
+
 	private String lockMessage;
 
 	private PackLock packLock;
@@ -232,21 +242,33 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 	public BasePackFetchConnection(final PackTransport packTransport) {
 		super(packTransport);
 
-		final FetchConfig cfg = local.getConfig().get(FetchConfig.KEY);
+		if (local != null) {
+			final FetchConfig cfg = local.getConfig().get(FetchConfig.KEY);
+			allowOfsDelta = cfg.allowOfsDelta;
+		} else {
+			allowOfsDelta = true;
+		}
 		includeTags = transport.getTagOpt() != TagOpt.NO_TAGS;
 		thinPack = transport.isFetchThin();
-		allowOfsDelta = cfg.allowOfsDelta;
 
-		walk = new RevWalk(local);
-		reachableCommits = new RevCommitList<RevCommit>();
-		REACHABLE = walk.newFlag("REACHABLE"); //$NON-NLS-1$
-		COMMON = walk.newFlag("COMMON"); //$NON-NLS-1$
-		STATE = walk.newFlag("STATE"); //$NON-NLS-1$
-		ADVERTISED = walk.newFlag("ADVERTISED"); //$NON-NLS-1$
+		if (local != null) {
+			walk = new RevWalk(local);
+			reachableCommits = new RevCommitList<RevCommit>();
+			REACHABLE = walk.newFlag("REACHABLE"); //$NON-NLS-1$
+			COMMON = walk.newFlag("COMMON"); //$NON-NLS-1$
+			STATE = walk.newFlag("STATE"); //$NON-NLS-1$
+			ADVERTISED = walk.newFlag("ADVERTISED"); //$NON-NLS-1$
 
-		walk.carry(COMMON);
-		walk.carry(REACHABLE);
-		walk.carry(ADVERTISED);
+			walk.carry(COMMON);
+			walk.carry(REACHABLE);
+			walk.carry(ADVERTISED);
+		} else {
+			walk = null;
+			REACHABLE = null;
+			COMMON = null;
+			STATE = null;
+			ADVERTISED = null;
+		}
 	}
 
 	private static class FetchConfig {
@@ -301,7 +323,9 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 	 * Execute common ancestor negotiation and fetch the objects.
 	 *
 	 * @param monitor
-	 *            progress monitor to receive status updates.
+	 *            progress monitor to receive status updates. If the monitor is
+	 *            the {@link NullProgressMonitor#INSTANCE}, then the no-progress
+	 *            option enabled.
 	 * @param want
 	 *            the advertised remote references the caller wants to fetch.
 	 * @param have
@@ -318,6 +342,8 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 			final Collection<Ref> want, final Set<ObjectId> have,
 			OutputStream outputStream) throws TransportException {
 		try {
+			noProgress = monitor == NullProgressMonitor.INSTANCE;
+
 			markRefsAdvertised();
 			markReachable(have, maxTimeWanted(want));
 
@@ -350,7 +376,8 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 
 	@Override
 	public void close() {
-		walk.release();
+		if (walk != null)
+			walk.release();
 		super.close();
 	}
 
@@ -460,6 +487,8 @@ public abstract class BasePackFetchConnection extends BasePackConnection
 
 	private String enableCapabilities() throws TransportException {
 		final StringBuilder line = new StringBuilder();
+		if (noProgress)
+			wantCapability(line, OPTION_NO_PROGRESS);
 		if (includeTags)
 			includeTags = wantCapability(line, OPTION_INCLUDE_TAG);
 		if (allowOfsDelta)

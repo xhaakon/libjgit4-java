@@ -2,7 +2,7 @@
 <feature
       id="org.eclipse.jgit"
       label="%featureName"
-      version="3.0.3.201309161630-r"
+      version="3.1.0.201310021548-r"
       provider-name="%providerName">
 
    <description url="http://www.eclipse.org/jgit/">
@@ -30,6 +30,13 @@
          unpack="false"/>
 
    <plugin
+         id="org.eclipse.jgit.archive"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
          id="com.jcraft.jsch"
          download-size="0"
          install-size="0"
@@ -38,6 +45,13 @@
 
    <plugin
          id="javaewah"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.apache.commons.compress"
          download-size="0"
          install-size="0"
          version="0.0.0"

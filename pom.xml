@@ -51,7 +51,7 @@
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>org.eclipse.jgit-parent</artifactId>
   <packaging>pom</packaging>
-  <version>3.0.3.201309161630-r</version>
+  <version>3.1.0.201310021548-r</version>
 
   <name>JGit - Parent</name>
   <url>${jgit-url}</url>
@@ -175,13 +175,14 @@
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <bundle-manifest>${project.build.directory}/META-INF/MANIFEST.MF</bundle-manifest>
 
-    <jgit-last-release-version>2.3.1.201302201838-r</jgit-last-release-version>
+    <jgit-last-release-version>3.0.0.201306101825-r</jgit-last-release-version>
     <jsch-version>0.1.46</jsch-version>
     <javaewah-version>0.5.6</javaewah-version>
     <junit-version>4.11</junit-version>
     <!-- TODO: update Maven dependency for args4j to 2.0.21 as soon as available on Maven Central -->
     <args4j-version>2.0.12</args4j-version>
     <commons-compress-version>1.4.1</commons-compress-version>
+    <osgi-core-version>4.3.1</osgi-core-version>
     <servlet-api-version>2.5</servlet-api-version>
     <jetty-version>7.6.11.v20130520</jetty-version>
     <clirr-version>2.4</clirr-version>
@@ -467,6 +468,12 @@
         <artifactId>jetty-servlet</artifactId>
         <version>${jetty-version}</version>
       </dependency>
+
+      <dependency>
+        <groupId>org.osgi</groupId>
+        <artifactId>org.osgi.core</artifactId>
+        <version>${osgi-core-version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -583,6 +590,7 @@
   <modules>
     <module>org.eclipse.jgit</module>
     <module>org.eclipse.jgit.ant</module>
+    <module>org.eclipse.jgit.archive</module>
     <module>org.eclipse.jgit.ui</module>
     <module>org.eclipse.jgit.http.server</module>
     <module>org.eclipse.jgit.pgm</module>
