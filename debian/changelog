@@ -1,3 +1,9 @@
+jgit (3.1.0-2) UNRELEASED; urgency=low
+
+  * Fix FTBFS with args4j 2.0.25 (Closes: #730878).
+
+ -- Jakub Adam <jakub.adam@ktknet.cz>  Tue, 03 Dec 2013 16:06:14 +0100
+
 jgit (3.1.0-1) unstable; urgency=low
 
   * New Upstream release.

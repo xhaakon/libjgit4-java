@@ -1,0 +1,188 @@
+From: Jakub Adam <jakub.adam@ktknet.cz>
+Date: Tue, 3 Dec 2013 16:00:31 +0100
+Subject: ftbfs-args4j-2.0.25-fix
+
+Setting multiValued was removed from @Option in args4j 2.0.23
+as it had no effect.
+
+Added 'hidden' argument to OptionDef constructor.
+---
+ org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java      | 10 +++++-----
+ org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java        |  2 +-
+ org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java    |  2 +-
+ org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java      |  2 +-
+ .../src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java           |  2 +-
+ org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java        |  2 +-
+ org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java      |  2 +-
+ .../src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java         |  4 ++--
+ .../src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java      |  6 +++---
+ .../src/org/eclipse/jgit/pgm/opt/CmdLineParser.java            |  2 +-
+ 10 files changed, 17 insertions(+), 17 deletions(-)
+
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java
+index 04182d6..65a6c2b 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java
+@@ -75,16 +75,16 @@
+ 	@Option(name = "--timeout", metaVar = "metaVar_seconds", usage = "usage_abortConnectionIfNoActivity")
+ 	int timeout = -1;
+ 
+-	@Option(name = "--enable", metaVar = "metaVar_service", usage = "usage_enableTheServiceInAllRepositories", multiValued = true)
++	@Option(name = "--enable", metaVar = "metaVar_service", usage = "usage_enableTheServiceInAllRepositories")
+ 	final List<String> enable = new ArrayList<String>();
+ 
+-	@Option(name = "--disable", metaVar = "metaVar_service", usage = "usage_disableTheServiceInAllRepositories", multiValued = true)
++	@Option(name = "--disable", metaVar = "metaVar_service", usage = "usage_disableTheServiceInAllRepositories")
+ 	final List<String> disable = new ArrayList<String>();
+ 
+-	@Option(name = "--allow-override", metaVar = "metaVar_service", usage = "usage_configureTheServiceInDaemonServicename", multiValued = true)
++	@Option(name = "--allow-override", metaVar = "metaVar_service", usage = "usage_configureTheServiceInDaemonServicename")
+ 	final List<String> canOverride = new ArrayList<String>();
+ 
+-	@Option(name = "--forbid-override", metaVar = "metaVar_service", usage = "usage_configureTheServiceInDaemonServicename", multiValued = true)
++	@Option(name = "--forbid-override", metaVar = "metaVar_service", usage = "usage_configureTheServiceInDaemonServicename")
+ 	final List<String> forbidOverride = new ArrayList<String>();
+ 
+ 	@Option(name = "--export-all", usage = "usage_exportWithoutGitDaemonExportOk")
+@@ -159,4 +159,4 @@ private static DaemonService service(
+ 			throw die(MessageFormat.format(CLIText.get().serviceNotSupported, n));
+ 		return svc;
+ 	}
+-}
+\ No newline at end of file
++}
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java
+index 8f05168..3db8ce2 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java
+@@ -89,7 +89,7 @@
+ 	@Option(name = "--cached", usage = "usage_cached")
+ 	private boolean cached;
+ 
+-	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = PathTreeFilterHandler.class)
++	@Option(name = "--", metaVar = "metaVar_paths", handler = PathTreeFilterHandler.class)
+ 	private TreeFilter pathFilter = TreeFilter.ALL;
+ 
+ 	// BEGIN -- Options shared with Log
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java
+index d89053c..90d7c06 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java
+@@ -69,7 +69,7 @@ void tree_0(final AbstractTreeIterator c) {
+ 	@Argument(index = 1, metaVar = "metaVar_treeish", required = true)
+ 	private final List<AbstractTreeIterator> trees = new ArrayList<AbstractTreeIterator>();
+ 
+-	@Option(name = "--", metaVar = "metaVar_path", multiValued = true, handler = PathTreeFilterHandler.class)
++	@Option(name = "--", metaVar = "metaVar_path", handler = PathTreeFilterHandler.class)
+ 	private TreeFilter pathFilter = TreeFilter.ALL;
+ 
+ 	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java
+index e444d21..5249552 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java
+@@ -66,7 +66,7 @@
+ 	private AbstractTreeIterator tree;
+ 
+ 	@Argument(index = 1)
+-	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = StopOptionHandler.class)
++	@Option(name = "--", metaVar = "metaVar_paths", handler = StopOptionHandler.class)
+ 	private List<String> paths = new ArrayList<String>();
+ 
+ 	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
+index 4327403..ba0493a 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
+@@ -124,7 +124,7 @@ void enableBoundary(final boolean on) {
+ 	@Argument(index = 0, metaVar = "metaVar_commitish")
+ 	private final List<RevCommit> commits = new ArrayList<RevCommit>();
+ 
+-	@Option(name = "--", metaVar = "metaVar_path", multiValued = true, handler = PathTreeFilterHandler.class)
++	@Option(name = "--", metaVar = "metaVar_path", handler = PathTreeFilterHandler.class)
+ 	protected TreeFilter pathFilter = TreeFilter.ALL;
+ 
+ 	private final List<RevFilter> revLimiter = new ArrayList<RevFilter>();
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java
+index a33a2d4..bcff628 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java
+@@ -87,7 +87,7 @@
+ 	@Argument(index = 0, metaVar = "metaVar_object")
+ 	private String objectName;
+ 
+-	@Option(name = "--", metaVar = "metaVar_path", multiValued = true, handler = PathTreeFilterHandler.class)
++	@Option(name = "--", metaVar = "metaVar_path", handler = PathTreeFilterHandler.class)
+ 	protected TreeFilter pathFilter = TreeFilter.ALL;
+ 
+ 	// BEGIN -- Options shared with Diff
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java
+index 0214ed0..8a22d0c 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java
+@@ -71,7 +71,7 @@
+ 
+ 	protected final String statusFileListFormatUnmerged = CLIText.get().statusFileListFormatUnmerged;
+ 
+-	@Option(name = "--", metaVar = "metaVar_path", multiValued = true)
++	@Option(name = "--", metaVar = "metaVar_path")
+ 	protected List<String> filterPaths;
+ 
+ 	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java
+index 91b5917..ed2818d 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java
+@@ -111,13 +111,13 @@ DiffAlgorithm create() {
+ 	//
+ 	//
+ 
+-	@Option(name = "--algorithm", multiValued = true, metaVar = "NAME", usage = "Enable algorithm(s)")
++	@Option(name = "--algorithm", metaVar = "NAME", usage = "Enable algorithm(s)")
+ 	List<String> algorithms = new ArrayList<String>();
+ 
+ 	@Option(name = "--text-limit", metaVar = "LIMIT", usage = "Maximum size in KiB to scan per file revision")
+ 	int textLimit = 15 * 1024; // 15 MiB as later we do * 1024.
+ 
+-	@Option(name = "--repository", aliases = { "-r" }, multiValued = true, metaVar = "GIT_DIR", usage = "Repository to scan")
++	@Option(name = "--repository", aliases = { "-r" }, metaVar = "GIT_DIR", usage = "Repository to scan")
+ 	List<File> gitDirs = new ArrayList<File>();
+ 
+ 	@Option(name = "--count", metaVar = "LIMIT", usage = "Number of file revisions to be compared")
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java
+index 4205140..72425f1 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java
+@@ -250,16 +250,16 @@ public int fold(int hash, int bits) {
+ 	//
+ 	//
+ 
+-	@Option(name = "--hash", multiValued = true, metaVar = "NAME", usage = "Enable hash function(s)")
++	@Option(name = "--hash", metaVar = "NAME", usage = "Enable hash function(s)")
+ 	List<String> hashFunctions = new ArrayList<String>();
+ 
+-	@Option(name = "--fold", multiValued = true, metaVar = "NAME", usage = "Enable fold function(s)")
++	@Option(name = "--fold", metaVar = "NAME", usage = "Enable fold function(s)")
+ 	List<String> foldFunctions = new ArrayList<String>();
+ 
+ 	@Option(name = "--text-limit", metaVar = "LIMIT", usage = "Maximum size in KiB to scan")
+ 	int textLimit = 15 * 1024; // 15 MiB as later we do * 1024.
+ 
+-	@Option(name = "--repository", aliases = { "-r" }, multiValued = true, metaVar = "GIT_DIR", usage = "Repository to scan")
++	@Option(name = "--repository", aliases = { "-r" }, metaVar = "GIT_DIR", usage = "Repository to scan")
+ 	List<File> gitDirs = new ArrayList<File>();
+ 
+ 	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
+index c36cc2c..f5f42c5 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
+@@ -184,7 +184,7 @@ public RevWalk getRevWalkGently() {
+ 	static class MyOptionDef extends OptionDef {
+ 
+ 		public MyOptionDef(OptionDef o) {
+-			super(o.usage(), o.metaVar(), o.required(), o.handler(), o
++			super(o.usage(), o.metaVar(), o.required(), o.hidden(), o.handler(), o
+ 					.isMultiValued());
+ 		}
+ 
