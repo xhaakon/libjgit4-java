@@ -1,7 +1,12 @@
-jgit (3.1.0-2) UNRELEASED; urgency=low
+jgit (3.1.0-2) unstable; urgency=low
 
+  [ Jakub Adam ]
   * Fix FTBFS with args4j 2.0.25 (Closes: #730878).
   * Make Vcs-* fields canonic.
+
+  [ tony mancill ]
+  * Bump Standards-Version to 3.9.5 (no changes).
+  * Update debian/compat and debhelper dependency to 9.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Tue, 03 Dec 2013 16:06:14 +0100
 
