@@ -435,7 +435,7 @@ public class Config {
 	}
 
 	/**
-	 * Get string value
+	 * Get string value or null if not found.
 	 *
 	 * @param section
 	 *            the section
@@ -443,7 +443,7 @@ public class Config {
 	 *            the subsection for the value
 	 * @param name
 	 *            the key name
-	 * @return a String value from git config.
+	 * @return a String value from the config, <code>null</code> if not found
 	 */
 	public String getString(final String section, String subsection,
 			final String name) {
@@ -525,6 +525,35 @@ public class Config {
 	 */
 	public Set<String> getNames(String section, String subsection) {
 		return getState().getNames(section, subsection);
+	}
+
+	/**
+	 * @param section
+	 *            the section
+	 * @param recursive
+	 *            if {@code true} recursively adds the names defined in all base
+	 *            configurations
+	 * @return the list of names defined for this section
+	 * @since 3.2
+	 */
+	public Set<String> getNames(String section, boolean recursive) {
+		return getState().getNames(section, null, recursive);
+	}
+
+	/**
+	 * @param section
+	 *            the section
+	 * @param subsection
+	 *            the subsection
+	 * @param recursive
+	 *            if {@code true} recursively adds the names defined in all base
+	 *            configurations
+	 * @return the list of names defined for this subsection
+	 * @since 3.2
+	 */
+	public Set<String> getNames(String section, String subsection,
+			boolean recursive) {
+		return getState().getNames(section, subsection, recursive);
 	}
 
 	/**

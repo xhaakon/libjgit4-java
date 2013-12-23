@@ -51,7 +51,7 @@
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>org.eclipse.jgit-parent</artifactId>
   <packaging>pom</packaging>
-  <version>3.1.0.201310021548-r</version>
+  <version>3.2.0.201312181205-r</version>
 
   <name>JGit - Parent</name>
   <url>${jgit-url}</url>
@@ -184,7 +184,7 @@
     <commons-compress-version>1.4.1</commons-compress-version>
     <osgi-core-version>4.3.1</osgi-core-version>
     <servlet-api-version>2.5</servlet-api-version>
-    <jetty-version>7.6.11.v20130520</jetty-version>
+    <jetty-version>7.6.14.v20131031</jetty-version>
     <clirr-version>2.4</clirr-version>
   </properties>
 

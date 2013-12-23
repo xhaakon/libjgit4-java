@@ -55,12 +55,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import org.eclipse.jgit.junit.SampleDataRepositoryTestCase;
 import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.test.resources.SampleDataRepositoryTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -231,7 +231,7 @@ public class TransportTest extends SampleDataRepositoryTestCase {
 	@Test
 	public void testLocalTransportFetchWithoutLocalRepository()
 			throws Exception {
-		URIish uri = new URIish("file://" + db.getWorkTree().getPath());
+		URIish uri = new URIish("file://" + db.getWorkTree().getAbsolutePath());
 		transport = Transport.open(uri);
 		FetchConnection fetchConnection = transport.openFetch();
 		try {

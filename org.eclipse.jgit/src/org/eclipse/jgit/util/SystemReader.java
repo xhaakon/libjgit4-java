@@ -137,7 +137,8 @@ public abstract class SystemReader {
 
 	/**
 	 * @param newReader
-	 *            the new instance to use when accessing properties.
+	 *            the new instance to use when accessing properties, or null for
+	 *            the default instance.
 	 */
 	public static void setInstance(SystemReader newReader) {
 		if (newReader == null)
@@ -226,6 +227,21 @@ public abstract class SystemReader {
 	 */
 	public SimpleDateFormat getSimpleDateFormat(String pattern) {
 		return new SimpleDateFormat(pattern);
+	}
+
+	/**
+	 * Returns a simple date format instance as specified by the given pattern.
+	 *
+	 * @param pattern
+	 *            the pattern as defined in
+	 *            {@link SimpleDateFormat#SimpleDateFormat(String)}
+	 * @param locale
+	 *            locale to be used for the {@code SimpleDateFormat}
+	 * @return the simple date format
+	 * @since 3.2
+	 */
+	public SimpleDateFormat getSimpleDateFormat(String pattern, Locale locale) {
+		return new SimpleDateFormat(pattern, locale);
 	}
 
 	/**
