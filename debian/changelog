@@ -1,6 +1,7 @@
 jgit (3.2.0-1) UNRELEASED; urgency=medium
 
   * New Upstream release.
+  * Refreshed d/patches/ftbfs-args4j-2.0.25-fix.patch.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Mon, 23 Dec 2013 19:18:17 +0100
 

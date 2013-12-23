@@ -91,10 +91,10 @@ index e444d21..5249552 100644
  
  	@Override
 diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
-index 4327403..ba0493a 100644
+index 847bf7f..3109544 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
-@@ -124,7 +124,7 @@ void enableBoundary(final boolean on) {
+@@ -126,7 +126,7 @@ void enableBoundary(final boolean on) {
  	@Argument(index = 0, metaVar = "metaVar_commitish")
  	private final List<RevCommit> commits = new ArrayList<RevCommit>();
  
@@ -117,12 +117,12 @@ index a33a2d4..bcff628 100644
  
  	// BEGIN -- Options shared with Diff
 diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java
-index 0214ed0..8a22d0c 100644
+index 2ae950b..0bab32e 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java
-@@ -71,7 +71,7 @@
- 
- 	protected final String statusFileListFormatUnmerged = CLIText.get().statusFileListFormatUnmerged;
+@@ -75,7 +75,7 @@
+ 	@Option(name = "--porcelain", usage = "usage_machineReadableOutput")
+ 	protected boolean porcelain;
  
 -	@Option(name = "--", metaVar = "metaVar_path", multiValued = true)
 +	@Option(name = "--", metaVar = "metaVar_path")
