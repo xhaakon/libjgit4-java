@@ -42,10 +42,13 @@
  */
 package org.eclipse.jgit.api;
 
+import static org.eclipse.jgit.lib.RefDatabase.ALL;
+
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
@@ -252,7 +255,8 @@ public class LogCommand extends GitCommand<Iterable<RevCommit>> {
 	 *             the references could not be accessed
 	 */
 	public LogCommand all() throws IOException {
-		for (Ref ref : getRepository().getAllRefs().values()) {
+		Map<String, Ref> refs = getRepository().getRefDatabase().getRefs(ALL);
+		for (Ref ref : refs.values()) {
 			if(!ref.isPeeled())
 				ref = getRepository().peel(ref);
 
@@ -278,11 +282,11 @@ public class LogCommand extends GitCommand<Iterable<RevCommit>> {
 
 	/**
 	 * Show only commits that affect any of the specified paths. The path must
-	 * either name a file or a directory exactly. Note that regex expressions or
-	 * wildcards are not supported.
+	 * either name a file or a directory exactly and use <code>/</code> (slash)
+	 * as separator. Note that regex expressions or wildcards are not supported.
 	 *
 	 * @param path
-	 *            a path is relative to the top level of the repository
+	 *            a repository-relative path (with <code>/</code> as separator)
 	 * @return {@code this}
 	 */
 	public LogCommand addPath(String path) {
