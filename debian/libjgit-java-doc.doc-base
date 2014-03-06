@@ -1,0 +1,9 @@
+Document: libjgit-java
+Title: Programmer API for JGit
+Abstract: Javadocs for JGit, a pure Java implementation of GIT version control
+ system.
+Section: Programming/Java
+
+Format: HTML
+Index: /usr/share/doc/libjgit-java/api/index.html
+Files: /usr/share/doc/libjgit-java/api/*.html
