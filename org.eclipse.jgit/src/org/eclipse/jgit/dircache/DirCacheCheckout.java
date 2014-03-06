@@ -60,6 +60,7 @@ import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.CoreConfig.AutoCRLF;
+import org.eclipse.jgit.lib.CoreConfig.SymLinks;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
@@ -326,7 +327,8 @@ public class DirCacheCheckout {
 						m.getEntryFileMode());
 			} else if (i.getDirCacheEntry() != null) {
 				// The index contains a file (and not a folder)
-				if (f.isModified(i.getDirCacheEntry(), true)
+				if (f.isModified(i.getDirCacheEntry(), true,
+						this.walk.getObjectReader())
 						|| i.getDirCacheEntry().getStage() != 0)
 					// The working tree file is dirty or the index contains a
 					// conflict
@@ -398,7 +400,6 @@ public class DirCacheCheckout {
 			MissingObjectException, IncorrectObjectTypeException,
 			CheckoutConflictException, IndexWriteException {
 		toBeDeleted.clear();
-
 		ObjectReader objectReader = repo.getObjectDatabase().newReader();
 		try {
 			if (headCommitTree != null)
@@ -424,13 +425,13 @@ public class DirCacheCheckout {
 			for (int i = removed.size() - 1; i >= 0; i--) {
 				String r = removed.get(i);
 				file = new File(repo.getWorkTree(), r);
-				if (!file.delete() && file.exists()) {
+				if (!file.delete() && repo.getFS().exists(file)) {
 					// The list of stuff to delete comes from the index
 					// which will only contain a directory if it is
 					// a submodule, in which case we shall not attempt
 					// to delete it. A submodule is not empty, so it
 					// is safe to check this after a failed delete.
-					if (!file.isDirectory())
+					if (!repo.getFS().isDirectory(file))
 						toBeDeleted.add(r);
 				} else {
 					if (last != null && !isSamePrefix(r, last))
@@ -582,9 +583,8 @@ public class DirCacheCheckout {
 		// represents the state for the merge iterator, the second last the
 		// state for the index iterator and the third last represents the state
 		// for the head iterator. The hexadecimal constant "F" stands for
-		// "file",
-		// an "D" stands for "directory" (tree), and a "0" stands for
-		// non-existing
+		// "file", a "D" stands for "directory" (tree), and a "0" stands for
+		// non-existing. Symbolic links and git links are treated as File here.
 		//
 		// Examples:
 		// ffMask == 0xFFD -> Head=File, Index=File, Merge=Tree
@@ -660,7 +660,9 @@ public class DirCacheCheckout {
 				break;
 			case 0xFFD: // 12 13 14
 				if (equalIdAndMode(hId, hMode, iId, iMode))
-					if (f == null || f.isModified(dce, true))
+					if (f == null
+							|| f.isModified(dce, true,
+									this.walk.getObjectReader()))
 						conflict(name, dce, h, m);
 					else
 						remove(name);
@@ -774,7 +776,8 @@ public class DirCacheCheckout {
 						// Nothing in Head
 						// Something in Index
 						if (dce != null
-								&& (f == null || f.isModified(dce, true)))
+								&& (f == null || f.isModified(dce, true,
+										this.walk.getObjectReader())))
 							// No file or file is dirty
 							// Nothing in Merge and current path is part of
 							// File/Folder conflict
@@ -841,7 +844,9 @@ public class DirCacheCheckout {
 						// Something different from a submodule in Index
 						// Nothing in Merge
 						// Something in Head
-						if (f == null || f.isModified(dce, true))
+						if (f == null
+								|| f.isModified(dce, true,
+										this.walk.getObjectReader()))
 							// file is dirty
 							// Index contains the same as Head
 							// Something different from a submodule in Index
@@ -904,7 +909,8 @@ public class DirCacheCheckout {
 						// file content
 						update(name, mId, mMode);
 					} else if (dce != null
-							&& (f == null || f.isModified(dce, true))) {
+							&& (f == null || f.isModified(dce, true,
+									this.walk.getObjectReader()))) {
 						// File doesn't exist or is dirty
 						// Head and Index don't contain a submodule
 						// Head contains the same as Index. Merge differs
@@ -1041,7 +1047,8 @@ public class DirCacheCheckout {
 			wtIt = tw.getTree(1, WorkingTreeIterator.class);
 			if (dcIt == null || wtIt == null)
 				return true;
-			if (wtIt.isModified(dcIt.getDirCacheEntry(), true)) {
+			if (wtIt.isModified(dcIt.getDirCacheEntry(), true,
+					this.walk.getObjectReader())) {
 				return true;
 			}
 		}
@@ -1109,35 +1116,45 @@ public class DirCacheCheckout {
 		ObjectLoader ol = or.open(entry.getObjectId());
 		File parentDir = f.getParentFile();
 		parentDir.mkdirs();
-		File tmpFile = File.createTempFile("._" + f.getName(), null, parentDir); //$NON-NLS-1$
-		WorkingTreeOptions opt = repo.getConfig().get(WorkingTreeOptions.KEY);
-		FileOutputStream rawChannel = new FileOutputStream(tmpFile);
-		OutputStream channel;
-		if (opt.getAutoCRLF() == AutoCRLF.TRUE)
-			channel = new AutoCRLFOutputStream(rawChannel);
-		else
-			channel = rawChannel;
-		try {
-			ol.copyTo(channel);
-		} finally {
-			channel.close();
-		}
 		FS fs = repo.getFS();
-		if (opt.isFileMode() && fs.supportsExecute()) {
-			if (FileMode.EXECUTABLE_FILE.equals(entry.getRawMode())) {
-				if (!fs.canExecute(tmpFile))
-					fs.setExecute(tmpFile, true);
-			} else {
-				if (fs.canExecute(tmpFile))
-					fs.setExecute(tmpFile, false);
+		WorkingTreeOptions opt = repo.getConfig().get(WorkingTreeOptions.KEY);
+		if (entry.getFileMode() == FileMode.SYMLINK
+				&& opt.getSymLinks() == SymLinks.TRUE) {
+			byte[] bytes = ol.getBytes();
+			String target = RawParseUtils.decode(bytes);
+			fs.createSymLink(f, target);
+			entry.setLength(bytes.length);
+			entry.setLastModified(fs.lastModified(f));
+		} else {
+			File tmpFile = File.createTempFile(
+					"._" + f.getName(), null, parentDir); //$NON-NLS-1$
+			FileOutputStream rawChannel = new FileOutputStream(tmpFile);
+			OutputStream channel;
+			if (opt.getAutoCRLF() == AutoCRLF.TRUE)
+				channel = new AutoCRLFOutputStream(rawChannel);
+			else
+				channel = rawChannel;
+			try {
+				ol.copyTo(channel);
+			} finally {
+				channel.close();
 			}
-		}
-		try {
-			FileUtils.rename(tmpFile, f);
-		} catch (IOException e) {
-			throw new IOException(MessageFormat.format(
-					JGitText.get().couldNotWriteFile, tmpFile.getPath(),
-					f.getPath()));
+			if (opt.isFileMode() && fs.supportsExecute()) {
+				if (FileMode.EXECUTABLE_FILE.equals(entry.getRawMode())) {
+					if (!fs.canExecute(tmpFile))
+						fs.setExecute(tmpFile, true);
+				} else {
+					if (fs.canExecute(tmpFile))
+						fs.setExecute(tmpFile, false);
+				}
+			}
+			try {
+				FileUtils.rename(tmpFile, f);
+			} catch (IOException e) {
+				throw new IOException(MessageFormat.format(
+						JGitText.get().couldNotWriteFile, tmpFile.getPath(),
+						f.getPath()));
+			}
 		}
 		entry.setLastModified(f.lastModified());
 		if (opt.getAutoCRLF() != AutoCRLF.FALSE)
@@ -1148,19 +1165,51 @@ public class DirCacheCheckout {
 
 	private static byte[][] forbidden;
 	static {
+		String[] list = getSortedForbiddenFileNames();
+		forbidden = new byte[list.length][];
+		for (int i = 0; i < list.length; ++i)
+			forbidden[i] = Constants.encodeASCII(list[i]);
+	}
+
+	static String[] getSortedForbiddenFileNames() {
 		String[] list = new String[] { "AUX", "COM1", "COM2", "COM3", "COM4", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
 				"COM5", "COM6", "COM7", "COM8", "COM9", "CON", "LPT1", "LPT2", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$ //$NON-NLS-6$ //$NON-NLS-7$ //$NON-NLS-8$
 				"LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "NUL", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$ //$NON-NLS-6$ //$NON-NLS-7$ //$NON-NLS-8$
 				"PRN" }; //$NON-NLS-1$
-		forbidden = new byte[list.length][];
-		for (int i = 0; i < list.length; ++i)
-			forbidden[i] = Constants.encodeASCII(list[i]);
+		return list;
 	}
 
 	private static void checkValidPath(CanonicalTreeParser t)
 			throws InvalidPathException {
 		for (CanonicalTreeParser i = t; i != null; i = i.getParent())
 			checkValidPathSegment(i);
+	}
+
+	/**
+	 * Check if path is a valid path for a checked out file name or ref name.
+	 *
+	 * @param path
+	 * @throws InvalidPathException
+	 *             if the path is invalid
+	 * @since 3.3
+	 */
+	public static void checkValidPath(String path) throws InvalidPathException {
+		boolean isWindows = SystemReader.getInstance().isWindows();
+		boolean isOSX = SystemReader.getInstance().isMacOS();
+		boolean ignCase = isOSX || isWindows;
+
+		byte[] bytes = Constants.encode(path);
+		int segmentStart = 0;
+		for (int i = 0; i < bytes.length; i++) {
+			if (bytes[i] == '/') {
+				checkValidPathSegment(isWindows, ignCase, bytes, segmentStart,
+						i, path);
+				segmentStart = i + 1;
+			}
+		}
+		if (segmentStart < bytes.length)
+			checkValidPathSegment(isWindows, ignCase, bytes, segmentStart,
+					bytes.length, path);
 	}
 
 	private static void checkValidPathSegment(CanonicalTreeParser t)
@@ -1173,33 +1222,38 @@ public class DirCacheCheckout {
 		byte[] raw = t.getEntryPathBuffer();
 		int end = ptr + t.getNameLength();
 
+		checkValidPathSegment(isWindows, ignCase, raw, ptr, end,
+				t.getEntryPathString());
+	}
+
+	private static void checkValidPathSegment(boolean isWindows,
+			boolean ignCase, byte[] raw, int ptr, int end, String path) {
 		// Validate path component at this level of the tree
 		int start = ptr;
 		while (ptr < end) {
 			if (raw[ptr] == '/')
 				throw new InvalidPathException(
-						JGitText.get().invalidPathContainsSeparator,
-						"/", t.getEntryPathString()); //$NON-NLS-1$
+						JGitText.get().invalidPathContainsSeparator, "/", path); //$NON-NLS-1$
 			if (isWindows) {
 				if (raw[ptr] == '\\')
 					throw new InvalidPathException(
 							JGitText.get().invalidPathContainsSeparator,
-							"\\", t.getEntryPathString()); //$NON-NLS-1$
+							"\\", path); //$NON-NLS-1$
 				if (raw[ptr] == ':')
 					throw new InvalidPathException(
 							JGitText.get().invalidPathContainsSeparator,
-							":", t.getEntryPathString()); //$NON-NLS-1$
+							":", path); //$NON-NLS-1$
 			}
 			ptr++;
 		}
 		// '.' and '..' are invalid here
 		if (ptr - start == 1) {
 			if (raw[start] == '.')
-				throw new InvalidPathException(t.getEntryPathString());
+				throw new InvalidPathException(path);
 		} else if (ptr - start == 2) {
 			if (raw[start] == '.')
 				if (raw[start + 1] == '.')
-					throw new InvalidPathException(t.getEntryPathString());
+					throw new InvalidPathException(path);
 		} else if (ptr - start == 4) {
 			// .git (possibly case insensitive) is disallowed
 			if (raw[start] == '.')
@@ -1208,8 +1262,7 @@ public class DirCacheCheckout {
 							|| (ignCase && raw[start + 2] == 'I'))
 						if (raw[start + 3] == 't'
 								|| (ignCase && raw[start + 3] == 'T'))
-							throw new InvalidPathException(
-									t.getEntryPathString());
+							throw new InvalidPathException(path);
 		}
 		if (isWindows) {
 			// Space or period at end of file name is ignored by Windows.
@@ -1218,12 +1271,10 @@ public class DirCacheCheckout {
 			if (ptr > 0) {
 				if (raw[ptr - 1] == '.')
 					throw new InvalidPathException(
-							JGitText.get().invalidPathPeriodAtEndWindows,
-							t.getEntryPathString());
+							JGitText.get().invalidPathPeriodAtEndWindows, path);
 				if (raw[ptr - 1] == ' ')
 					throw new InvalidPathException(
-							JGitText.get().invalidPathSpaceAtEndWindows,
-							t.getEntryPathString());
+							JGitText.get().invalidPathSpaceAtEndWindows, path);
 			}
 
 			int i;
@@ -1245,8 +1296,7 @@ public class DirCacheCheckout {
 						if (k == len)
 							throw new InvalidPathException(
 									JGitText.get().invalidPathReservedOnWindows,
-									RawParseUtils.decode(forbidden[j]), t
-											.getEntryPathString());
+									RawParseUtils.decode(forbidden[j]), path);
 					}
 				}
 			}
