@@ -1,6 +1,7 @@
 jgit (3.3.0-1) UNRELEASED; urgency=medium
 
   * New Upstream release.
+  * Removed d/patches/javaewah-compatibility.patch (applied upstream).
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Thu, 06 Mar 2014 17:29:30 +0100
 
