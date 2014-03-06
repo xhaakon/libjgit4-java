@@ -138,11 +138,13 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 		 *            archive object from createArchiveOutputStream
 		 * @param path
 		 *            full filename relative to the root of the archive
+		 *            (with trailing '/' for directories)
 		 * @param mode
 		 *            mode (for example FileMode.REGULAR_FILE or
 		 *            FileMode.SYMLINK)
 		 * @param loader
-		 *            blob object with data for this entry
+		 *            blob object with data for this entry (null for
+		 *            directories)
 		 * @throws IOException
 		 *            thrown by the underlying output stream for I/O errors
 		 */
@@ -250,6 +252,7 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 
 	private OutputStream out;
 	private ObjectId tree;
+	private String prefix;
 	private String format;
 
 	/** Filename suffix, for automatically choosing a format. */
@@ -264,6 +267,7 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 	}
 
 	private <T extends Closeable> OutputStream writeArchive(Format<T> fmt) {
+		final String pfx = prefix == null ? "" : prefix; //$NON-NLS-1$
 		final TreeWalk walk = new TreeWalk(repo);
 		try {
 			final T outa = fmt.createArchiveOutputStream(out);
@@ -273,16 +277,22 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 				final RevWalk rw = new RevWalk(walk.getObjectReader());
 
 				walk.reset(rw.parseTree(tree));
-				walk.setRecursive(true);
 				while (walk.next()) {
-					final String name = walk.getPathString();
-					final FileMode mode = walk.getFileMode(0);
+					final String name = pfx + walk.getPathString();
+					FileMode mode = walk.getFileMode(0);
 
-					if (mode == FileMode.TREE)
-						// ZIP entries for directories are optional.
-						// Leave them out, mimicking "git archive".
+					if (walk.isSubtree())
+						walk.enterSubtree();
+
+					if (mode == FileMode.GITLINK)
+						// TODO(jrn): Take a callback to recurse
+						// into submodules.
+						mode = FileMode.TREE;
+
+					if (mode == FileMode.TREE) {
+						fmt.putEntry(outa, name + "/", mode, null);
 						continue;
-
+					}
 					walk.getObjectId(idBuf, 0);
 					fmt.putEntry(outa, name, mode, reader.open(idBuf));
 				}
@@ -326,6 +336,18 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 
 		this.tree = tree;
 		setCallable(true);
+		return this;
+	}
+
+	/**
+	 * @param prefix
+	 *            string prefixed to filenames in archive (e.g., "master/").
+	 *            null means to not use any leading prefix.
+	 * @return this
+	 * @since 3.3
+	 */
+	public ArchiveCommand setPrefix(String prefix) {
+		this.prefix = prefix;
 		return this;
 	}
 

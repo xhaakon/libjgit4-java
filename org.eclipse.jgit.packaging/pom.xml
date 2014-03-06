@@ -53,7 +53,7 @@
 
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>jgit.tycho.parent</artifactId>
-  <version>3.2.0.201312181205-r</version>
+  <version>3.3.0.201403021825-r</version>
   <packaging>pom</packaging>
 
   <name>JGit Tycho Parent</name>
@@ -73,6 +73,7 @@
   <modules>
     <module>org.eclipse.jgit.target</module>
     <module>org.eclipse.jgit.feature</module>
+    <module>org.eclipse.jgit.http.apache.feature</module>
     <module>org.eclipse.jgit.java7.feature</module>
     <module>org.eclipse.jgit.pgm.feature</module>
     <module>org.eclipse.jgit.source.feature</module>

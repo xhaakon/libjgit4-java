@@ -50,6 +50,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -270,6 +271,20 @@ public abstract class FS {
 	 */
 	public long length(File path) throws IOException {
 		return path.length();
+	}
+
+	/**
+	 * Delete a file. Throws an exception if delete fails.
+	 *
+	 * @param f
+	 * @throws IOException
+	 *             this may be a Java7 subclass with detailed information
+	 * @since 3.3
+	 */
+	public void delete(File f) throws IOException {
+		if (!f.delete())
+			throw new IOException(MessageFormat.format(
+					JGitText.get().deleteFileFailed, f.getAbsolutePath()));
 	}
 
 	/**
@@ -618,5 +633,173 @@ public abstract class FS {
 		Holder(V value) {
 			this.value = value;
 		}
+	}
+
+	/**
+	 * File attributes we typically care for.
+	 *
+	 * @since 3.3
+	 */
+	public static class Attributes {
+
+		/**
+		 * @return true if this are the attributes of a directory
+		 */
+		public boolean isDirectory() {
+			return isDirectory;
+		}
+
+		/**
+		 * @return true if this are the attributes of an executable file
+		 */
+		public boolean isExecutable() {
+			return isExecutable;
+		}
+
+		/**
+		 * @return true if this are the attributes of a symbolic link
+		 */
+		public boolean isSymbolicLink() {
+			return isSymbolicLink;
+		}
+
+		/**
+		 * @return true if this are the attributes of a regular file
+		 */
+		public boolean isRegularFile() {
+			return isRegularFile;
+		}
+
+		/**
+		 * @return the time when the file was created
+		 */
+		public long getCreationTime() {
+			return creationTime;
+		}
+
+		/**
+		 * @return the time (milliseconds since 1970-01-01) when this object was
+		 *         last modified
+		 */
+		public long getLastModifiedTime() {
+			return lastModifiedTime;
+		}
+
+		private boolean isDirectory;
+
+		private boolean isSymbolicLink;
+
+		private boolean isRegularFile;
+
+		private long creationTime;
+
+		private long lastModifiedTime;
+
+		private boolean isExecutable;
+
+		private File file;
+
+		private boolean exists;
+
+		/**
+		 * file length
+		 */
+		protected long length = -1;
+
+		FS fs;
+
+		Attributes(FS fs, File file, boolean exists, boolean isDirectory,
+				boolean isExecutable, boolean isSymbolicLink,
+				boolean isRegularFile, long creationTime,
+				long lastModifiedTime, long length) {
+			this.fs = fs;
+			this.file = file;
+			this.exists = exists;
+			this.isDirectory = isDirectory;
+			this.isExecutable = isExecutable;
+			this.isSymbolicLink = isSymbolicLink;
+			this.isRegularFile = isRegularFile;
+			this.creationTime = creationTime;
+			this.lastModifiedTime = lastModifiedTime;
+			this.length = length;
+		}
+
+		/**
+		 * Constructor when there are issues with reading
+		 *
+		 * @param fs
+		 * @param path
+		 */
+		public Attributes(File path, FS fs) {
+			this.file = path;
+			this.fs = fs;
+		}
+
+		/**
+		 * @return length of this file object
+		 */
+		public long getLength() {
+			if (length == -1)
+				return length = file.length();
+			return length;
+		}
+
+		/**
+		 * @return the filename
+		 */
+		public String getName() {
+			return file.getName();
+		}
+
+		/**
+		 * @return the file the attributes apply to
+		 */
+		public File getFile() {
+			return file;
+		}
+
+		boolean exists() {
+			return exists;
+		}
+	}
+
+	/**
+	 * @param path
+	 * @return the file attributes we care for
+	 * @since 3.3
+	 */
+	public Attributes getAttributes(File path) {
+		boolean isDirectory = isDirectory(path);
+		boolean isFile = !isDirectory && path.isFile();
+		assert path.exists() == isDirectory || isFile;
+		boolean exists = isDirectory || isFile;
+		boolean canExecute = exists && !isDirectory && canExecute(path);
+		boolean isSymlink = false;
+		long lastModified = exists ? path.lastModified() : 0L;
+		long createTime = 0L;
+		return new Attributes(this, path, exists, isDirectory, canExecute,
+				isSymlink, isFile, createTime, lastModified, -1);
+	}
+
+	/**
+	 * Normalize the unicode path to composed form.
+	 *
+	 * @param file
+	 * @return NFC-format File
+	 * @since 3.3
+	 */
+	public File normalize(File file) {
+		return file;
+	}
+
+	/**
+	 * Normalize the unicode path to composed form.
+	 *
+	 * @param name
+	 * @return NFC-format string
+	 * @since 3.3
+	 */
+	public String normalize(String name) {
+		return name;
 	}
 }

@@ -46,6 +46,7 @@
 
 package org.eclipse.jgit.treewalk;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -131,7 +132,7 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	@Override
 	public AbstractTreeIterator createSubtreeIterator(final ObjectReader reader)
 			throws IncorrectObjectTypeException, IOException {
-		return new FileTreeIterator(this, ((FileEntry) current()).file, fs);
+		return new FileTreeIterator(this, ((FileEntry) current()).getFile(), fs);
 	}
 
 	private Entry[] entries() {
@@ -148,13 +149,11 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 * Wrapper for a standard Java IO file
 	 */
 	static public class FileEntry extends Entry {
-		final File file;
-
 		private final FileMode mode;
 
-		private long length = -1;
+		private FS.Attributes attributes;
 
-		private long lastModified;
+		private FS fs;
 
 		/**
 		 * Create a new file entry.
@@ -164,15 +163,18 @@ public class FileTreeIterator extends WorkingTreeIterator {
 		 * @param fs
 		 *            file system
 		 */
-		public FileEntry(final File f, FS fs) {
-			file = f;
-
-			if (f.isDirectory()) {
+		public FileEntry(File f, FS fs) {
+			this.fs = fs;
+			f = fs.normalize(f);
+			attributes = fs.getAttributes(f);
+			if (attributes.isSymbolicLink())
+				mode = FileMode.SYMLINK;
+			else if (attributes.isDirectory()) {
 				if (new File(f, Constants.DOT_GIT).exists())
 					mode = FileMode.GITLINK;
 				else
 					mode = FileMode.TREE;
-			} else if (fs.canExecute(file))
+			} else if (attributes.isExecutable())
 				mode = FileMode.EXECUTABLE_FILE;
 			else
 				mode = FileMode.REGULAR_FILE;
@@ -185,26 +187,27 @@ public class FileTreeIterator extends WorkingTreeIterator {
 
 		@Override
 		public String getName() {
-			return file.getName();
+			return attributes.getName();
 		}
 
 		@Override
 		public long getLength() {
-			if (length < 0)
-				length = file.length();
-			return length;
+			return attributes.getLength();
 		}
 
 		@Override
 		public long getLastModified() {
-			if (lastModified == 0)
-				lastModified = file.lastModified();
-			return lastModified;
+			return attributes.getLastModifiedTime();
 		}
 
 		@Override
 		public InputStream openInputStream() throws IOException {
-			return new FileInputStream(file);
+			if (fs.isSymLink(getFile()))
+				return new ByteArrayInputStream(fs.readSymLink(getFile())
+						.getBytes(
+						Constants.CHARACTER_ENCODING));
+			else
+				return new FileInputStream(getFile());
 		}
 
 		/**
@@ -213,7 +216,7 @@ public class FileTreeIterator extends WorkingTreeIterator {
 		 * @return the underlying file of this entry
 		 */
 		public File getFile() {
-			return file;
+			return attributes.getFile();
 		}
 	}
 
