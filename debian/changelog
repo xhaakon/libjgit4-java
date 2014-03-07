@@ -1,4 +1,4 @@
-jgit (3.3.0-1) UNRELEASED; urgency=medium
+jgit (3.3.0-1) unstable; urgency=medium
 
   * New Upstream release.
   * Removed d/patches/javaewah-compatibility.patch (applied upstream).
