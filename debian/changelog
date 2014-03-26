@@ -1,3 +1,9 @@
+jgit (3.3.1-1) UNRELEASED; urgency=medium
+
+  * New Upstream release.
+
+ -- Jakub Adam <jakub.adam@ktknet.cz>  Wed, 26 Mar 2014 19:11:23 +0100
+
 jgit (3.3.0-1) unstable; urgency=medium
 
   * New Upstream release.
