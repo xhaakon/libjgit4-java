@@ -1,0 +1,25 @@
+From: Jakub Adam <jakub.adam@ktknet.cz>
+Date: Wed, 26 Mar 2014 20:03:03 +0100
+Subject: fix-jgit-pgm-test-dependencies
+
+---
+ org.eclipse.jgit.pgm.test/pom.xml | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/org.eclipse.jgit.pgm.test/pom.xml b/org.eclipse.jgit.pgm.test/pom.xml
+index a0490e8..a24ed56 100644
+--- a/org.eclipse.jgit.pgm.test/pom.xml
++++ b/org.eclipse.jgit.pgm.test/pom.xml
+@@ -101,6 +101,12 @@
+       <version>${project.version}</version>
+     </dependency>
+ 
++    <dependency>
++      <groupId>org.tukaani</groupId>
++      <artifactId>xz</artifactId>
++      <version>debian</version>
++    </dependency>
++
+   </dependencies>
+ 
+   <build>

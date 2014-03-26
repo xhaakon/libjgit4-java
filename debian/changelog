@@ -1,6 +1,9 @@
 jgit (3.3.1-1) UNRELEASED; urgency=medium
 
   * New Upstream release.
+  * Fix test failure in org.eclipse.jgit.pgm.ArchiveTest. Added libxz-java
+    into Build-Depends and into org.eclipse.jgit.pgm.test/pom.xml since
+    the dependency has been made optional in libcommons-compress-java.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Wed, 26 Mar 2014 19:11:23 +0100
 

@@ -18,6 +18,7 @@ Build-Depends: debhelper (>= 9~),
                libmaven-antrun-plugin-java,
                libmaven-javadoc-plugin-java,
                libclirr-maven-plugin-java,
+               libxz-java,
                maven-debian-helper,
                maven-repo-helper
 Standards-Version: 3.9.5
