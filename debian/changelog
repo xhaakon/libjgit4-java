@@ -1,4 +1,4 @@
-jgit (3.3.1-1) UNRELEASED; urgency=medium
+jgit (3.3.1-1) unstable; urgency=medium
 
   * New Upstream release.
   * Fix test failure in org.eclipse.jgit.pgm.ArchiveTest. Added libxz-java
