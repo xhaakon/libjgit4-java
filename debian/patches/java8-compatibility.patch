@@ -1,0 +1,60 @@
+Description: Fixes the test failures with Java 8
+Author: Emmanuel Bourg <ebourg@apache.org>
+Forwarded: http://git.eclipse.org/c/jgit/jgit.git/commit/?id=20fc10
+           http://git.eclipse.org/c/jgit/jgit.git/commit/?id=bb9a48
+--- a/org.eclipse.jgit.pgm.test/pom.xml
++++ b/org.eclipse.jgit.pgm.test/pom.xml
+@@ -64,7 +64,7 @@
+     <profile>
+       <id>jgit.java7</id>
+       <activation>
+-	<jdk>1.7</jdk>
++	<jdk>[1.7,)</jdk>
+       </activation>
+       <dependencies>
+ 	<dependency>
+--- a/org.eclipse.jgit.pgm/pom.xml
++++ b/org.eclipse.jgit.pgm/pom.xml
+@@ -112,7 +112,7 @@
+     <profile>
+       <id>java7</id>
+       <activation>
+-       <jdk>1.7</jdk>
++       <jdk>[1.7,)</jdk>
+       </activation>
+       <dependencies>
+         <dependency>
+--- a/org.eclipse.jgit.test/pom.xml
++++ b/org.eclipse.jgit.test/pom.xml
+@@ -66,7 +66,7 @@
+     <profile>
+       <id>jgit.java7</id>
+       <activation>
+-	<jdk>1.7</jdk>
++	<jdk>[1.7,)</jdk>
+       </activation>
+       <dependencies>
+ 	<dependency>
+--- a/pom.xml
++++ b/pom.xml
+@@ -504,7 +504,7 @@
+     <profile>
+       <id>jgit.java6</id>
+       <activation>
+-        <jdk>1.6</jdk>
++        <jdk>[1.6,)</jdk>
+       </activation>
+       <modules>
+         <module>org.eclipse.jgit.console</module>
+@@ -513,10 +513,9 @@
+     <profile>
+       <id>jgit.java7</id>
+       <activation>
+-        <jdk>1.7</jdk>
++        <jdk>[1.7,)</jdk>
+       </activation>
+       <modules>
+-        <module>org.eclipse.jgit.console</module>
+         <module>org.eclipse.jgit.java7</module>
+         <!--module>org.eclipse.jgit.java7.test</module-->
+       </modules>

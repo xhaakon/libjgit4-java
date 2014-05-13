@@ -1,8 +1,9 @@
-jgit (3.3.2-1) UNRELEASED; urgency=medium
+jgit (3.3.2-1) unstable; urgency=medium
 
   * Team upload.
   * New Upstream release.
     - Refreshed the patches
+  * Fixed a test failure with Java 8
 
  -- Emmanuel Bourg <ebourg@apache.org>  Tue, 13 May 2014 10:36:22 +0200
 
