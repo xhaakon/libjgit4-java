@@ -1,9 +1,14 @@
 jgit (3.3.2-1) unstable; urgency=medium
 
   * Team upload.
+
+  [ Emmanuel Bourg ]
   * New Upstream release.
     - Refreshed the patches
   * Fixed a test failure with Java 8
+
+  [ tony mancill ]
+  * Update gbp.conf for bz2 upstream tarball.
 
  -- Emmanuel Bourg <ebourg@apache.org>  Tue, 13 May 2014 10:36:22 +0200
 
