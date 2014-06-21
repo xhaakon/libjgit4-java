@@ -1,2 +1,3 @@
 * maven-shade-plugin * * * *
 * maven-source-plugin * * * *
+* jacoco-maven-plugin * * * *
