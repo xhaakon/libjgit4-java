@@ -50,7 +50,7 @@
   <parent>
     <groupId>org.eclipse.jgit</groupId>
     <artifactId>org.eclipse.jgit-parent</artifactId>
-    <version>3.3.2.201404171909-r</version>
+    <version>3.4.0.201406110918-r</version>
   </parent>
 
   <artifactId>org.eclipse.jgit.pgm.test</artifactId>
@@ -64,7 +64,7 @@
     <profile>
       <id>jgit.java7</id>
       <activation>
-	<jdk>1.7</jdk>
+	<jdk>[1.7,)</jdk>
       </activation>
       <dependencies>
 	<dependency>

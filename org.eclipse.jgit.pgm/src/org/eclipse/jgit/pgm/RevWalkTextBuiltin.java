@@ -146,6 +146,9 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 		revLimiter.add(MessageRevFilter.create(msg));
 	}
 
+	@Option(name = "--max-count", aliases = "-n", metaVar = "metaVar_n")
+	private int maxCount = -1;
+
 	@Override
 	protected void run() throws Exception {
 		walk = createWalk();
@@ -199,27 +202,31 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 		final int n = walkLoop();
 		if (count) {
 			final long end = System.currentTimeMillis();
-			System.err.print(n);
-			System.err.print(' ');
-			System.err
-					.println(MessageFormat.format(
+			errw.print(n);
+			errw.print(' ');
+			errw.println(MessageFormat.format(
 							CLIText.get().timeInMilliSeconds,
 							Long.valueOf(end - start)));
 		}
 	}
 
 	protected RevWalk createWalk() {
+		RevWalk result;
 		if (objects)
-			return new ObjectWalk(db);
-		if (argWalk != null)
-			return argWalk;
-		return argWalk = new RevWalk(db);
+			result = new ObjectWalk(db);
+		else if (argWalk != null)
+			result = argWalk;
+		else
+		  result = argWalk = new RevWalk(db);
+		result.setRewriteParents(false);
+		return result;
 	}
 
 	protected int walkLoop() throws Exception {
 		int n = 0;
 		for (final RevCommit c : walk) {
-			n++;
+			if (++n > maxCount && maxCount >= 0)
+				break;
 			show(c);
 		}
 		if (walk instanceof ObjectWalk) {

@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2007, Robin Rosenberg <robin.rosenberg@dewire.com>
  * Copyright (C) 2008, Shawn O. Pearce <spearce@spearce.org>
+ * Copyright (C) 2014, Gustaf Lundh <gustaf.lundh@sonymobile.com>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -188,6 +189,8 @@ public class RevWalk implements Iterable<RevCommit> {
 	private TreeFilter treeFilter;
 
 	private boolean retainBody;
+
+	private boolean rewriteParents = true;
 
 	boolean shallowCommitsInitialized;
 
@@ -388,7 +391,11 @@ public class RevWalk implements Iterable<RevCommit> {
 			treeFilter = TreeFilter.ALL;
 			markStart(tip);
 			markStart(base);
-			return next() == base;
+			RevCommit mergeBase;
+			while ((mergeBase = next()) != null)
+				if (mergeBase == base)
+					return true;
+			return false;
 		} finally {
 			filter = oldRF;
 			treeFilter = oldTF;
@@ -528,8 +535,9 @@ public class RevWalk implements Iterable<RevCommit> {
 	 * will not be simplified.
 	 * <p>
 	 * If non-null and not {@link TreeFilter#ALL} then the tree filter will be
-	 * installed and commits will have their ancestry simplified to hide commits
-	 * that do not contain tree entries matched by the filter.
+	 * installed. Commits will have their ancestry simplified to hide commits that
+	 * do not contain tree entries matched by the filter, unless
+	 * {@code setRewriteParents(false)} is called.
 	 * <p>
 	 * Usually callers should be inserting a filter graph including
 	 * {@link TreeFilter#ANY_DIFF} along with one or more
@@ -543,6 +551,28 @@ public class RevWalk implements Iterable<RevCommit> {
 	public void setTreeFilter(final TreeFilter newFilter) {
 		assertNotStarted();
 		treeFilter = newFilter != null ? newFilter : TreeFilter.ALL;
+	}
+
+	/**
+	 * Set whether to rewrite parent pointers when filtering by modified paths.
+	 * <p>
+	 * By default, when {@link #setTreeFilter(TreeFilter)} is called with non-
+	 * null and non-{@link TreeFilter#ALL} filter, commits will have their
+	 * ancestry simplified and parents rewritten to hide commits that do not match
+	 * the filter.
+	 * <p>
+	 * This behavior can be bypassed by passing false to this method.
+	 *
+	 * @param rewrite
+	 *            whether to rewrite parents; defaults to true.
+	 * @since 3.4
+	 */
+	public void setRewriteParents(boolean rewrite) {
+		rewriteParents = rewrite;
+	}
+
+	boolean getRewriteParents() {
+		return rewriteParents;
 	}
 
 	/**
