@@ -9,13 +9,15 @@ Subject: debian-custom-build
 - add org.eclipse.jgit.pgm to jgit console classpath
 - don't build jgit console all-in-one executable
 ---
- org.eclipse.jgit.pgm/jgit.sh |    2 +-
- pom.xml                      |    9 +++++----
+ org.eclipse.jgit.pgm/jgit.sh | 2 +-
+ pom.xml                      | 9 +++++----
  2 files changed, 6 insertions(+), 5 deletions(-)
 
+diff --git a/org.eclipse.jgit.pgm/jgit.sh b/org.eclipse.jgit.pgm/jgit.sh
+index 6b9ce40..3700d4f 100644
 --- a/org.eclipse.jgit.pgm/jgit.sh
 +++ b/org.eclipse.jgit.pgm/jgit.sh
-@@ -86,7 +86,7 @@
+@@ -86,7 +86,7 @@ Darwin)
  	;;
  esac
  
@@ -24,9 +26,11 @@ Subject: debian-custom-build
  export CLASSPATH
  
  java=java
+diff --git a/pom.xml b/pom.xml
+index edd2e6e..79fdb90 100644
 --- a/pom.xml
 +++ b/pom.xml
-@@ -400,6 +400,7 @@
+@@ -410,6 +410,7 @@
            <links>
              <link>http://java.sun.com/j2se/1.5.0/docs/api</link>
            </links>
@@ -34,16 +38,16 @@ Subject: debian-custom-build
          </configuration>
          <executions>
            <execution>
-@@ -517,7 +518,7 @@
+@@ -547,7 +548,7 @@
+       </activation>
        <modules>
-         <module>org.eclipse.jgit.console</module>
          <module>org.eclipse.jgit.java7</module>
 -        <module>org.eclipse.jgit.java7.test</module>
 +        <!--module>org.eclipse.jgit.java7.test</module-->
        </modules>
      </profile>
      <profile>
-@@ -604,11 +605,11 @@
+@@ -634,11 +635,11 @@
      <module>org.eclipse.jgit.http.server</module>
      <module>org.eclipse.jgit.pgm</module>
      <module>org.eclipse.jgit.junit</module>

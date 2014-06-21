@@ -2,4 +2,3 @@ debian-custom-build.patch
 ftbfs-args4j-2.0.25-fix.patch
 unversioned-orbit-dependencies.patch
 fix-jgit-pgm-test-dependencies.patch
-java8-compatibility.patch

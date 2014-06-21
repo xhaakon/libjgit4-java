@@ -7,6 +7,7 @@ as it had no effect.
 
 Added 'hidden' argument to OptionDef constructor.
 ---
+ org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java    |  2 +-
  org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java      | 10 +++++-----
  org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java        |  2 +-
  org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java    |  2 +-
@@ -17,8 +18,21 @@ Added 'hidden' argument to OptionDef constructor.
  .../src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java         |  4 ++--
  .../src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java      |  6 +++---
  .../src/org/eclipse/jgit/pgm/opt/CmdLineParser.java            |  2 +-
- 10 files changed, 17 insertions(+), 17 deletions(-)
+ 11 files changed, 18 insertions(+), 18 deletions(-)
 
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java
+index 8f911fd..e424bf7 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java
+@@ -75,7 +75,7 @@
+ 	private String name;
+ 
+ 	@Argument(index = 1)
+-	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = StopOptionHandler.class)
++	@Option(name = "--", metaVar = "metaVar_paths", handler = StopOptionHandler.class)
+ 	private List<String> paths = new ArrayList<String>();
+ 
+ 	@Override
 diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java
 index 04182d6..65a6c2b 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java
@@ -78,10 +92,10 @@ index d89053c..90d7c06 100644
  
  	@Override
 diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java
-index e444d21..5249552 100644
+index 4b16ed8..4da8e09 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java
-@@ -66,7 +66,7 @@
+@@ -67,7 +67,7 @@
  	private AbstractTreeIterator tree;
  
  	@Argument(index = 1)
@@ -91,7 +105,7 @@ index e444d21..5249552 100644
  
  	@Override
 diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
-index 847bf7f..3109544 100644
+index d6063c3..a223587 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
 @@ -126,7 +126,7 @@ void enableBoundary(final boolean on) {
@@ -174,7 +188,7 @@ index 4205140..72425f1 100644
  
  	@Override
 diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
-index c36cc2c..f5f42c5 100644
+index 3f77aa6..595e772 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
 @@ -184,7 +184,7 @@ public RevWalk getRevWalkGently() {

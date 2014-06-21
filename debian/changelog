@@ -1,6 +1,8 @@
 jgit (3.4.0-1) UNRELEASED; urgency=medium
 
   * New Upstream release.
+  * Refreshed debian-custom-build.patch and ftbfs-args4j-2.0.25-fix.patch.
+  * Removed d/patches/java8-compatibility.patch (applied upstream).
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Sat, 21 Jun 2014 14:16:30 +0200
 
