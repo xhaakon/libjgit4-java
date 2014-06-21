@@ -49,6 +49,7 @@ import org.eclipse.jgit.blame.ReverseWalk.ReverseCommit;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.EditList;
 import org.eclipse.jgit.diff.RawText;
+import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
@@ -56,6 +57,7 @@ import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevFlag;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 
 /**
@@ -112,6 +114,10 @@ class Candidate {
 		sourcePath = path;
 	}
 
+	void beginResult(RevWalk rw) throws MissingObjectException, IOException {
+		rw.parseBody(sourceCommit);
+	}
+
 	int getParentCount() {
 		return sourceCommit.getParentCount();
 	}
@@ -124,8 +130,16 @@ class Candidate {
 		return null;
 	}
 
+	boolean has(RevFlag flag) {
+		return sourceCommit.has(flag);
+	}
+
 	void add(RevFlag flag) {
 		sourceCommit.add(flag);
+	}
+
+	void remove(RevFlag flag) {
+		sourceCommit.remove(flag);
 	}
 
 	int getTime() {
@@ -275,6 +289,42 @@ class Candidate {
 		return r;
 	}
 
+	boolean canMergeRegions(Candidate other) {
+		return sourceCommit == other.sourceCommit
+				&& sourcePath.getPath().equals(other.sourcePath.getPath());
+	}
+
+	void mergeRegions(Candidate other) {
+		// regionList is always sorted by resultStart. Merge join two
+		// linked lists, preserving the ordering. Combine neighboring
+		// regions to reduce the number of results seen by callers.
+		Region a = clearRegionList();
+		Region b = other.clearRegionList();
+		Region t = null;
+
+		while (a != null && b != null) {
+			if (a.resultStart < b.resultStart) {
+				Region n = a.next;
+				t = add(t, this, a);
+				a = n;
+			} else {
+				Region n = b.next;
+				t = add(t, this, b);
+				b = n;
+			}
+		}
+
+		if (a != null) {
+			Region n = a.next;
+			t = add(t, this, a);
+			t.next = n;
+		} else /* b != null */{
+			Region n = b.next;
+			t = add(t, this, b);
+			t.next = n;
+		}
+	}
+
 	@SuppressWarnings("nls")
 	@Override
 	public String toString() {
@@ -355,6 +405,11 @@ class Candidate {
 		}
 
 		@Override
+		void beginResult(RevWalk rw) {
+			// Blob candidates have nothing to prepare.
+		}
+
+		@Override
 		int getParentCount() {
 			return parent != null ? 1 : 0;
 		}
@@ -370,7 +425,18 @@ class Candidate {
 		}
 
 		@Override
+		boolean has(RevFlag flag) {
+			return true; // Pretend flag was added; sourceCommit is null.
+		}
+
+		@Override
 		void add(RevFlag flag) {
+			// Do nothing, sourceCommit is null.
+		}
+
+		@Override
+
+		void remove(RevFlag flag) {
 			// Do nothing, sourceCommit is null.
 		}
 

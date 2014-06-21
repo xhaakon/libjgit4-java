@@ -45,9 +45,17 @@ package org.eclipse.jgit.api;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import java.io.File;
+
+import org.eclipse.jgit.api.MergeCommand.FastForwardMode;
+import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.blame.BlameResult;
+import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.junit.RepositoryTestCase;
+import org.eclipse.jgit.lib.ConfigConstants;
+import org.eclipse.jgit.lib.CoreConfig.AutoCRLF;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.junit.Test;
 
 /**
@@ -324,5 +332,159 @@ public class BlameCommandTest extends RepositoryTestCase {
 		assertEquals(commit3, lines.getSourceCommit(0));
 		assertEquals(commit3, lines.getSourceCommit(1));
 		assertEquals(commit3, lines.getSourceCommit(2));
+	}
+
+	@Test
+	public void testCoreAutoCrlf1() throws Exception {
+		testCoreAutoCrlf(AutoCRLF.INPUT, AutoCRLF.FALSE);
+	}
+
+	@Test
+	public void testCoreAutoCrlf2() throws Exception {
+		testCoreAutoCrlf(AutoCRLF.FALSE, AutoCRLF.FALSE);
+	}
+
+	@Test
+	public void testCoreAutoCrlf3() throws Exception {
+		testCoreAutoCrlf(AutoCRLF.INPUT, AutoCRLF.INPUT);
+	}
+
+	@Test
+	public void testCoreAutoCrlf4() throws Exception {
+		testCoreAutoCrlf(AutoCRLF.FALSE, AutoCRLF.INPUT);
+	}
+
+	@Test
+	public void testCoreAutoCrlf5() throws Exception {
+		testCoreAutoCrlf(AutoCRLF.INPUT, AutoCRLF.TRUE);
+	}
+
+	private void testCoreAutoCrlf(AutoCRLF modeForCommitting,
+			AutoCRLF modeForReset) throws Exception {
+		Git git = new Git(db);
+		FileBasedConfig config = db.getConfig();
+		config.setEnum(ConfigConstants.CONFIG_CORE_SECTION, null,
+				ConfigConstants.CONFIG_KEY_AUTOCRLF, modeForCommitting);
+		config.save();
+
+		String joinedCrlf = "a\r\nb\r\nc\r\n";
+		File trashFile = writeTrashFile("file.txt", joinedCrlf);
+		git.add().addFilepattern("file.txt").call();
+		RevCommit commit = git.commit().setMessage("create file").call();
+
+		// re-create file from the repo
+		trashFile.delete();
+		config.setEnum(ConfigConstants.CONFIG_CORE_SECTION, null,
+				ConfigConstants.CONFIG_KEY_AUTOCRLF, modeForReset);
+		config.save();
+		git.reset().setMode(ResetType.HARD).call();
+
+		BlameCommand command = new BlameCommand(db);
+		command.setFilePath("file.txt");
+		BlameResult lines = command.call();
+
+		assertEquals(3, lines.getResultContents().size());
+		assertEquals(commit, lines.getSourceCommit(0));
+		assertEquals(commit, lines.getSourceCommit(1));
+		assertEquals(commit, lines.getSourceCommit(2));
+	}
+
+	@Test
+	public void testConflictingMerge1() throws Exception {
+		Git git = new Git(db);
+
+		RevCommit base = commitFile("file.txt", join("0", "1", "2", "3", "4"),
+				"master");
+
+		git.checkout().setName("side").setCreateBranch(true)
+				.setStartPoint(base).call();
+		RevCommit side = commitFile("file.txt",
+				join("0", "1 side", "2", "3 on side", "4"), "side");
+
+		commitFile("file.txt", join("0", "1", "2"), "master");
+
+		checkoutBranch("refs/heads/master");
+		git.merge().include(side).call();
+
+		// The merge results in a conflict, which we resolve using mostly the
+		// side branch contents. Especially the "4" survives.
+		RevCommit merge = commitFile("file.txt",
+				join("0", "1 side", "2", "3 resolved", "4"), "master");
+
+		BlameCommand command = new BlameCommand(db);
+		command.setFilePath("file.txt");
+		BlameResult lines = command.call();
+
+		assertEquals(5, lines.getResultContents().size());
+		assertEquals(base, lines.getSourceCommit(0));
+		assertEquals(side, lines.getSourceCommit(1));
+		assertEquals(base, lines.getSourceCommit(2));
+		assertEquals(merge, lines.getSourceCommit(3));
+		assertEquals(base, lines.getSourceCommit(4));
+	}
+
+	// this test inverts the order of the master and side commit and is
+	// otherwise identical to testConflictingMerge1
+	@Test
+	public void testConflictingMerge2() throws Exception {
+		Git git = new Git(db);
+
+		RevCommit base = commitFile("file.txt", join("0", "1", "2", "3", "4"),
+				"master");
+
+		commitFile("file.txt", join("0", "1", "2"), "master");
+
+		git.checkout().setName("side").setCreateBranch(true)
+				.setStartPoint(base).call();
+		RevCommit side = commitFile("file.txt",
+				join("0", "1 side", "2", "3 on side", "4"), "side");
+
+		checkoutBranch("refs/heads/master");
+		git.merge().include(side).call();
+
+		// The merge results in a conflict, which we resolve using mostly the
+		// side branch contents. Especially the "4" survives.
+		RevCommit merge = commitFile("file.txt",
+				join("0", "1 side", "2", "3 resolved", "4"), "master");
+
+		BlameCommand command = new BlameCommand(db);
+		command.setFilePath("file.txt");
+		BlameResult lines = command.call();
+
+		assertEquals(5, lines.getResultContents().size());
+		assertEquals(base, lines.getSourceCommit(0));
+		assertEquals(side, lines.getSourceCommit(1));
+		assertEquals(base, lines.getSourceCommit(2));
+		assertEquals(merge, lines.getSourceCommit(3));
+		assertEquals(base, lines.getSourceCommit(4));
+	}
+
+	@Test
+	public void testWhitespaceMerge() throws Exception {
+		Git git = new Git(db);
+		RevCommit base = commitFile("file.txt", join("0", "1", "2"), "master");
+		RevCommit side = commitFile("file.txt", join("0", "1", "   2 side  "),
+				"side");
+
+		checkoutBranch("refs/heads/master");
+		git.merge().setFastForward(FastForwardMode.NO_FF).include(side).call();
+
+		// change whitespace, so the merge content is not identical to side, but
+		// is the same when ignoring whitespace
+		writeTrashFile("file.txt", join("0", "1", "2 side"));
+		RevCommit merge = git.commit().setAll(true).setMessage("merge")
+				.setAmend(true)
+				.call();
+
+		BlameCommand command = new BlameCommand(db);
+		command.setFilePath("file.txt")
+				.setTextComparator(RawTextComparator.WS_IGNORE_ALL)
+				.setStartCommit(merge.getId());
+		BlameResult lines = command.call();
+
+		assertEquals(3, lines.getResultContents().size());
+		assertEquals(base, lines.getSourceCommit(0));
+		assertEquals(base, lines.getSourceCommit(1));
+		assertEquals(side, lines.getSourceCommit(2));
 	}
 }

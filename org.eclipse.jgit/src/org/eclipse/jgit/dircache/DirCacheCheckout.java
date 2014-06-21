@@ -62,6 +62,7 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.CoreConfig.AutoCRLF;
 import org.eclipse.jgit.lib.CoreConfig.SymLinks;
 import org.eclipse.jgit.lib.FileMode;
+import org.eclipse.jgit.lib.ObjectChecker;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
@@ -561,7 +562,7 @@ public class DirCacheCheckout {
 		 * 6b   D        F       F       N         N       N       N           Conflict
 		 * 7    F        D       F       Y         Y       N       N           Update
 		 * 8    F        D       F       N         Y       N       N           Conflict
-		 * 9    F        D       F       Y         N       N       N           Update
+		 * 9    F        D       F                 N       N       N           Conflict
 		 * 10   F        D       D                 N       N       Y           Keep
 		 * 11   F        D       D                 N       N       N           Conflict
 		 * 12   F        F       D       Y         N       Y       N           Update
@@ -609,7 +610,7 @@ public class DirCacheCheckout {
 			// switch processes all relevant cases.
 			switch (ffMask) {
 			case 0xDDF: // 1 2
-				if (isModified(name)) {
+				if (f != null && isModifiedSubtree_IndexWorkingtree(name)) {
 					conflict(name, dce, h, m); // 1
 				} else {
 					update(name, mId, mMode); // 2
@@ -627,6 +628,7 @@ public class DirCacheCheckout {
 					keep(dce); // 5 6
 				else
 					conflict(name, dce, h, m); // 5b 6b
+				break;
 			case 0xFDD: // 10 11
 				// TODO: make use of tree extension as soon as available in jgit
 				// we would like to do something like
@@ -645,32 +647,29 @@ public class DirCacheCheckout {
 				break;
 			case 0xFDF: // 7 8 9
 				if (equalIdAndMode(hId, hMode, mId, mMode)) {
-					if (isModified(name))
+					if (isModifiedSubtree_IndexWorkingtree(name))
 						conflict(name, dce, h, m); // 8
 					else
 						update(name, mId, mMode); // 7
-				} else if (!isModified(name))
-					update(name, mId, mMode); // 9
-				else
-					// To be confirmed - this case is not in the table.
-					conflict(name, dce, h, m);
+				} else
+					conflict(name, dce, h, m); // 9
 				break;
 			case 0xFD0: // keep without a rule
 				keep(dce);
 				break;
 			case 0xFFD: // 12 13 14
 				if (equalIdAndMode(hId, hMode, iId, iMode))
-					if (f == null
-							|| f.isModified(dce, true,
+					if (f != null
+							&& f.isModified(dce, true,
 									this.walk.getObjectReader()))
-						conflict(name, dce, h, m);
+						conflict(name, dce, h, m); // 13
 					else
-						remove(name);
+						remove(name); // 12
 				else
-					conflict(name, dce, h, m);
+					conflict(name, dce, h, m); // 14
 				break;
 			case 0x0DF: // 16 17
-				if (!isModified(name))
+				if (!isModifiedSubtree_IndexWorkingtree(name))
 					update(name, mId, mMode);
 				else
 					conflict(name, dce, h, m);
@@ -682,12 +681,14 @@ public class DirCacheCheckout {
 		}
 
 		// if we have no file at all then there is nothing to do
-		if ((ffMask & 0x222) == 0)
+		if ((ffMask & 0x222) == 0
+				&& (f == null || FileMode.TREE.equals(f.getEntryFileMode())))
 			return;
 
 		if ((ffMask == 0x00F) && f != null && FileMode.TREE.equals(f.getEntryFileMode())) {
 			// File/Directory conflict case #20
 			conflict(name, null, h, m);
+			return;
 		}
 
 		if (i == null) {
@@ -766,7 +767,9 @@ public class DirCacheCheckout {
 				 * </pre>
 				 */
 
-				if (m == null || equalIdAndMode(mId, mMode, iId, iMode)) {
+				if (m == null
+						|| !isModified_IndexTree(name, iId, iMode, mId, mMode,
+								mergeCommitTree)) {
 					// Merge contains nothing or the same as Index
 					// Nothing in Head
 					// Something in Index
@@ -822,7 +825,7 @@ public class DirCacheCheckout {
 				 * 	           clean I==H  I==M       H        M        Result
 				 * 	         -----------------------------------------------------
 				 * 	        10 yes   yes   N/A     exists   nothing  remove path from index
-				 * 	        11 no    yes   N/A     exists   nothing  fail
+				 * 	        11 no    yes   N/A     exists   nothing  keep file
 				 * 	        12 yes   no    N/A     exists   nothing  fail
 				 * 	        13 no    no    N/A     exists   nothing  fail
 				 * </pre>
@@ -839,23 +842,31 @@ public class DirCacheCheckout {
 					// Something different from a submodule in Index
 					// Nothing in Merge
 					// Something in Head
-					if (equalIdAndMode(hId, hMode, iId, iMode)) {
+					if (!isModified_IndexTree(name, iId, iMode, hId, hMode,
+							headCommitTree)) {
 						// Index contains the same as Head
 						// Something different from a submodule in Index
 						// Nothing in Merge
 						// Something in Head
-						if (f == null
-								|| f.isModified(dce, true,
-										this.walk.getObjectReader()))
+						if (f != null
+								&& f.isModified(dce, true,
+										this.walk.getObjectReader())) {
 							// file is dirty
 							// Index contains the same as Head
 							// Something different from a submodule in Index
 							// Nothing in Merge
 							// Something in Head
-							// -> file is dirty but is should be removed. That's
-							// a conflict
-							conflict(name, dce, h, m);
-						else
+
+							if (!FileMode.TREE.equals(f.getEntryFileMode())
+									&& FileMode.TREE.equals(iMode))
+								// The workingtree contains a file and the index semantically contains a folder.
+								// Git considers the workingtree file as untracked. Just keep the untracked file.
+								return;
+							else
+								// -> file is dirty and tracked but is should be
+								// removed. That's a conflict
+								conflict(name, dce, h, m);
+						} else
 							// file doesn't exist or is clean
 							// Index contains the same as Head
 							// Something different from a submodule in Index
@@ -878,8 +889,10 @@ public class DirCacheCheckout {
 				// Something in Head
 				// Something in Index
 				if (!equalIdAndMode(hId, hMode, mId, mMode)
-						&& !equalIdAndMode(hId, hMode, iId, iMode)
-						&& !equalIdAndMode(mId, mMode, iId, iMode))
+						&& isModified_IndexTree(name, iId, iMode, hId, hMode,
+								headCommitTree)
+						&& isModified_IndexTree(name, iId, iMode, mId, mMode,
+								mergeCommitTree))
 					// All three contents in Head, Merge, Index differ from each
 					// other
 					// -> All contents differ. Report a conflict.
@@ -891,8 +904,10 @@ public class DirCacheCheckout {
 					// Something in Head
 					// Something in Index
 
-					if (equalIdAndMode(hId, hMode, iId, iMode)
-						&& !equalIdAndMode(mId, mMode, iId, iMode)) {
+				if (!isModified_IndexTree(name, iId, iMode, hId, hMode,
+						headCommitTree)
+						&& isModified_IndexTree(name, iId, iMode, mId, mMode,
+								mergeCommitTree)) {
 						// Head contains the same as Index. Merge differs
 						// Something in Merge
 
@@ -909,9 +924,9 @@ public class DirCacheCheckout {
 						// file content
 						update(name, mId, mMode);
 					} else if (dce != null
-							&& (f == null || f.isModified(dce, true,
+							&& (f != null && f.isModified(dce, true,
 									this.walk.getObjectReader()))) {
-						// File doesn't exist or is dirty
+						// File exists and is dirty
 						// Head and Index don't contain a submodule
 						// Head contains the same as Index. Merge differs
 						// Something in Merge
@@ -919,7 +934,7 @@ public class DirCacheCheckout {
 						// but the file is dirty. Report a conflict
 						conflict(name, dce, h, m);
 					} else {
-						// File exists and is clean
+						// File doesn't exist or is clean
 						// Head and Index don't contain a submodule
 						// Head contains the same as Index. Merge differs
 						// Something in Merge
@@ -1034,25 +1049,88 @@ public class DirCacheCheckout {
 		}
 	}
 
-	private boolean isModified(String path) throws CorruptObjectException, IOException {
+	/**
+	 * Checks whether the subtree starting at a given path differs between Index and
+	 * workingtree.
+	 *
+	 * @param path
+	 * @return true if the subtrees differ
+	 * @throws CorruptObjectException
+	 * @throws IOException
+	 */
+	private boolean isModifiedSubtree_IndexWorkingtree(String path)
+			throws CorruptObjectException, IOException {
 		NameConflictTreeWalk tw = new NameConflictTreeWalk(repo);
-		tw.addTree(new DirCacheIterator(dc));
-		tw.addTree(new FileTreeIterator(repo));
-		tw.setRecursive(true);
-		tw.setFilter(PathFilter.create(path));
-		DirCacheIterator dcIt;
-		WorkingTreeIterator wtIt;
-		while(tw.next()) {
-			dcIt = tw.getTree(0, DirCacheIterator.class);
-			wtIt = tw.getTree(1, WorkingTreeIterator.class);
-			if (dcIt == null || wtIt == null)
-				return true;
-			if (wtIt.isModified(dcIt.getDirCacheEntry(), true,
-					this.walk.getObjectReader())) {
-				return true;
+		try {
+			tw.addTree(new DirCacheIterator(dc));
+			tw.addTree(new FileTreeIterator(repo));
+			tw.setRecursive(true);
+			tw.setFilter(PathFilter.create(path));
+			DirCacheIterator dcIt;
+			WorkingTreeIterator wtIt;
+			while (tw.next()) {
+				dcIt = tw.getTree(0, DirCacheIterator.class);
+				wtIt = tw.getTree(1, WorkingTreeIterator.class);
+				if (dcIt == null || wtIt == null)
+					return true;
+				if (wtIt.isModified(dcIt.getDirCacheEntry(), true,
+						this.walk.getObjectReader())) {
+					return true;
+				}
 			}
+			return false;
+		} finally {
+			tw.release();
 		}
-		return false;
+	}
+
+	private boolean isModified_IndexTree(String path, ObjectId iId,
+			FileMode iMode, ObjectId tId, FileMode tMode, ObjectId rootTree)
+			throws CorruptObjectException, IOException {
+		if (iMode != tMode)
+			return true;
+		if (FileMode.TREE.equals(iMode)
+				&& (iId == null || ObjectId.zeroId().equals(iId)))
+			return isModifiedSubtree_IndexTree(path, rootTree);
+		else
+			return !equalIdAndMode(iId, iMode, tId, tMode);
+	}
+
+	/**
+	 * Checks whether the subtree starting at a given path differs between Index and
+	 * some tree.
+	 *
+	 * @param path
+	 * @param tree
+	 *            the tree to compare
+	 * @return true if the subtrees differ
+	 * @throws CorruptObjectException
+	 * @throws IOException
+	 */
+	private boolean isModifiedSubtree_IndexTree(String path, ObjectId tree)
+			throws CorruptObjectException, IOException {
+		NameConflictTreeWalk tw = new NameConflictTreeWalk(repo);
+		try {
+			tw.addTree(new DirCacheIterator(dc));
+			tw.addTree(tree);
+			tw.setRecursive(true);
+			tw.setFilter(PathFilter.create(path));
+			while (tw.next()) {
+				AbstractTreeIterator dcIt = tw.getTree(0,
+						DirCacheIterator.class);
+				AbstractTreeIterator treeIt = tw.getTree(1,
+						AbstractTreeIterator.class);
+				if (dcIt == null || treeIt == null)
+					return true;
+				if (dcIt.getEntryRawMode() != treeIt.getEntryRawMode())
+					return true;
+				if (!dcIt.getEntryObjectId().equals(treeIt.getEntryObjectId()))
+					return true;
+			}
+			return false;
+		} finally {
+			tw.release();
+		}
 	}
 
 	/**
@@ -1152,7 +1230,7 @@ public class DirCacheCheckout {
 				FileUtils.rename(tmpFile, f);
 			} catch (IOException e) {
 				throw new IOException(MessageFormat.format(
-						JGitText.get().couldNotWriteFile, tmpFile.getPath(),
+						JGitText.get().renameFileFailed, tmpFile.getPath(),
 						f.getPath()));
 			}
 		}
@@ -1163,26 +1241,13 @@ public class DirCacheCheckout {
 			entry.setLength((int) ol.getSize());
 	}
 
-	private static byte[][] forbidden;
-	static {
-		String[] list = getSortedForbiddenFileNames();
-		forbidden = new byte[list.length][];
-		for (int i = 0; i < list.length; ++i)
-			forbidden[i] = Constants.encodeASCII(list[i]);
-	}
-
-	static String[] getSortedForbiddenFileNames() {
-		String[] list = new String[] { "AUX", "COM1", "COM2", "COM3", "COM4", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$
-				"COM5", "COM6", "COM7", "COM8", "COM9", "CON", "LPT1", "LPT2", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$ //$NON-NLS-6$ //$NON-NLS-7$ //$NON-NLS-8$
-				"LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "NUL", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ //$NON-NLS-5$ //$NON-NLS-6$ //$NON-NLS-7$ //$NON-NLS-8$
-				"PRN" }; //$NON-NLS-1$
-		return list;
-	}
-
 	private static void checkValidPath(CanonicalTreeParser t)
 			throws InvalidPathException {
+		ObjectChecker chk = new ObjectChecker()
+			.setSafeForWindows(SystemReader.getInstance().isWindows())
+			.setSafeForMacOS(SystemReader.getInstance().isMacOS());
 		for (CanonicalTreeParser i = t; i != null; i = i.getParent())
-			checkValidPathSegment(i);
+			checkValidPathSegment(chk, i);
 	}
 
 	/**
@@ -1194,119 +1259,36 @@ public class DirCacheCheckout {
 	 * @since 3.3
 	 */
 	public static void checkValidPath(String path) throws InvalidPathException {
-		boolean isWindows = SystemReader.getInstance().isWindows();
-		boolean isOSX = SystemReader.getInstance().isMacOS();
-		boolean ignCase = isOSX || isWindows;
+		ObjectChecker chk = new ObjectChecker()
+			.setSafeForWindows(SystemReader.getInstance().isWindows())
+			.setSafeForMacOS(SystemReader.getInstance().isMacOS());
 
 		byte[] bytes = Constants.encode(path);
 		int segmentStart = 0;
-		for (int i = 0; i < bytes.length; i++) {
-			if (bytes[i] == '/') {
-				checkValidPathSegment(isWindows, ignCase, bytes, segmentStart,
-						i, path);
-				segmentStart = i + 1;
-			}
-		}
-		if (segmentStart < bytes.length)
-			checkValidPathSegment(isWindows, ignCase, bytes, segmentStart,
-					bytes.length, path);
-	}
-
-	private static void checkValidPathSegment(CanonicalTreeParser t)
-			throws InvalidPathException {
-		boolean isWindows = SystemReader.getInstance().isWindows();
-		boolean isOSX = SystemReader.getInstance().isMacOS();
-		boolean ignCase = isOSX || isWindows;
-
-		int ptr = t.getNameOffset();
-		byte[] raw = t.getEntryPathBuffer();
-		int end = ptr + t.getNameLength();
-
-		checkValidPathSegment(isWindows, ignCase, raw, ptr, end,
-				t.getEntryPathString());
-	}
-
-	private static void checkValidPathSegment(boolean isWindows,
-			boolean ignCase, byte[] raw, int ptr, int end, String path) {
-		// Validate path component at this level of the tree
-		int start = ptr;
-		while (ptr < end) {
-			if (raw[ptr] == '/')
-				throw new InvalidPathException(
-						JGitText.get().invalidPathContainsSeparator, "/", path); //$NON-NLS-1$
-			if (isWindows) {
-				if (raw[ptr] == '\\')
-					throw new InvalidPathException(
-							JGitText.get().invalidPathContainsSeparator,
-							"\\", path); //$NON-NLS-1$
-				if (raw[ptr] == ':')
-					throw new InvalidPathException(
-							JGitText.get().invalidPathContainsSeparator,
-							":", path); //$NON-NLS-1$
-			}
-			ptr++;
-		}
-		// '.' and '..' are invalid here
-		if (ptr - start == 1) {
-			if (raw[start] == '.')
-				throw new InvalidPathException(path);
-		} else if (ptr - start == 2) {
-			if (raw[start] == '.')
-				if (raw[start + 1] == '.')
-					throw new InvalidPathException(path);
-		} else if (ptr - start == 4) {
-			// .git (possibly case insensitive) is disallowed
-			if (raw[start] == '.')
-				if (raw[start + 1] == 'g' || (ignCase && raw[start + 1] == 'G'))
-					if (raw[start + 2] == 'i'
-							|| (ignCase && raw[start + 2] == 'I'))
-						if (raw[start + 3] == 't'
-								|| (ignCase && raw[start + 3] == 'T'))
-							throw new InvalidPathException(path);
-		}
-		if (isWindows) {
-			// Space or period at end of file name is ignored by Windows.
-			// Treat this as a bad path for now. We may want to handle
-			// this as case insensitivity in the future.
-			if (ptr > 0) {
-				if (raw[ptr - 1] == '.')
-					throw new InvalidPathException(
-							JGitText.get().invalidPathPeriodAtEndWindows, path);
-				if (raw[ptr - 1] == ' ')
-					throw new InvalidPathException(
-							JGitText.get().invalidPathSpaceAtEndWindows, path);
-			}
-
-			int i;
-			// Bad names, eliminate suffix first
-			for (i = start; i < ptr; ++i)
-				if (raw[i] == '.')
-					break;
-			int len = i - start;
-			if (len == 3 || len == 4) {
-				for (int j = 0; j < forbidden.length; ++j) {
-					if (forbidden[j].length == len) {
-						if (toUpper(raw[start]) < forbidden[j][0])
-							break;
-						int k;
-						for (k = 0; k < len; ++k) {
-							if (toUpper(raw[start + k]) != forbidden[j][k])
-								break;
-						}
-						if (k == len)
-							throw new InvalidPathException(
-									JGitText.get().invalidPathReservedOnWindows,
-									RawParseUtils.decode(forbidden[j]), path);
-					}
+		try {
+			for (int i = 0; i < bytes.length; i++) {
+				if (bytes[i] == '/') {
+					chk.checkPathSegment(bytes, segmentStart, i);
+					segmentStart = i + 1;
 				}
 			}
+			chk.checkPathSegment(bytes, segmentStart, bytes.length);
+		} catch (CorruptObjectException e) {
+			throw new InvalidPathException(e.getMessage());
 		}
 	}
 
-	private static byte toUpper(byte b) {
-		if (b >= 'a' && b <= 'z')
-			return (byte) (b - ('a' - 'A'));
-		return b;
+	private static void checkValidPathSegment(ObjectChecker chk,
+			CanonicalTreeParser t) throws InvalidPathException {
+		try {
+			int ptr = t.getNameOffset();
+			int end = ptr + t.getNameLength();
+			chk.checkPathSegment(t.getEntryPathBuffer(), ptr, end);
+		} catch (CorruptObjectException err) {
+			String path = t.getEntryPathString();
+			InvalidPathException i = new InvalidPathException(path);
+			i.initCause(err);
+			throw i;
+		}
 	}
-
 }

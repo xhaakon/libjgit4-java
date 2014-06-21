@@ -143,6 +143,7 @@ class Blame extends TextBuiltin {
 			revision = null;
 		}
 
+		boolean autoAbbrev = abbrev == 0;
 		if (abbrev == 0)
 			abbrev = db.getConfig().getInt("core", "abbrev", 7); //$NON-NLS-1$ //$NON-NLS-2$
 		if (!showBlankBoundary)
@@ -156,6 +157,7 @@ class Blame extends TextBuiltin {
 			dateFmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss ZZZZ"); //$NON-NLS-1$
 
 		BlameGenerator generator = new BlameGenerator(db, file);
+		RevFlag scanned = generator.newFlag("SCANNED"); //$NON-NLS-1$
 		reader = db.newObjectReader();
 		try {
 			generator.setTextComparator(comparator);
@@ -198,9 +200,17 @@ class Blame extends TextBuiltin {
 			int pathWidth = 1;
 			int maxSourceLine = 1;
 			for (int line = begin; line < end; line++) {
-				authorWidth = Math.max(authorWidth, author(line).length());
-				dateWidth = Math.max(dateWidth, date(line).length());
-				pathWidth = Math.max(pathWidth, path(line).length());
+				RevCommit c = blame.getSourceCommit(line);
+				if (c != null && !c.has(scanned)) {
+					c.add(scanned);
+					if (autoAbbrev)
+						abbrev = Math.max(abbrev, uniqueAbbrevLen(c));
+					authorWidth = Math.max(authorWidth, author(line).length());
+					dateWidth = Math.max(dateWidth, date(line).length());
+					pathWidth = Math.max(pathWidth, path(line).length());
+				}
+				while (line + 1 < end && blame.getSourceCommit(line + 1) == c)
+					line++;
 				maxSourceLine = Math.max(maxSourceLine, blame.getSourceLine(line));
 			}
 
@@ -212,24 +222,38 @@ class Blame extends TextBuiltin {
 			String authorFmt = MessageFormat.format(" (%-{0}s %{1}s", //$NON-NLS-1$
 					valueOf(authorWidth), valueOf(dateWidth));
 
-			for (int line = begin; line < end; line++) {
-				outw.print(abbreviate(blame.getSourceCommit(line)));
-				if (showSourcePath)
-					outw.format(pathFmt, path(line));
-				if (showSourceLine)
-					outw.format(numFmt, valueOf(blame.getSourceLine(line) + 1));
-				if (!noAuthor)
-					outw.format(authorFmt, author(line), date(line));
-				outw.format(lineFmt, valueOf(line + 1));
-				outw.flush();
-				blame.getResultContents().writeLine(outs, line);
-				outs.flush();
-				outw.print('\n');
+			for (int line = begin; line < end;) {
+				RevCommit c = blame.getSourceCommit(line);
+				String commit = abbreviate(c);
+				String author = null;
+				String date = null;
+				if (!noAuthor) {
+					author = author(line);
+					date = date(line);
+				}
+				do {
+					outw.print(commit);
+					if (showSourcePath)
+						outw.format(pathFmt, path(line));
+					if (showSourceLine)
+						outw.format(numFmt, valueOf(blame.getSourceLine(line) + 1));
+					if (!noAuthor)
+						outw.format(authorFmt, author, date);
+					outw.format(lineFmt, valueOf(line + 1));
+					outw.flush();
+					blame.getResultContents().writeLine(outs, line);
+					outs.flush();
+					outw.print('\n');
+				} while (++line < end && blame.getSourceCommit(line) == c);
 			}
 		} finally {
 			generator.release();
 			reader.release();
 		}
+	}
+
+	private int uniqueAbbrevLen(RevCommit commit) throws IOException {
+		return reader.abbreviate(commit, abbrev).length();
 	}
 
 	private void parseLineRangeOption() {
