@@ -1,4 +1,4 @@
-jgit (3.4.0-1) UNRELEASED; urgency=medium
+jgit (3.4.0-1) unstable; urgency=medium
 
   * New Upstream release.
   * Refreshed debian-custom-build.patch and ftbfs-args4j-2.0.25-fix.patch.
