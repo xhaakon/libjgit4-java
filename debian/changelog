@@ -1,4 +1,4 @@
-jgit (3.4.0-2) UNRELEASED; urgency=medium
+jgit (3.4.0-2) unstable; urgency=medium
 
   * Fix FTBFS with args4j 2.0.30 (Closes: #761537).
 
