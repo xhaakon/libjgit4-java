@@ -1,6 +1,6 @@
 From: Jakub Adam <jakub.adam@ktknet.cz>
 Date: Tue, 3 Dec 2013 16:00:31 +0100
-Subject: ftbfs-args4j-2.0.25-fix
+Subject: ftbfs-args4j-2.0.30-fix
 
 Setting multiValued was removed from @Option in args4j 2.0.23
 as it had no effect.
@@ -188,7 +188,7 @@ index 4205140..72425f1 100644
  
  	@Override
 diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
-index 3f77aa6..595e772 100644
+index 3f77aa6..ee0f2b3 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
 @@ -184,7 +184,7 @@ public RevWalk getRevWalkGently() {
@@ -196,7 +196,7 @@ index 3f77aa6..595e772 100644
  
  		public MyOptionDef(OptionDef o) {
 -			super(o.usage(), o.metaVar(), o.required(), o.handler(), o
-+			super(o.usage(), o.metaVar(), o.required(), o.hidden(), o.handler(), o
++			super(o.usage(), o.metaVar(), o.required(), o.help(), o.hidden(), o.handler(), o
  					.isMultiValued());
  		}
  
