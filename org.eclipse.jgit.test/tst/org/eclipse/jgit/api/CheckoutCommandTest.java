@@ -56,16 +56,22 @@ import static org.junit.Assert.fail;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 
 import org.eclipse.jgit.api.CheckoutResult.Status;
+import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRefNameException;
+import org.eclipse.jgit.api.errors.InvalidRemoteException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.RefAlreadyExistsException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
+import org.eclipse.jgit.api.errors.TransportException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.junit.RepositoryTestCase;
+import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefUpdate;
@@ -201,28 +207,58 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 	}
 
 	@Test
+	public void testCheckoutLightweightTag() throws Exception {
+		git.tag().setAnnotated(false).setName("test-tag")
+				.setObjectId(initialCommit).call();
+		Ref result = git.checkout().setName("test-tag").call();
+
+		assertNull(result);
+		assertEquals(initialCommit.getId(), db.resolve(Constants.HEAD));
+		assertHeadDetached();
+	}
+
+	@Test
+	public void testCheckoutAnnotatedTag() throws Exception {
+		git.tag().setAnnotated(true).setName("test-tag")
+				.setObjectId(initialCommit).call();
+		Ref result = git.checkout().setName("test-tag").call();
+
+		assertNull(result);
+		assertEquals(initialCommit.getId(), db.resolve(Constants.HEAD));
+		assertHeadDetached();
+	}
+
+	@Test
+	public void testCheckoutRemoteTrackingWithUpstream() throws Exception {
+		Repository db2 = createRepositoryWithRemote();
+
+		Git.wrap(db2).checkout().setCreateBranch(true).setName("test")
+				.setStartPoint("origin/test")
+				.setUpstreamMode(SetupUpstreamMode.TRACK).call();
+
+		assertEquals("refs/heads/test", db2.getRef(Constants.HEAD).getTarget()
+				.getName());
+		StoredConfig config = db2.getConfig();
+		assertEquals("origin", config.getString(
+				ConfigConstants.CONFIG_BRANCH_SECTION, "test",
+				ConfigConstants.CONFIG_KEY_REMOTE));
+		assertEquals("refs/heads/test", config.getString(
+				ConfigConstants.CONFIG_BRANCH_SECTION, "test",
+				ConfigConstants.CONFIG_KEY_MERGE));
+	}
+
+	@Test
 	public void testCheckoutRemoteTrackingWithoutLocalBranch() throws Exception {
-		// create second repository
-		Repository db2 = createWorkRepository();
-		Git git2 = new Git(db2);
+		Repository db2 = createRepositoryWithRemote();
 
-		// setup the second repository to fetch from the first repository
-		final StoredConfig config = db2.getConfig();
-		RemoteConfig remoteConfig = new RemoteConfig(config, "origin");
-		URIish uri = new URIish(db.getDirectory().toURI().toURL());
-		remoteConfig.addURI(uri);
-		remoteConfig.update(config);
-		config.save();
-
-		// fetch from first repository
-		RefSpec spec = new RefSpec("+refs/heads/*:refs/remotes/origin/*");
-		git2.fetch().setRemote("origin").setRefSpecs(spec).call();
 		// checkout remote tracking branch in second repository
 		// (no local branches exist yet in second repository)
-		git2.checkout().setName("remotes/origin/test").call();
+		Git.wrap(db2).checkout().setName("remotes/origin/test").call();
 		assertEquals("[Test.txt, mode:100644, content:Some change]",
 				indexState(db2, CONTENT));
 	}
+
+
 
 	@Test
 	public void testCheckoutOfFileWithInexistentParentDir() throws Exception {
@@ -312,9 +348,7 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 		co = git.checkout();
 		co.setName(commitId).call();
 
-		Ref head = db.getRef(Constants.HEAD);
-		assertFalse(head.isSymbolic());
-		assertSame(head, head.getTarget());
+		assertHeadDetached();
 	}
 
 	@Test
@@ -372,6 +406,27 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 		assertEquals(CheckoutResult.NOT_TRIED_RESULT, co.getResult());
 	}
 
+	private Repository createRepositoryWithRemote() throws IOException,
+			URISyntaxException, MalformedURLException, GitAPIException,
+			InvalidRemoteException, TransportException {
+		// create second repository
+		Repository db2 = createWorkRepository();
+		Git git2 = new Git(db2);
+
+		// setup the second repository to fetch from the first repository
+		final StoredConfig config = db2.getConfig();
+		RemoteConfig remoteConfig = new RemoteConfig(config, "origin");
+		URIish uri = new URIish(db.getDirectory().toURI().toURL());
+		remoteConfig.addURI(uri);
+		remoteConfig.update(config);
+		config.save();
+
+		// fetch from first repository
+		RefSpec spec = new RefSpec("+refs/heads/*:refs/remotes/origin/*");
+		git2.fetch().setRemote("origin").setRefSpecs(spec).call();
+		return db2;
+	}
+
 	private CheckoutCommand newOrphanBranchCommand() {
 		return git.checkout().setOrphan(true)
 				.setName("orphanbranch");
@@ -384,6 +439,12 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 
 	private void assertNoHead() throws IOException {
 		assertNull(db.resolve("HEAD"));
+	}
+
+	private void assertHeadDetached() throws IOException {
+		Ref head = db.getRef(Constants.HEAD);
+		assertFalse(head.isSymbolic());
+		assertSame(head, head.getTarget());
 	}
 
 	private void assertRepositoryCondition(int files) throws GitAPIException {

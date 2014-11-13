@@ -97,6 +97,13 @@ public class ConfigConstants {
 	 */
 	public static final String CONFIG_FETCH_SECTION = "fetch";
 
+	/**
+	 * The "pull" section
+	 *
+	 * @since 3.5
+	 */
+	public static final String CONFIG_PULL_SECTION = "pull";
+
 	/** The "algorithm" key */
 	public static final String CONFIG_KEY_ALGORITHM = "algorithm";
 
@@ -206,6 +213,12 @@ public class ConfigConstants {
 
 	/** The "indexversion" key */
 	public static final String CONFIG_KEY_INDEXVERSION = "indexversion";
+
+	/**
+	 * The "hidedotfiles" key
+	 * @since 3.5
+	 */
+	public static final String CONFIG_KEY_HIDEDOTFILES = "hidedotfiles";
 
 	/** The "precomposeunicode" key */
 	public static final String CONFIG_KEY_PRECOMPOSEUNICODE = "precomposeunicode";

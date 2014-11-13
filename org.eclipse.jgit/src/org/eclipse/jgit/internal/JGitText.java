@@ -303,6 +303,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String improperlyPaddedBase64Input;
 	/***/ public String incorrectHashFor;
 	/***/ public String incorrectOBJECT_ID_LENGTH;
+	/***/ public String indexFileCorruptedNegativeBucketCount;
 	/***/ public String indexFileIsInUse;
 	/***/ public String indexFileIsTooLargeForJgit;
 	/***/ public String indexSignatureIsInvalid;
@@ -370,6 +371,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String mergeStrategyAlreadyExistsAsDefault;
 	/***/ public String mergeStrategyDoesNotSupportHeads;
 	/***/ public String mergeUsingStrategyResultedInDescription;
+	/***/ public String mergeRecursiveConflictsWhenMergingCommonAncestors;
 	/***/ public String mergeRecursiveReturnedNoCommit;
 	/***/ public String mergeRecursiveTooManyMergeBasesFor;
 	/***/ public String messageAndTaggerNotAllowedInUnannotatedTags;
@@ -396,6 +398,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String newlineInQuotesNotAllowed;
 	/***/ public String noApplyInDelete;
 	/***/ public String noClosingBracket;
+	/***/ public String noCredentialsProvider;
 	/***/ public String noHEADExistsAndNoExplicitStartingRevisionWasSpecified;
 	/***/ public String noHMACsupport;
 	/***/ public String noMergeBase;
@@ -570,6 +573,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String transportProtoLocal;
 	/***/ public String transportProtoSFTP;
 	/***/ public String transportProtoSSH;
+	/***/ public String transportSSHRetryInterrupt;
 	/***/ public String treeEntryAlreadyExists;
 	/***/ public String treeFilterMarkerTooManyFilters;
 	/***/ public String treeIteratorDoesNotSupportRemove;

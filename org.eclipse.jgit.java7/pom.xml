@@ -50,7 +50,7 @@
   <parent>
     <groupId>org.eclipse.jgit</groupId>
     <artifactId>org.eclipse.jgit-parent</artifactId>
-    <version>3.4.0.201406110918-r</version>
+    <version>3.5.2.201411120430-r</version>
   </parent>
 
   <artifactId>org.eclipse.jgit.java7</artifactId>
@@ -175,14 +175,6 @@
               </goals>
             </execution>
           </executions>
-        </plugin>
-
-        <plugin>
-          <groupId>org.codehaus.mojo</groupId>
-          <artifactId>findbugs-maven-plugin</artifactId>
-          <configuration>
-            <excludeFilterFile>findBugs/FindBugsExcludeFilter.xml</excludeFilterFile>
-          </configuration>
         </plugin>
       </plugins>
     </pluginManagement>

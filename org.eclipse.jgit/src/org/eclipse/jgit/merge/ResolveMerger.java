@@ -44,6 +44,9 @@
  */
 package org.eclipse.jgit.merge;
 
+import static org.eclipse.jgit.lib.Constants.CHARACTER_ENCODING;
+import static org.eclipse.jgit.lib.Constants.OBJ_BLOB;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -76,7 +79,6 @@ import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.NoWorkTreeException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.ConfigConstants;
-import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
@@ -89,6 +91,7 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.WorkingTreeIterator;
 import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FileUtils;
+import org.eclipse.jgit.util.TemporaryBuffer;
 
 /**
  * A three-way merger performing a content-merge if necessary
@@ -297,7 +300,8 @@ public class ResolveMerger extends ThreeWayMerger {
 			dircache = getRepository().lockDirCache();
 
 		try {
-			return mergeTrees(mergeBase(), sourceTrees[0], sourceTrees[1]);
+			return mergeTrees(mergeBase(), sourceTrees[0], sourceTrees[1],
+					false);
 		} finally {
 			if (implicitDirCache)
 				dircache.unlock();
@@ -305,29 +309,24 @@ public class ResolveMerger extends ThreeWayMerger {
 	}
 
 	private void checkout() throws NoWorkTreeException, IOException {
-		ObjectReader r = db.getObjectDatabase().newReader();
-		try {
-			for (Map.Entry<String, DirCacheEntry> entry : toBeCheckedOut
-					.entrySet()) {
-				File f = new File(db.getWorkTree(), entry.getKey());
-				createDir(f.getParentFile());
-				DirCacheCheckout.checkoutEntry(db, f, entry.getValue(), r);
-				modifiedFiles.add(entry.getKey());
-			}
-			// Iterate in reverse so that "folder/file" is deleted before
-			// "folder". Otherwise this could result in a failing path because
-			// of a non-empty directory, for which delete() would fail.
-			for (int i = toBeDeleted.size() - 1; i >= 0; i--) {
-				String fileName = toBeDeleted.get(i);
-				File f = new File(db.getWorkTree(), fileName);
-				if (!f.delete())
-					if (!f.isDirectory())
-						failingPaths.put(fileName,
-								MergeFailureReason.COULD_NOT_DELETE);
-				modifiedFiles.add(fileName);
-			}
-		} finally {
-			r.release();
+		for (Map.Entry<String, DirCacheEntry> entry : toBeCheckedOut
+				.entrySet()) {
+			File f = new File(db.getWorkTree(), entry.getKey());
+			createDir(f.getParentFile());
+			DirCacheCheckout.checkoutEntry(db, f, entry.getValue(), reader);
+			modifiedFiles.add(entry.getKey());
+		}
+		// Iterate in reverse so that "folder/file" is deleted before
+		// "folder". Otherwise this could result in a failing path because
+		// of a non-empty directory, for which delete() would fail.
+		for (int i = toBeDeleted.size() - 1; i >= 0; i--) {
+			String fileName = toBeDeleted.get(i);
+			File f = new File(db.getWorkTree(), fileName);
+			if (!f.delete())
+				if (!f.isDirectory())
+					failingPaths.put(fileName,
+							MergeFailureReason.COULD_NOT_DELETE);
+			modifiedFiles.add(fileName);
 		}
 	}
 
@@ -364,7 +363,6 @@ public class ResolveMerger extends ThreeWayMerger {
 		}
 
 		DirCache dc = db.readDirCache();
-		ObjectReader or = db.getObjectDatabase().newReader();
 		Iterator<String> mpathsIt=modifiedFiles.iterator();
 		while(mpathsIt.hasNext()) {
 			String mpath=mpathsIt.next();
@@ -374,7 +372,7 @@ public class ResolveMerger extends ThreeWayMerger {
 			FileOutputStream fos = new FileOutputStream(new File(
 					db.getWorkTree(), mpath));
 			try {
-				or.open(entry.getObjectId()).copyTo(fos);
+				reader.open(entry.getObjectId()).copyTo(fos);
 			} finally {
 				fos.close();
 			}
@@ -443,6 +441,7 @@ public class ResolveMerger extends ThreeWayMerger {
 	 * conflict is detected the content-merge algorithm will try to write a
 	 * merged version into the working-tree. If the file is dirty we would
 	 * override unsaved data.</li>
+	 * </ul>
 	 *
 	 * @param base
 	 *            the common base for ours and theirs
@@ -457,6 +456,9 @@ public class ResolveMerger extends ThreeWayMerger {
 	 *            the index entry
 	 * @param work
 	 *            the file in the working tree
+	 * @param ignoreConflicts
+	 *            see
+	 *            {@link ResolveMerger#mergeTrees(AbstractTreeIterator, RevTree, RevTree, boolean)}
 	 * @return <code>false</code> if the merge will fail because the index entry
 	 *         didn't match ours or the working-dir file was dirty and a
 	 *         conflict occurred
@@ -464,11 +466,12 @@ public class ResolveMerger extends ThreeWayMerger {
 	 * @throws IncorrectObjectTypeException
 	 * @throws CorruptObjectException
 	 * @throws IOException
-	 * @since 3.4
+	 * @since 3.5
 	 */
 	protected boolean processEntry(CanonicalTreeParser base,
 			CanonicalTreeParser ours, CanonicalTreeParser theirs,
-			DirCacheBuildIterator index, WorkingTreeIterator work)
+			DirCacheBuildIterator index, WorkingTreeIterator work,
+			boolean ignoreConflicts)
 			throws MissingObjectException, IncorrectObjectTypeException,
 			CorruptObjectException, IOException {
 		enterSubtree = true;
@@ -627,9 +630,10 @@ public class ResolveMerger extends ThreeWayMerger {
 			}
 
 			MergeResult<RawText> result = contentMerge(base, ours, theirs);
-			File of = writeMergedFile(result);
-			updateIndex(base, ours, theirs, result, of);
-			if (result.containsConflicts())
+			if (ignoreConflicts)
+				result.setContainsConflicts(false);
+			updateIndex(base, ours, theirs, result);
+			if (result.containsConflicts() && !ignoreConflicts)
 				unmergedPaths.add(tw.getPathString());
 			modifiedFiles.add(tw.getPathString());
 		} else if (modeO != modeT) {
@@ -679,11 +683,11 @@ public class ResolveMerger extends ThreeWayMerger {
 			CanonicalTreeParser ours, CanonicalTreeParser theirs)
 			throws IOException {
 		RawText baseText = base == null ? RawText.EMPTY_TEXT : getRawText(
-				base.getEntryObjectId(), db);
+				base.getEntryObjectId(), reader);
 		RawText ourText = ours == null ? RawText.EMPTY_TEXT : getRawText(
-				ours.getEntryObjectId(), db);
+				ours.getEntryObjectId(), reader);
 		RawText theirsText = theirs == null ? RawText.EMPTY_TEXT : getRawText(
-				theirs.getEntryObjectId(), db);
+				theirs.getEntryObjectId(), reader);
 		return (mergeAlgorithm.merge(RawTextComparator.DEFAULT, baseText,
 				ourText, theirsText));
 	}
@@ -742,95 +746,97 @@ public class ResolveMerger extends ThreeWayMerger {
 	 * @param ours
 	 * @param theirs
 	 * @param result
-	 * @param of
 	 * @throws FileNotFoundException
 	 * @throws IOException
 	 */
 	private void updateIndex(CanonicalTreeParser base,
 			CanonicalTreeParser ours, CanonicalTreeParser theirs,
-			MergeResult<RawText> result, File of) throws FileNotFoundException,
+			MergeResult<RawText> result) throws FileNotFoundException,
 			IOException {
+		File mergedFile = !inCore ? writeMergedFile(result) : null;
 		if (result.containsConflicts()) {
-			// a conflict occurred, the file will contain conflict markers
-			// the index will be populated with the three stages and only the
-			// workdir (if used) contains the halfways merged content
+			// A conflict occurred, the file will contain conflict markers
+			// the index will be populated with the three stages and the
+			// workdir (if used) contains the halfway merged content.
 			add(tw.getRawPath(), base, DirCacheEntry.STAGE_1, 0, 0);
 			add(tw.getRawPath(), ours, DirCacheEntry.STAGE_2, 0, 0);
 			add(tw.getRawPath(), theirs, DirCacheEntry.STAGE_3, 0, 0);
 			mergeResults.put(tw.getPathString(), result);
-		} else {
-			// no conflict occurred, the file will contain fully merged content.
-			// the index will be populated with the new merged version
-			DirCacheEntry dce = new DirCacheEntry(tw.getPathString());
-			int newMode = mergeFileModes(tw.getRawMode(0), tw.getRawMode(1),
-					tw.getRawMode(2));
-			// set the mode for the new content. Fall back to REGULAR_FILE if
-			// you can't merge modes of OURS and THEIRS
-			dce.setFileMode((newMode == FileMode.MISSING.getBits()) ? FileMode.REGULAR_FILE
-					: FileMode.fromBits(newMode));
-			dce.setLastModified(of.lastModified());
-			dce.setLength((int) of.length());
-			InputStream is = new FileInputStream(of);
+			return;
+		}
+
+		// No conflict occurred, the file will contain fully merged content.
+		// The index will be populated with the new merged version.
+		DirCacheEntry dce = new DirCacheEntry(tw.getPathString());
+
+		// Set the mode for the new content. Fall back to REGULAR_FILE if
+		// we can't merge modes of OURS and THEIRS.
+		int newMode = mergeFileModes(
+				tw.getRawMode(0),
+				tw.getRawMode(1),
+				tw.getRawMode(2));
+		dce.setFileMode(newMode == FileMode.MISSING.getBits()
+				? FileMode.REGULAR_FILE
+				: FileMode.fromBits(newMode));
+		if (mergedFile != null) {
+			long len = mergedFile.length();
+			dce.setLastModified(mergedFile.lastModified());
+			dce.setLength((int) len);
+			InputStream is = new FileInputStream(mergedFile);
 			try {
-				dce.setObjectId(getObjectInserter().insert(
-				    Constants.OBJ_BLOB, of.length(), is));
+				dce.setObjectId(getObjectInserter().insert(OBJ_BLOB, len, is));
 			} finally {
 				is.close();
-				if (inCore)
-					FileUtils.delete(of);
 			}
-			builder.add(dce);
-		}
+		} else
+			dce.setObjectId(insertMergeResult(result));
+		builder.add(dce);
 	}
 
 	/**
-	 * Writes merged file content to the working tree. In case {@link #inCore}
-	 * is set and we don't have a working tree the content is written to a
-	 * temporary file
+	 * Writes merged file content to the working tree.
 	 *
 	 * @param result
 	 *            the result of the content merge
-	 * @return the file to which the merged content was written
+	 * @return the working tree file to which the merged content was written.
 	 * @throws FileNotFoundException
 	 * @throws IOException
 	 */
 	private File writeMergedFile(MergeResult<RawText> result)
 			throws FileNotFoundException, IOException {
-		MergeFormatter fmt = new MergeFormatter();
-		File of = null;
-		FileOutputStream fos;
-		if (!inCore) {
-			File workTree = db.getWorkTree();
-			if (workTree == null)
-				// TODO: This should be handled by WorkingTreeIterators which
-				// support write operations
-				throw new UnsupportedOperationException();
+		File workTree = db.getWorkTree();
+		if (workTree == null)
+			// TODO: This should be handled by WorkingTreeIterators which
+			// support write operations
+			throw new UnsupportedOperationException();
 
-			FS fs = db.getFS();
-			of = new File(workTree, tw.getPathString());
-			File parentFolder = of.getParentFile();
-			if (!fs.exists(parentFolder))
-				parentFolder.mkdirs();
-			fos = new FileOutputStream(of);
-			try {
-				fmt.formatMerge(fos, result, Arrays.asList(commitNames),
-						Constants.CHARACTER_ENCODING);
-			} finally {
-				fos.close();
-			}
-		} else if (!result.containsConflicts()) {
-			// When working inCore, only trivial merges can be handled,
-			// so we generate objects only in conflict free cases
-			of = File.createTempFile("merge_", "_temp", null); //$NON-NLS-1$ //$NON-NLS-2$
-			fos = new FileOutputStream(of);
-			try {
-				fmt.formatMerge(fos, result, Arrays.asList(commitNames),
-						Constants.CHARACTER_ENCODING);
-			} finally {
-				fos.close();
-			}
+		FS fs = db.getFS();
+		File of = new File(workTree, tw.getPathString());
+		File parentFolder = of.getParentFile();
+		if (!fs.exists(parentFolder))
+			parentFolder.mkdirs();
+		FileOutputStream fos = new FileOutputStream(of);
+		try {
+			new MergeFormatter().formatMerge(fos, result,
+					Arrays.asList(commitNames), CHARACTER_ENCODING);
+		} finally {
+			fos.close();
 		}
 		return of;
+	}
+
+	private ObjectId insertMergeResult(MergeResult<RawText> result)
+			throws IOException {
+		TemporaryBuffer.LocalFile buf = new TemporaryBuffer.LocalFile(10 << 20);
+		try {
+			new MergeFormatter().formatMerge(buf, result,
+					Arrays.asList(commitNames), CHARACTER_ENCODING);
+			buf.close();
+			return getObjectInserter().insert(OBJ_BLOB, buf.length(),
+					buf.openInputStream());
+		} finally {
+			buf.destroy();
+		}
 	}
 
 	/**
@@ -861,11 +867,11 @@ public class ResolveMerger extends ThreeWayMerger {
 		return FileMode.MISSING.getBits();
 	}
 
-	private static RawText getRawText(ObjectId id, Repository db)
+	private static RawText getRawText(ObjectId id, ObjectReader reader)
 			throws IOException {
 		if (id.equals(ObjectId.zeroId()))
 			return new RawText(new byte[] {});
-		return new RawText(db.open(id, Constants.OBJ_BLOB).getCachedBytes());
+		return new RawText(reader.open(id, OBJ_BLOB).getCachedBytes());
 	}
 
 	private static boolean nonTree(final int mode) {
@@ -993,17 +999,37 @@ public class ResolveMerger extends ThreeWayMerger {
 	 * @param baseTree
 	 * @param headTree
 	 * @param mergeTree
+	 * @param ignoreConflicts
+	 *            Controls what to do in case a content-merge is done and a
+	 *            conflict is detected. The default setting for this should be
+	 *            <code>false</code>. In this case the working tree file is
+	 *            filled with new content (containing conflict markers) and the
+	 *            index is filled with multiple stages containing BASE, OURS and
+	 *            THEIRS content. Having such non-0 stages is the sign to git
+	 *            tools that there are still conflicts for that path.
+	 *            <p>
+	 *            If <code>true</code> is specified the behavior is different.
+	 *            In case a conflict is detected the working tree file is again
+	 *            filled with new content (containing conflict markers). But
+	 *            also stage 0 of the index is filled with that content. No
+	 *            other stages are filled. Means: there is no conflict on that
+	 *            path but the new content (including conflict markers) is
+	 *            stored as successful merge result. This is needed in the
+	 *            context of {@link RecursiveMerger} where when determining
+	 *            merge bases we don't want to deal with content-merge
+	 *            conflicts.
 	 * @return whether the trees merged cleanly
 	 * @throws IOException
-	 * @since 3.0
+	 * @since 3.5
 	 */
 	protected boolean mergeTrees(AbstractTreeIterator baseTree,
-			RevTree headTree, RevTree mergeTree) throws IOException {
+			RevTree headTree, RevTree mergeTree, boolean ignoreConflicts)
+			throws IOException {
 
 		builder = dircache.builder();
 		DirCacheBuildIterator buildIt = new DirCacheBuildIterator(builder);
 
-		tw = new NameConflictTreeWalk(db);
+		tw = new NameConflictTreeWalk(reader);
 		tw.addTree(baseTree);
 		tw.addTree(headTree);
 		tw.addTree(mergeTree);
@@ -1011,7 +1037,7 @@ public class ResolveMerger extends ThreeWayMerger {
 		if (workingTreeIterator != null)
 			tw.addTree(workingTreeIterator);
 
-		if (!mergeTreeWalk(tw)) {
+		if (!mergeTreeWalk(tw, ignoreConflicts)) {
 			return false;
 		}
 
@@ -1050,11 +1076,15 @@ public class ResolveMerger extends ThreeWayMerger {
 	 *
 	 * @param treeWalk
 	 *            The walk to iterate over.
+	 * @param ignoreConflicts
+	 *            see
+	 *            {@link ResolveMerger#mergeTrees(AbstractTreeIterator, RevTree, RevTree, boolean)}
 	 * @return Whether the trees merged cleanly.
 	 * @throws IOException
-	 * @since 3.4
+	 * @since 3.5
 	 */
-	protected boolean mergeTreeWalk(TreeWalk treeWalk) throws IOException {
+	protected boolean mergeTreeWalk(TreeWalk treeWalk, boolean ignoreConflicts)
+			throws IOException {
 		boolean hasWorkingTreeIterator = tw.getTreeCount() > T_FILE;
 		while (treeWalk.next()) {
 			if (!processEntry(
@@ -1063,7 +1093,7 @@ public class ResolveMerger extends ThreeWayMerger {
 					treeWalk.getTree(T_THEIRS, CanonicalTreeParser.class),
 					treeWalk.getTree(T_INDEX, DirCacheBuildIterator.class),
 					hasWorkingTreeIterator ? treeWalk.getTree(T_FILE,
-							WorkingTreeIterator.class) : null)) {
+							WorkingTreeIterator.class) : null, ignoreConflicts)) {
 				cleanUp();
 				return false;
 			}
