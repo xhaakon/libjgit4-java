@@ -1,18 +1,38 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <component id="org.eclipse.jgit" version="2">
     <resource path="META-INF/MANIFEST.MF">
-        <filter id="923795461">
+        <filter comment="minor addition" id="924844039">
             <message_arguments>
-                <message_argument value="3.3.0"/>
-                <message_argument value="3.2.0"/>
+                <message_argument value="3.4.0"/>
+                <message_argument value="3.4.0"/>
             </message_arguments>
         </filter>
     </resource>
-    <resource path="src/org/eclipse/jgit/transport/TransportHttp.java" type="org.eclipse.jgit.transport.TransportHttp">
-        <filter comment="Method is only used by implementers of TransportHttp's API, minor version are allowed to break implementer API according to OSGi semantic versioning (http://www.osgi.org/wiki/uploads/Links/SemanticVersioning.pdf)" id="338792546">
+    <resource path="src/org/eclipse/jgit/lib/ObjectInserter.java" type="org.eclipse.jgit.lib.ObjectInserter">
+        <filter id="336695337">
             <message_arguments>
-                <message_argument value="org.eclipse.jgit.transport.TransportHttp"/>
-                <message_argument value="httpOpen(String, URL)"/>
+                <message_argument value="org.eclipse.jgit.lib.ObjectInserter"/>
+                <message_argument value="newReader()"/>
+            </message_arguments>
+        </filter>
+    </resource>
+    <resource path="src/org/eclipse/jgit/merge/ResolveMerger.java" type="org.eclipse.jgit.merge.ResolveMerger">
+        <filter comment="Doesn't break consumers. Breaking providers is allowed also in minor versions." id="338792546">
+            <message_arguments>
+                <message_argument value="org.eclipse.jgit.merge.ResolveMerger"/>
+                <message_argument value="mergeTreeWalk(TreeWalk)"/>
+            </message_arguments>
+        </filter>
+        <filter comment="Doesn't break consumers. Breaking providers is allowed also in minor versions." id="338792546">
+            <message_arguments>
+                <message_argument value="org.eclipse.jgit.merge.ResolveMerger"/>
+                <message_argument value="mergeTrees(AbstractTreeIterator, RevTree, RevTree)"/>
+            </message_arguments>
+        </filter>
+        <filter comment="Doesn't break consumers. Breaking providers is allowed also in minor versions." id="338792546">
+            <message_arguments>
+                <message_argument value="org.eclipse.jgit.merge.ResolveMerger"/>
+                <message_argument value="processEntry(CanonicalTreeParser, CanonicalTreeParser, CanonicalTreeParser, DirCacheBuildIterator, WorkingTreeIterator)"/>
             </message_arguments>
         </filter>
     </resource>

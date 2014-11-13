@@ -107,7 +107,6 @@ public class FileTreeIteratorJava7Test extends RepositoryTestCase {
 		new Git(db).reset().setMode(ResetType.HARD).call();
 		DirCacheIterator dci = new DirCacheIterator(db.readDirCache());
 		FileTreeIterator fti = new FileTreeIterator(db);
-		fti.next(1); // Skips .git
 
 		// self-check
 		assertEquals("link", fti.getEntryPathString());
@@ -147,14 +146,14 @@ public class FileTreeIteratorJava7Test extends RepositoryTestCase {
 		new Git(db).reset().setMode(ResetType.HARD).call();
 		DirCacheIterator dci = new DirCacheIterator(db.readDirCache());
 		FileTreeIterator fti = new FileTreeIterator(db);
-		fti.next(1); // Skips .git
 
 		// self-check
 		assertEquals("link", fti.getEntryPathString());
 		assertEquals("link", dci.getEntryPathString());
 
 		// test
-		assertFalse(fti.isModified(dci.getDirCacheEntry(), true));
+		assertFalse(fti.isModified(dci.getDirCacheEntry(), true,
+				db.newObjectReader()));
 	}
 
 	/**
@@ -189,7 +188,6 @@ public class FileTreeIteratorJava7Test extends RepositoryTestCase {
 		FS.DETECTED.createSymLink(new File(trash, "link"), "newtarget");
 		DirCacheIterator dci = new DirCacheIterator(db.readDirCache());
 		FileTreeIterator fti = new FileTreeIterator(db);
-		fti.next(1); // Skips .git
 
 		// self-check
 		assertEquals("link", fti.getEntryPathString());

@@ -46,6 +46,7 @@ import java.net.URISyntaxException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -145,12 +146,38 @@ public class LsRemoteCommand extends
 	 * of the command. Don't call this method twice on an instance.
 	 *
 	 * @return a collection of references in the remote repository
+	 * @throws GitAPIException
+	 *             or subclass thereof when an error occurs
 	 * @throws InvalidRemoteException
 	 *             when called with an invalid remote uri
 	 * @throws org.eclipse.jgit.api.errors.TransportException
 	 *             for errors that occurs during transport
 	 */
 	public Collection<Ref> call() throws GitAPIException,
+			InvalidRemoteException,
+			org.eclipse.jgit.api.errors.TransportException {
+		return execute().values();
+	}
+
+	/**
+	 * Same as {@link #call()}, but return Map instead of Collection.
+	 *
+	 * @return a map from names to references in the remote repository
+	 * @throws GitAPIException
+	 *             or subclass thereof when an error occurs
+	 * @throws InvalidRemoteException
+	 *             when called with an invalid remote uri
+	 * @throws org.eclipse.jgit.api.errors.TransportException
+	 *             for errors that occurs during transport
+	 * @since 3.5
+	 */
+	public Map<String, Ref> callAsMap() throws GitAPIException,
+			InvalidRemoteException,
+			org.eclipse.jgit.api.errors.TransportException {
+		return Collections.unmodifiableMap(execute());
+	}
+
+	private Map<String, Ref> execute() throws GitAPIException,
 			InvalidRemoteException,
 			org.eclipse.jgit.api.errors.TransportException {
 		checkCallable();
@@ -184,7 +211,7 @@ public class LsRemoteCommand extends
 							refmap.put(r.getName(), r);
 							break;
 						}
-			return refmap.values();
+			return refmap;
 		} catch (URISyntaxException e) {
 			throw new InvalidRemoteException(MessageFormat.format(
 					JGitText.get().invalidRemote, remote));

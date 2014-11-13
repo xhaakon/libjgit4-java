@@ -53,13 +53,13 @@
 
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>jgit.tycho.parent</artifactId>
-  <version>3.4.0.201406110918-r</version>
+  <version>3.5.2.201411120430-r</version>
   <packaging>pom</packaging>
 
   <name>JGit Tycho Parent</name>
 
   <properties>
-    <tycho-version>0.20.0</tycho-version>
+    <tycho-version>0.21.0</tycho-version>
     <tycho-extras-version>${tycho-version}</tycho-extras-version>
   </properties>
 
@@ -215,12 +215,12 @@
         <plugin>
           <groupId>org.eclipse.cbi.maven.plugins</groupId>
           <artifactId>eclipse-jarsigner-plugin</artifactId>
-          <version>1.0.4</version>
+          <version>1.1.1</version>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>build-helper-maven-plugin</artifactId>
-          <version>1.7</version>
+          <version>1.9</version>
         </plugin>
       </plugins>
     </pluginManagement>

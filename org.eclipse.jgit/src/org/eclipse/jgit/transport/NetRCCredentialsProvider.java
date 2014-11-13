@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2013, Google Inc.
- * and other copyright owners as documented in the project's IP log.
+ * Copyright (C) 2014, Alexey Kuznetsov <axet@me.com>
  *
  * This program and the accompanying materials are made available
  * under the terms of the Eclipse Distribution License v1.0 which
@@ -40,46 +39,78 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package org.eclipse.jgit.transport;
 
-package org.eclipse.jgit.internal.storage.dfs;
+import org.eclipse.jgit.errors.UnsupportedCredentialItem;
+import org.eclipse.jgit.transport.NetRC.NetRCEntry;
 
-import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
+/**
+ * Simple .netrc credentials provider. It can lookup the first machine entry
+ * from your .netrc file.
+ *
+ * @since 3.5
+ */
+public class NetRCCredentialsProvider extends CredentialsProvider {
 
-class InMemoryOutputStream extends DfsOutputStream {
-	private final ByteArrayOutputStream dst = new ByteArrayOutputStream();
+	NetRC netrc = new NetRC();
 
-	private byte[] data;
+	/** */
+	public NetRCCredentialsProvider() {
+	}
 
-	@Override
-	public void write(byte[] buf, int off, int len) {
-		data = null;
-		dst.write(buf, off, len);
+	/**
+	 * Install default provider for the .netrc parser.
+	 */
+	public static void install() {
+		CredentialsProvider.setDefault(new NetRCCredentialsProvider());
 	}
 
 	@Override
-	public int read(long position, ByteBuffer buf) {
-		byte[] d = getData();
-		int n = Math.min(buf.remaining(), d.length - (int) position);
-		if (n <= 0)
-			return -1;
-		buf.put(d, (int) position, n);
-		return n;
-	}
-
-	byte[] getData() {
-		if (data == null)
-			data = dst.toByteArray();
-		return data;
+	public boolean supports(CredentialItem... items) {
+		for (CredentialItem i : items) {
+			if (i instanceof CredentialItem.Username)
+				continue;
+			else if (i instanceof CredentialItem.Password)
+				continue;
+			else
+				return false;
+		}
+		return true;
 	}
 
 	@Override
-	public void flush() {
-		// Default implementation does nothing;
+	public boolean get(URIish uri, CredentialItem... items)
+			throws UnsupportedCredentialItem {
+		NetRCEntry cc = netrc.getEntry(uri.getHost());
+
+		if (cc == null)
+			return false;
+
+		for (CredentialItem i : items) {
+			if (i instanceof CredentialItem.Username) {
+				((CredentialItem.Username) i).setValue(cc.login);
+				continue;
+			}
+			if (i instanceof CredentialItem.Password) {
+				((CredentialItem.Password) i).setValue(cc.password);
+				continue;
+			}
+			if (i instanceof CredentialItem.StringType) {
+				if (i.getPromptText().equals("Password: ")) { //$NON-NLS-1$
+					((CredentialItem.StringType) i).setValue(new String(
+							cc.password));
+					continue;
+				}
+			}
+			throw new UnsupportedCredentialItem(uri, i.getClass().getName()
+					+ ":" + i.getPromptText()); //$NON-NLS-1$
+		}
+		return true;
 	}
 
 	@Override
-	public void close() {
-		flush();
+	public boolean isInteractive() {
+		return false;
 	}
+
 }

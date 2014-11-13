@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010, Christian Halstrick <christian.halstrick@sap.com>
- * Copyright (C) 2010-2012, Stefan Lay <stefan.lay@sap.com>
+ * Copyright (C) 2010-2014, Stefan Lay <stefan.lay@sap.com>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -103,6 +103,8 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	private Boolean squash;
 
 	private FastForwardMode fastForwardMode;
+
+	private String message;
 
 	/**
 	 * The modes available for fast forward merges corresponding to the
@@ -313,7 +315,10 @@ public class MergeCommand extends GitCommand<MergeResult> {
 				}
 				String mergeMessage = ""; //$NON-NLS-1$
 				if (!squash) {
-					mergeMessage = new MergeMessageFormatter().format(
+					if (message != null)
+						mergeMessage = message;
+					else
+						mergeMessage = new MergeMessageFormatter().format(
 							commits, head);
 					repo.writeMergeCommitMsg(mergeMessage);
 					repo.writeMergeHeads(Arrays.asList(ref.getObjectId()));
@@ -480,35 +485,35 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	}
 
 	/**
-	 * @param commit
+	 * @param aCommit
 	 *            a reference to a commit which is merged with the current head
 	 * @return {@code this}
 	 */
-	public MergeCommand include(Ref commit) {
+	public MergeCommand include(Ref aCommit) {
 		checkCallable();
-		commits.add(commit);
+		commits.add(aCommit);
 		return this;
 	}
 
 	/**
-	 * @param commit
+	 * @param aCommit
 	 *            the Id of a commit which is merged with the current head
 	 * @return {@code this}
 	 */
-	public MergeCommand include(AnyObjectId commit) {
-		return include(commit.getName(), commit);
+	public MergeCommand include(AnyObjectId aCommit) {
+		return include(aCommit.getName(), aCommit);
 	}
 
 	/**
 	 * @param name
 	 *            a name given to the commit
-	 * @param commit
+	 * @param aCommit
 	 *            the Id of a commit which is merged with the current head
 	 * @return {@code this}
 	 */
-	public MergeCommand include(String name, AnyObjectId commit) {
+	public MergeCommand include(String name, AnyObjectId aCommit) {
 		return include(new ObjectIdRef.Unpeeled(Storage.LOOSE, name,
-				commit.copy()));
+				aCommit.copy()));
 	}
 
 	/**
@@ -563,6 +568,20 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	 */
 	public MergeCommand setCommit(boolean commit) {
 		this.commit = Boolean.valueOf(commit);
+		return this;
+	}
+
+	/**
+	 * Set the commit message to be used for the merge commit (in case one is
+	 * created)
+	 *
+	 * @param message
+	 *            the message to be used for the merge commit
+	 * @return {@code this}
+	 * @since 3.5
+	 */
+	public MergeCommand setMessage(String message) {
+		this.message = message;
 		return this;
 	}
 }
