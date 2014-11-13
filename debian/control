@@ -21,7 +21,7 @@ Build-Depends: debhelper (>= 9~),
                libxz-java,
                maven-debian-helper,
                maven-repo-helper
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 Vcs-Git: git://anonscm.debian.org/pkg-java/eclipse-jgit.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-java/eclipse-jgit.git
 Homepage: http://www.eclipse.org/jgit/
