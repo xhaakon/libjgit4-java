@@ -2,6 +2,7 @@ jgit (3.5.2-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * Bump Standards-Version to 3.9.6 (no changes).
+  * Remove Niels Thykier from Uploaders; thanks for your contributions.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Thu, 13 Nov 2014 21:04:08 +0100
 
