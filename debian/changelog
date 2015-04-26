@@ -3,6 +3,7 @@ jgit (3.7.0-1) UNRELEASED; urgency=medium
   * New upstream release (Closes: #774050).
   * Bump Standards-Version to 3.9.6 (no changes).
   * Remove Niels Thykier from Uploaders; thanks for your contributions.
+  * Refresh d/patches/unversioned-orbit-dependencies.patch.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Sun, 26 Apr 2015 21:23:34 +0200
 
