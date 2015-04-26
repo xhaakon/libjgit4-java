@@ -1,6 +1,6 @@
 jgit (3.7.0-1) UNRELEASED; urgency=medium
 
-  * New upstream release.
+  * New upstream release (Closes: #774050).
   * Bump Standards-Version to 3.9.6 (no changes).
   * Remove Niels Thykier from Uploaders; thanks for your contributions.
 
