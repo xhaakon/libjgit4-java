@@ -2,7 +2,7 @@
 <feature
       id="org.eclipse.jgit"
       label="%featureName"
-      version="3.5.2.201411120430-r"
+      version="3.7.0.201502260915-r"
       provider-name="%providerName">
 
    <description url="http://www.eclipse.org/jgit/">
@@ -21,6 +21,12 @@
       <update label="%updateSiteName" url="http://download.eclipse.org/egit/updates"/>
       <discovery label="%updateSiteName" url="http://download.eclipse.org/egit/updates"/>
    </url>
+
+   <includes
+         id="org.eclipse.jgit.java7"
+         version="0.0.0"
+         name="Java implementation of Git - optional Java 7 libraries"
+         optional="true"/>
 
    <plugin
          id="org.eclipse.jgit"
@@ -52,6 +58,28 @@
 
    <plugin
          id="org.apache.commons.compress"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.slf4j.api"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.slf4j.impl.log4j12"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         fragment="true"
+         unpack="false"/>
+
+   <plugin
+         id="org.apache.log4j"
          download-size="0"
          install-size="0"
          version="0.0.0"
