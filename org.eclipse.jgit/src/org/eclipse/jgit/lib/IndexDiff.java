@@ -3,6 +3,7 @@
  * Copyright (C) 2007-2008, Robin Rosenberg <robin.rosenberg@dewire.com>
  * Copyright (C) 2010, Jens Baumgart <jens.baumgart@sap.com>
  * Copyright (C) 2013, Robin Stocker <robin@nibor.org>
+ * Copyright (C) 2014, Axel Richard <axel.richard@obeo.fr>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -58,13 +59,17 @@ import java.util.Set;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.dircache.DirCacheIterator;
+import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.StopWalkException;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.submodule.SubmoduleWalk;
+import org.eclipse.jgit.submodule.SubmoduleWalk.IgnoreSubmoduleMode;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.WorkingTreeIterator;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
@@ -227,7 +232,7 @@ public class IndexDiff {
 		@Override
 		public TreeFilter clone() {
 			throw new IllegalStateException(
-					"Do not clone this kind of filter: "
+					"Do not clone this kind of filter: " //$NON-NLS-1$
 							+ getClass().getName());
 		}
 	}
@@ -268,6 +273,12 @@ public class IndexDiff {
 
 	private IndexDiffFilter indexDiffFilter;
 
+	private Map<String, IndexDiff> submoduleIndexDiffs = new HashMap<String, IndexDiff>();
+
+	private IgnoreSubmoduleMode ignoreSubmoduleMode = null;
+
+	private Map<FileMode, Set<String>> fileModes = new HashMap<FileMode, Set<String>>();
+
 	/**
 	 * Construct an IndexDiff
 	 *
@@ -281,13 +292,7 @@ public class IndexDiff {
 	 */
 	public IndexDiff(Repository repository, String revstr,
 			WorkingTreeIterator workingTreeIterator) throws IOException {
-		this.repository = repository;
-		ObjectId objectId = repository.resolve(revstr);
-		if (objectId != null)
-			tree = new RevWalk(repository).parseTree(objectId);
-		else
-			tree = null;
-		this.initialWorkingTreeIterator = workingTreeIterator;
+		this(repository, repository.resolve(revstr), workingTreeIterator);
 	}
 
 	/**
@@ -308,6 +313,43 @@ public class IndexDiff {
 		else
 			tree = null;
 		this.initialWorkingTreeIterator = workingTreeIterator;
+	}
+
+	/**
+	 * @param mode
+	 *            defines how modifications in submodules are treated
+	 * @since 3.6
+	 */
+	public void setIgnoreSubmoduleMode(IgnoreSubmoduleMode mode) {
+		this.ignoreSubmoduleMode = mode;
+	}
+
+	/**
+	 * A factory to producing WorkingTreeIterators
+	 * @since 3.6
+	 */
+	public interface WorkingTreeIteratorFactory {
+		/**
+		 * @param repo
+		 * @return a WorkingTreeIterator for repo
+		 */
+		public WorkingTreeIterator getWorkingTreeIterator(Repository repo);
+	}
+
+	private WorkingTreeIteratorFactory wTreeIt = new WorkingTreeIteratorFactory() {
+		public WorkingTreeIterator getWorkingTreeIterator(Repository repo) {
+			return new FileTreeIterator(repo);
+		}
+	};
+
+	/**
+	 * Allows higher layers to set the factory for WorkingTreeIterators.
+	 *
+	 * @param wTreeIt
+	 * @since 3.6
+	 */
+	public void setWorkingTreeItFactory(WorkingTreeIteratorFactory wTreeIt) {
+		this.wTreeIt = wTreeIt;
 	}
 
 	/**
@@ -386,6 +428,7 @@ public class IndexDiff {
 		indexDiffFilter = new IndexDiffFilter(INDEX, WORKDIR);
 		filters.add(indexDiffFilter);
 		treeWalk.setFilter(AndTreeFilter.create(filters));
+		fileModes.clear();
 		while (treeWalk.next()) {
 			AbstractTreeIterator treeIterator = treeWalk.getTree(TREE,
 					AbstractTreeIterator.class);
@@ -413,18 +456,25 @@ public class IndexDiff {
 							|| treeIterator.getEntryRawMode()
 							!= dirCacheIterator.getEntryRawMode()) {
 						// in repo, in index, content diff => changed
-						changed.add(treeWalk.getPathString());
+						if (!isEntryGitLink(treeIterator)
+								|| !isEntryGitLink(dirCacheIterator)
+								|| ignoreSubmoduleMode != IgnoreSubmoduleMode.ALL)
+							changed.add(treeWalk.getPathString());
 					}
 				} else {
 					// in repo, not in index => removed
-					removed.add(treeWalk.getPathString());
+					if (!isEntryGitLink(treeIterator)
+							|| ignoreSubmoduleMode != IgnoreSubmoduleMode.ALL)
+						removed.add(treeWalk.getPathString());
 					if (workingTreeIterator != null)
 						untracked.add(treeWalk.getPathString());
 				}
 			} else {
 				if (dirCacheIterator != null) {
 					// not in repo, in index => added
-					added.add(treeWalk.getPathString());
+					if (!isEntryGitLink(dirCacheIterator)
+							|| ignoreSubmoduleMode != IgnoreSubmoduleMode.ALL)
+						added.add(treeWalk.getPathString());
 				} else {
 					// not in repo, not in index => untracked
 					if (workingTreeIterator != null
@@ -437,16 +487,85 @@ public class IndexDiff {
 			if (dirCacheIterator != null) {
 				if (workingTreeIterator == null) {
 					// in index, not in workdir => missing
-					missing.add(treeWalk.getPathString());
+					if (!isEntryGitLink(dirCacheIterator)
+							|| ignoreSubmoduleMode != IgnoreSubmoduleMode.ALL)
+						missing.add(treeWalk.getPathString());
 				} else {
 					if (workingTreeIterator.isModified(
 							dirCacheIterator.getDirCacheEntry(), true,
 							treeWalk.getObjectReader())) {
 						// in index, in workdir, content differs => modified
-						modified.add(treeWalk.getPathString());
+						if (!isEntryGitLink(dirCacheIterator) || !isEntryGitLink(workingTreeIterator)
+								|| (ignoreSubmoduleMode != IgnoreSubmoduleMode.ALL && ignoreSubmoduleMode != IgnoreSubmoduleMode.DIRTY))
+							modified.add(treeWalk.getPathString());
 					}
 				}
 			}
+
+			for (int i = 0; i < treeWalk.getTreeCount(); i++) {
+				Set<String> values = fileModes.get(treeWalk.getFileMode(i));
+				String path = treeWalk.getPathString();
+				if (path != null) {
+					if (values == null)
+						values = new HashSet<String>();
+					values.add(path);
+					fileModes.put(treeWalk.getFileMode(i), values);
+				}
+			}
+		}
+
+		if (ignoreSubmoduleMode != IgnoreSubmoduleMode.ALL) {
+			IgnoreSubmoduleMode localIgnoreSubmoduleMode = ignoreSubmoduleMode;
+			SubmoduleWalk smw = SubmoduleWalk.forIndex(repository);
+			while (smw.next()) {
+				try {
+					if (localIgnoreSubmoduleMode == null)
+						localIgnoreSubmoduleMode = smw.getModulesIgnore();
+					if (IgnoreSubmoduleMode.ALL
+							.equals(localIgnoreSubmoduleMode))
+						continue;
+				} catch (ConfigInvalidException e) {
+					IOException e1 = new IOException(
+							"Found invalid ignore param for submodule "
+									+ smw.getPath());
+					e1.initCause(e);
+					throw e1;
+				}
+				Repository subRepo = smw.getRepository();
+				if (subRepo != null) {
+					try {
+						ObjectId subHead = subRepo.resolve("HEAD"); //$NON-NLS-1$
+						if (subHead != null
+								&& !subHead.equals(smw.getObjectId()))
+							modified.add(smw.getPath());
+						else if (ignoreSubmoduleMode != IgnoreSubmoduleMode.DIRTY) {
+							IndexDiff smid = submoduleIndexDiffs.get(smw
+									.getPath());
+							if (smid == null) {
+								smid = new IndexDiff(subRepo,
+										smw.getObjectId(),
+										wTreeIt.getWorkingTreeIterator(subRepo));
+								submoduleIndexDiffs.put(smw.getPath(), smid);
+							}
+							if (smid.diff()) {
+								if (ignoreSubmoduleMode == IgnoreSubmoduleMode.UNTRACKED
+										&& smid.getAdded().isEmpty()
+										&& smid.getChanged().isEmpty()
+										&& smid.getConflicting().isEmpty()
+										&& smid.getMissing().isEmpty()
+										&& smid.getModified().isEmpty()
+										&& smid.getRemoved().isEmpty()) {
+									continue;
+								}
+								modified.add(smw.getPath());
+							}
+						}
+					} finally {
+						subRepo.close();
+					}
+				}
+			}
+
 		}
 
 		// consume the remaining work
@@ -460,6 +579,11 @@ public class IndexDiff {
 			return false;
 		else
 			return true;
+	}
+
+	private boolean isEntryGitLink(AbstractTreeIterator ti) {
+		return ((ti != null) && (ti.getEntryRawMode() == FileMode.GITLINK
+				.getBits()));
 	}
 
 	private void addConflict(String path, int stage) {
@@ -577,5 +701,21 @@ public class IndexDiff {
 	public FileMode getIndexMode(final String path) {
 		final DirCacheEntry entry = dirCache.getEntry(path);
 		return entry != null ? entry.getFileMode() : FileMode.MISSING;
+	}
+
+	/**
+	 * Get the list of paths that IndexDiff has detected to differ and have the
+	 * given file mode
+	 *
+	 * @param mode
+	 * @return the list of paths that IndexDiff has detected to differ and have
+	 *         the given file mode
+	 * @since 3.6
+	 */
+	public Set<String> getPathsWithIndexMode(final FileMode mode) {
+		Set<String> paths = fileModes.get(mode);
+		if (paths == null)
+			paths = new HashSet<String>();
+		return paths;
 	}
 }

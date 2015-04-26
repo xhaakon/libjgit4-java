@@ -86,6 +86,8 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 
 	private File directory;
 
+	private File gitDir;
+
 	private boolean bare;
 
 	private String remote = Constants.DEFAULT_REMOTE_NAME;
@@ -112,6 +114,12 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 	/**
 	 * Executes the {@code Clone} command.
 	 *
+	 * The Git instance returned by this command needs to be closed by the
+	 * caller to free resources held by the underlying {@link Repository}
+	 * instance. It is recommended to call this method as soon as you don't need
+	 * a reference to this {@link Git} instance and the underlying
+	 * {@link Repository} instance anymore.
+	 *
 	 * @return the newly created {@code Git} object with associated repository
 	 * @throws InvalidRemoteException
 	 * @throws org.eclipse.jgit.api.errors.TransportException
@@ -137,12 +145,19 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 	private Repository init(URIish u) throws GitAPIException {
 		InitCommand command = Git.init();
 		command.setBare(bare);
-		if (directory == null)
+		if (directory == null && gitDir == null)
 			directory = new File(u.getHumanishName(), Constants.DOT_GIT);
-		if (directory.exists() && directory.listFiles().length != 0)
+		if (directory != null && directory.exists()
+				&& directory.listFiles().length != 0)
 			throw new JGitInternalException(MessageFormat.format(
 					JGitText.get().cloneNonEmptyDirectory, directory.getName()));
-		command.setDirectory(directory);
+		if (gitDir != null && gitDir.exists() && gitDir.listFiles().length != 0)
+			throw new JGitInternalException(MessageFormat.format(
+					JGitText.get().cloneNonEmptyDirectory, gitDir.getName()));
+		if (directory != null)
+			command.setDirectory(directory);
+		if (gitDir != null)
+			command.setGitDir(gitDir);
 		return command.call().getRepository();
 	}
 
@@ -336,9 +351,32 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 	 * @param directory
 	 *            the directory to clone to
 	 * @return this instance
+	 * @throws IllegalStateException
+	 *             if the combination of directory, gitDir and bare is illegal.
+	 *             E.g. if for a non-bare repository directory and gitDir point
+	 *             to the same directory of if for a bare repository both
+	 *             directory and gitDir are specified
 	 */
 	public CloneCommand setDirectory(File directory) {
+		validateDirs(directory, gitDir, bare);
 		this.directory = directory;
+		return this;
+	}
+
+	/**
+	 * @param gitDir
+	 *            the repository meta directory
+	 * @return this instance
+	 * @throws IllegalStateException
+	 *             if the combination of directory, gitDir and bare is illegal.
+	 *             E.g. if for a non-bare repository directory and gitDir point
+	 *             to the same directory of if for a bare repository both
+	 *             directory and gitDir are specified
+	 * @since 3.6
+	 */
+	public CloneCommand setGitDir(File gitDir) {
+		validateDirs(directory, gitDir, bare);
+		this.gitDir = gitDir;
 		return this;
 	}
 
@@ -346,8 +384,14 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 	 * @param bare
 	 *            whether the cloned repository is bare or not
 	 * @return this instance
+	 * @throws IllegalStateException
+	 *             if the combination of directory, gitDir and bare is illegal.
+	 *             E.g. if for a non-bare repository directory and gitDir point
+	 *             to the same directory of if for a bare repository both
+	 *             directory and gitDir are specified
 	 */
-	public CloneCommand setBare(boolean bare) {
+	public CloneCommand setBare(boolean bare) throws IllegalStateException {
+		validateDirs(directory, gitDir, bare);
 		this.bare = bare;
 		return this;
 	}
@@ -437,5 +481,22 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 	public CloneCommand setNoCheckout(boolean noCheckout) {
 		this.noCheckout = noCheckout;
 		return this;
+	}
+
+	private static void validateDirs(File directory, File gitDir, boolean bare)
+			throws IllegalStateException {
+		if (directory != null) {
+			if (bare) {
+				if (gitDir != null && !gitDir.equals(directory))
+					throw new IllegalStateException(MessageFormat.format(
+							JGitText.get().initFailedBareRepoDifferentDirs,
+							gitDir, directory));
+			} else {
+				if (gitDir != null && gitDir.equals(directory))
+					throw new IllegalStateException(MessageFormat.format(
+							JGitText.get().initFailedNonBareRepoSameDirs,
+							gitDir, directory));
+			}
+		}
 	}
 }

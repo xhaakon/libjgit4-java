@@ -42,7 +42,6 @@
  */
 package org.eclipse.jgit.api;
 
-import java.io.File;
 import java.io.IOException;
 import java.text.MessageFormat;
 
@@ -329,9 +328,8 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 
 	private void resetUntracked(RevTree tree) throws CheckoutConflictException,
 			IOException {
-		TreeWalk walk = null;
+		TreeWalk walk = new TreeWalk(repo); // maybe NameConflictTreeWalk;
 		try {
-			walk = new TreeWalk(repo); // maybe NameConflictTreeWalk?
 			walk.addTree(tree);
 			walk.addTree(new FileTreeIterator(repo));
 			walk.setRecursive(true);
@@ -362,15 +360,13 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 				checkoutPath(entry, reader);
 			}
 		} finally {
-			if (walk != null)
-				walk.release();
+			walk.release();
 		}
 	}
 
 	private void checkoutPath(DirCacheEntry entry, ObjectReader reader) {
 		try {
-			File file = new File(repo.getWorkTree(), entry.getPathString());
-			DirCacheCheckout.checkoutEntry(repo, file, entry, reader);
+			DirCacheCheckout.checkoutEntry(repo, entry, reader);
 		} catch (IOException e) {
 			throw new JGitInternalException(MessageFormat.format(
 					JGitText.get().checkoutConflictWithFile,
