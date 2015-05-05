@@ -1,4 +1,4 @@
-jgit (3.7.0-1) UNRELEASED; urgency=medium
+jgit (3.7.0-1) unstable; urgency=medium
 
   * New upstream release (Closes: #774050).
   * Bump Standards-Version to 3.9.6 (no changes).
