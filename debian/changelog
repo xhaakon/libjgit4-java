@@ -1,6 +1,8 @@
-jgit (3.7.0-2) UNRELEASED; urgency=medium
+jgit (3.7.1-1) UNRELEASED; urgency=medium
 
   * Team upload.
+  * New upstream release
+    - Refreshed the patches
   * Updated debian/watch
 
  -- Emmanuel Bourg <ebourg@apache.org>  Tue, 22 Sep 2015 14:13:37 +0200

@@ -13,11 +13,9 @@ Subject: debian-custom-build
  pom.xml                      | 9 +++++----
  2 files changed, 6 insertions(+), 5 deletions(-)
 
-diff --git a/org.eclipse.jgit.pgm/jgit.sh b/org.eclipse.jgit.pgm/jgit.sh
-index 6b9ce40..3700d4f 100644
 --- a/org.eclipse.jgit.pgm/jgit.sh
 +++ b/org.eclipse.jgit.pgm/jgit.sh
-@@ -86,7 +86,7 @@ Darwin)
+@@ -90,7 +90,7 @@
  	;;
  esac
  
@@ -26,11 +24,9 @@ index 6b9ce40..3700d4f 100644
  export CLASSPATH
  
  java=java
-diff --git a/pom.xml b/pom.xml
-index edd2e6e..79fdb90 100644
 --- a/pom.xml
 +++ b/pom.xml
-@@ -410,6 +410,7 @@
+@@ -430,6 +430,7 @@
            <links>
              <link>http://java.sun.com/j2se/1.5.0/docs/api</link>
            </links>
@@ -38,7 +34,7 @@ index edd2e6e..79fdb90 100644
          </configuration>
          <executions>
            <execution>
-@@ -547,7 +548,7 @@
+@@ -602,7 +603,7 @@
        </activation>
        <modules>
          <module>org.eclipse.jgit.java7</module>
@@ -47,7 +43,7 @@ index edd2e6e..79fdb90 100644
        </modules>
      </profile>
      <profile>
-@@ -634,11 +635,11 @@
+@@ -712,11 +713,11 @@
      <module>org.eclipse.jgit.http.server</module>
      <module>org.eclipse.jgit.pgm</module>
      <module>org.eclipse.jgit.junit</module>
