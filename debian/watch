@@ -1,2 +1,2 @@
 version=3
-http://git.eclipse.org/c/jgit/jgit.git/refs/tags .*/snapshot/jgit-(\d.\d.\d).\d+-r.tar.bz2
+http://git.eclipse.org/c/jgit/jgit.git/refs/tags .*/snapshot/jgit-(\d.\d.\d).\d+-r.tar.xz
