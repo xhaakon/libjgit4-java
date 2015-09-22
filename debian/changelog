@@ -3,6 +3,7 @@ jgit (3.7.1-1) UNRELEASED; urgency=medium
   * Team upload.
   * New upstream release
     - Refreshed the patches
+  * Added the missing build dependency on junit4
   * Updated debian/watch
 
  -- Emmanuel Bourg <ebourg@apache.org>  Tue, 22 Sep 2015 14:13:37 +0200
