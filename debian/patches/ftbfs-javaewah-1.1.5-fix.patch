@@ -1,0 +1,23 @@
+From: Jakub Adam <jakub.adam@ktknet.cz>
+Date: Sun, 14 Feb 2016 22:45:46 +0100
+Subject: ftbfs-javaewah-1.1.5-fix
+
+---
+ .../src/org/eclipse/jgit/internal/storage/file/BitmapIndexImpl.java   | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/org.eclipse.jgit/src/org/eclipse/jgit/internal/storage/file/BitmapIndexImpl.java b/org.eclipse.jgit/src/org/eclipse/jgit/internal/storage/file/BitmapIndexImpl.java
+index b27bcc4..2621949 100644
+--- a/org.eclipse.jgit/src/org/eclipse/jgit/internal/storage/file/BitmapIndexImpl.java
++++ b/org.eclipse.jgit/src/org/eclipse/jgit/internal/storage/file/BitmapIndexImpl.java
+@@ -504,8 +504,8 @@ public int getType() {
+ 	static final EWAHCompressedBitmap ones(int sizeInBits) {
+ 		EWAHCompressedBitmap mask = new EWAHCompressedBitmap();
+ 		mask.addStreamOfEmptyWords(
+-				true, sizeInBits / EWAHCompressedBitmap.wordinbits);
+-		int remaining = sizeInBits % EWAHCompressedBitmap.wordinbits;
++				true, sizeInBits / EWAHCompressedBitmap.WORD_IN_BITS);
++		int remaining = sizeInBits % EWAHCompressedBitmap.WORD_IN_BITS;
+ 		if (remaining > 0)
+ 			mask.add((1L << remaining) - 1, remaining);
+ 		return mask;
