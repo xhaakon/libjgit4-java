@@ -1,3 +1,4 @@
 * maven-shade-plugin * * * *
 * maven-source-plugin * * * *
 * jacoco-maven-plugin * * * *
+* log4j * * * *
