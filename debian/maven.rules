@@ -18,7 +18,7 @@
 
 args4j args4j-site pom 2.0.16 * *
 args4j args4j jar 2.0.16 * *
+javax.servlet javax.servlet-api jar s/.*/3.1/ * *
 junit junit jar s/4\..*/4.x/ * *
 s/ant/org.apache.ant/ * * s/.*/debian/ * *
-s/org.apache.tomcat/javax.servlet/ servlet-api jar s/.*/2.5/ * *
 s/org.osgi/org.eclipse.osgi/ s/org.osgi.core/org.eclipse.osgi/ jar s/.*/debian/ * *
