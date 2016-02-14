@@ -2,6 +2,7 @@ jgit (4.3.0-1) UNRELEASED; urgency=medium
 
   * New upstream release
     - Refreshed the patches.
+  * Depend on libjavaewah-java >= 1.1.5.
 
  -- Jakub Adam <jakub.adam@ktknet.cz>  Sun, 17 Apr 2016 12:31:12 +0200
 
