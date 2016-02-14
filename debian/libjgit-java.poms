@@ -3,7 +3,6 @@ org.eclipse.jgit/pom.xml
 org.eclipse.jgit.ant/pom.xml --ignore-pom
 org.eclipse.jgit.archive/pom.xml --ignore-pom
 org.eclipse.jgit.http.server/pom.xml
-org.eclipse.jgit.java7/pom.xml
 org.eclipse.jgit.junit/pom.xml --ignore-pom
 org.eclipse.jgit.pgm/pom.xml --ignore-pom
 org.eclipse.jgit.ui/pom.xml --ignore-pom
