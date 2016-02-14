@@ -1,4 +1,5 @@
 org.eclipse.jgit.archive/pom.xml
+org.eclipse.jgit.http.apache/pom.xml
 org.eclipse.jgit.pgm/pom.xml
 org.eclipse.jgit.ui/pom.xml
 
