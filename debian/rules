@@ -50,3 +50,7 @@ clean::
 	       org.eclipse.jgit.ui/target/ \
 	       org.eclipse.jgit/target/ \
 	       target/
+
+VERSION=$(shell dpkg-parsechangelog -S Version | cut -d- -f1)
+get-orig-source:
+	uscan --force-download --download-version $(VERSION)
