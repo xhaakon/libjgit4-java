@@ -60,6 +60,7 @@ import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.NoMergeBaseException;
 import org.eclipse.jgit.errors.NoMergeBaseException.MergeBaseFailureReason;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
+import org.eclipse.jgit.junit.LocalDiskRepositoryTestCase;
 import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.junit.TestRepository;
 import org.eclipse.jgit.junit.TestRepository.BranchBuilder;
@@ -177,6 +178,69 @@ public class RecursiveMergerTest extends RepositoryTestCase {
 
 	@Theory
 	/**
+	 * Merging m2,s2 from the following topology. m1 and s1 are the two root
+	 * commits of the repo. In master and side different files are touched.
+	 * No need to do a real content merge.
+	 *
+	 * <pre>
+	 * m1--m2
+	 *   \/
+	 *   /\
+	 * s1--s2
+	 * </pre>
+	 */
+	public void crissCrossMerge_twoRoots(MergeStrategy strategy,
+			IndexState indexState, WorktreeState worktreeState)
+			throws Exception {
+		if (!validateStates(indexState, worktreeState))
+			return;
+		// fill the repo
+		BranchBuilder master = db_t.branch("master");
+		BranchBuilder side = db_t.branch("side");
+		RevCommit m1 = master.commit().add("m", "m1").message("m1").create();
+		db_t.getRevWalk().parseCommit(m1);
+
+		RevCommit s1 = side.commit().add("s", "s1").message("s1").create();
+		RevCommit s2 = side.commit().parent(m1).add("m", "m1")
+				.message("s2(merge)").create();
+		RevCommit m2 = master.commit().parent(s1).add("s", "s1")
+				.message("m2(merge)").create();
+
+		Git git = Git.wrap(db);
+		git.checkout().setName("master").call();
+		modifyWorktree(worktreeState, "m", "side");
+		modifyWorktree(worktreeState, "s", "side");
+		modifyIndex(indexState, "m", "side");
+		modifyIndex(indexState, "s", "side");
+
+		ResolveMerger merger = (ResolveMerger) strategy.newMerger(db,
+				worktreeState == WorktreeState.Bare);
+		if (worktreeState != WorktreeState.Bare)
+			merger.setWorkingTreeIterator(new FileTreeIterator(db));
+		try {
+			boolean expectSuccess = true;
+			if (!(indexState == IndexState.Bare
+					|| indexState == IndexState.Missing
+					|| indexState == IndexState.SameAsHead || indexState == IndexState.SameAsOther))
+				// index is dirty
+				expectSuccess = false;
+
+			assertEquals(Boolean.valueOf(expectSuccess),
+					Boolean.valueOf(merger.merge(new RevCommit[] { m2, s2 })));
+			assertEquals(MergeStrategy.RECURSIVE, strategy);
+			assertEquals("m1",
+					contentAsString(db, merger.getResultTreeId(), "m"));
+			assertEquals("s1",
+					contentAsString(db, merger.getResultTreeId(), "s"));
+		} catch (NoMergeBaseException e) {
+			assertEquals(MergeStrategy.RESOLVE, strategy);
+			assertEquals(e.getReason(),
+					MergeBaseFailureReason.MULTIPLE_MERGE_BASES_NOT_SUPPORTED);
+		}
+	}
+
+	@Theory
+	/**
 	 * Merging m2,s2 from the following topology. The same file is modified
 	 * in both branches. The modifications should be mergeable. m2 and s2
 	 * contain branch specific conflict resolutions. Therefore m2 and s2 don't contain the same content.
@@ -245,7 +309,7 @@ public class RecursiveMergerTest extends RepositoryTestCase {
 			if (indexState != IndexState.Bare)
 				assertEquals(
 						"[f, mode:100644, content:1-master\n2\n3-res(master)\n4\n5\n6\n7-res(side)\n8\n9-side\n]",
-						indexState(RepositoryTestCase.CONTENT));
+						indexState(LocalDiskRepositoryTestCase.CONTENT));
 			if (worktreeState != WorktreeState.Bare
 					&& worktreeState != WorktreeState.Missing)
 				assertEquals(
@@ -330,7 +394,7 @@ public class RecursiveMergerTest extends RepositoryTestCase {
 			if (indexState != IndexState.Bare)
 				assertEquals(
 						"[f, mode:100644, content:1-master-r\n2\n3-side-r\n]",
-						indexState(RepositoryTestCase.CONTENT));
+						indexState(LocalDiskRepositoryTestCase.CONTENT));
 			if (worktreeState != WorktreeState.Bare
 					&& worktreeState != WorktreeState.Missing)
 				assertEquals(
@@ -415,7 +479,7 @@ public class RecursiveMergerTest extends RepositoryTestCase {
 			if (indexState != IndexState.Bare)
 				assertEquals(
 						"[f, mode:100644, content:1\nx(side)\n2\n3\ny(side-again)\n]",
-						indexState(RepositoryTestCase.CONTENT));
+						indexState(LocalDiskRepositoryTestCase.CONTENT));
 			if (worktreeState != WorktreeState.Bare
 					&& worktreeState != WorktreeState.Missing)
 				assertEquals("1\nx(side)\n2\n3\ny(side-again)\n", read("f"));
@@ -498,7 +562,7 @@ public class RecursiveMergerTest extends RepositoryTestCase {
 			if (indexState != IndexState.Bare)
 				assertEquals(
 						"[f, mode:100644, content:1-master-r\n2\n3-side-r\n][m.c, mode:100644, content:0][m.m, mode:100644, content:1][s.c, mode:100644, content:0][s.m, mode:100644, content:1]",
-						indexState(RepositoryTestCase.CONTENT));
+						indexState(LocalDiskRepositoryTestCase.CONTENT));
 			if (worktreeState != WorktreeState.Bare
 					&& worktreeState != WorktreeState.Missing) {
 				assertEquals(
@@ -575,7 +639,7 @@ public class RecursiveMergerTest extends RepositoryTestCase {
 						"[f, mode:100644, stage:1, content:1-master\n2\n3\n4\n5\n6\n7\n8\n9-side\n]"
 								+ "[f, mode:100644, stage:2, content:1-master\n2\n3\n4\n5\n6\n7-conflict\n8\n9-side\n]"
 								+ "[f, mode:100644, stage:3, content:1-master\n2\n3\n4\n5\n6\n7-res(side)\n8\n9-side\n]",
-						indexState(RepositoryTestCase.CONTENT));
+						indexState(LocalDiskRepositoryTestCase.CONTENT));
 				assertEquals(
 						"1-master\n2\n3\n4\n5\n6\n<<<<<<< OURS\n7-conflict\n=======\n7-res(side)\n>>>>>>> THEIRS\n8\n9-side\n",
 						read("f"));
@@ -673,7 +737,7 @@ public class RecursiveMergerTest extends RepositoryTestCase {
 			if (indexState != IndexState.Bare)
 				assertEquals(
 						"[f, mode:100644, content:1-master\n2\n3-res(master)\n4\n5-other\n6\n7-res(side)\n8\n9-side\n]",
-						indexState(RepositoryTestCase.CONTENT));
+						indexState(LocalDiskRepositoryTestCase.CONTENT));
 			if (worktreeState != WorktreeState.Bare
 					&& worktreeState != WorktreeState.Missing)
 				assertEquals(

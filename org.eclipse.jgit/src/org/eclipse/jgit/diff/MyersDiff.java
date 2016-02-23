@@ -46,6 +46,7 @@ package org.eclipse.jgit.diff;
 
 import java.text.MessageFormat;
 
+import org.eclipse.jgit.errors.DiffInterruptedException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.util.IntList;
 import org.eclipse.jgit.util.LongList;
@@ -113,6 +114,7 @@ import org.eclipse.jgit.util.LongList;
 public class MyersDiff<S extends Sequence> {
 	/** Singleton instance of MyersDiff. */
 	public static final DiffAlgorithm INSTANCE = new LowLevelDiffAlgorithm() {
+		@SuppressWarnings("unused")
 		@Override
 		public <S extends Sequence> void diffNonCommon(EditList edits,
 				HashedSequenceComparator<S> cmp, HashedSequence<S> a,
@@ -406,6 +408,9 @@ if (k < beginK || k > endK)
 				// TODO: move end points out of the loop to avoid conditionals inside the loop
 				// go backwards so that we can avoid temp vars
 				for (int k = endK; k >= beginK; k -= 2) {
+					if (Thread.interrupted()) {
+						throw new DiffInterruptedException();
+					}
 					int left = -1, right = -1;
 					long leftSnake = -1L, rightSnake = -1L;
 					// TODO: refactor into its own function

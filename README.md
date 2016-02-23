@@ -30,11 +30,6 @@ there, but the automated builds use Maven.
 
     Support for exporting to various archive formats (zip etc).
 
-- org.eclipse.jgit.console
-
-    Support for reading passwords from the console without
-    echoing them. Requires Java 6.
-
 - org.eclipse.jgit.http.apache
 
     Apache httpclient support
@@ -87,12 +82,7 @@ Warnings/Caveats
 - Only the timestamp of the index is used by jgit if the index is
   dirty.
 
-- Don't try the library with a JDK other than 1.6 (Java 6) unless you
-  are prepared to investigate problems yourself. JDK 1.5.0_11 and later
-  Java 5 versions *may* work. Earlier versions do not. JDK 1.4 is *not*
-  supported. Apple's Java 1.5.0_07 is reported to work acceptably. We
-  have no information about other vendors. Please report your findings
-  if you try.
+- JGit requires at least a Java 7 JDK.
 
 - CRLF conversion is performed depending on the core.autocrlf setting,
   however Git for Windows by default stores that setting during
@@ -104,9 +94,9 @@ Warnings/Caveats
   Git is installed. Make sure Git can be found via the PATH
   environment variable. When installing Git for Windows check the "Run
   Git from the Windows Command Prompt" option. There are other options
-  like the jgit.gitprefix system property or Eclipse settings that can
-  be used for pointing out where C Git is installed. Modifying PATH is
-  the recommended option if C Git is installed.
+  like Eclipse settings that can be used for pointing out where C Git
+  is installed. Modifying PATH is the recommended option if C Git is
+  installed.
 
 - We try to use the same notation of $HOME as C Git does. On Windows
   this is often not the same value as the user.home system property.
@@ -176,10 +166,6 @@ Package Features
 - org.eclipse.jgit.archive/
 
     * Support for Zip/Tar and other formats
-
-- org.eclipse.jgit.console/
-
-    * Reads passwords from the console
 
 - org.eclipse.http.*/
 

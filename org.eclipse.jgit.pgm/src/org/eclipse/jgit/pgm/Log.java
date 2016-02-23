@@ -223,7 +223,7 @@ class Log extends RevWalkTextBuiltin {
 
 			super.run();
 		} finally {
-			diffFmt.release();
+			diffFmt.close();
 		}
 	}
 
@@ -267,6 +267,7 @@ class Log extends RevWalkTextBuiltin {
 			outw.print(s);
 			outw.println();
 		}
+		c.disposeBody();
 
 		outw.println();
 		if (showNotes(c))
@@ -323,7 +324,7 @@ class Log extends RevWalkTextBuiltin {
 			return false;
 		if (emptyLine)
 			outw.println();
-		outw.print("Notes");
+		outw.print("Notes"); //$NON-NLS-1$
 		if (label != null) {
 			outw.print(" ("); //$NON-NLS-1$
 			outw.print(label);

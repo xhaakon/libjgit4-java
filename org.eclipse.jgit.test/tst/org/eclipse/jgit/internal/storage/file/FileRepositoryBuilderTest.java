@@ -72,6 +72,7 @@ public class FileRepositoryBuilderTest extends LocalDiskRepositoryTestCase {
 				.findGitDir(d).getGitDir());
 	}
 
+	@SuppressWarnings("unused")
 	@Test
 	public void emptyRepositoryFormatVersion() throws Exception {
 		Repository r = createWorkRepository();
@@ -83,6 +84,7 @@ public class FileRepositoryBuilderTest extends LocalDiskRepositoryTestCase {
 		new FileRepository(r.getDirectory());
 	}
 
+	@SuppressWarnings("unused")
 	@Test
 	public void invalidRepositoryFormatVersion() throws Exception {
 		Repository r = createWorkRepository();
@@ -99,12 +101,13 @@ public class FileRepositoryBuilderTest extends LocalDiskRepositoryTestCase {
 		}
 	}
 
+	@SuppressWarnings("unused")
 	@Test
 	public void unknownRepositoryFormatVersion() throws Exception {
 		Repository r = createWorkRepository();
 		StoredConfig config = r.getConfig();
 		config.setLong(ConfigConstants.CONFIG_CORE_SECTION, null,
-				ConfigConstants.CONFIG_KEY_REPO_FORMAT_VERSION, 1);
+				ConfigConstants.CONFIG_KEY_REPO_FORMAT_VERSION, 999999);
 		config.save();
 
 		try {

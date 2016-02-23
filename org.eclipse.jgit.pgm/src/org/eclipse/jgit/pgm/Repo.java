@@ -55,8 +55,11 @@ class Repo extends TextBuiltin {
 	@Option(name = "--groups", aliases = { "-g" }, usage = "usage_groups")
 	private String groups = "default"; //$NON-NLS-1$
 
-	@Argument(required = true, usage = "usage_pathToXml")
+	@Argument(required = true, metaVar = "metaVar_path", usage = "usage_pathToXml")
 	private String path;
+
+	@Option(name = "--record-remote-branch", usage = "usage_branches")
+	private boolean branches;
 
 	@Override
 	protected void run() throws Exception {
@@ -64,6 +67,7 @@ class Repo extends TextBuiltin {
 			.setURI(uri)
 			.setPath(path)
 			.setGroups(groups)
+			.setRecordRemoteBranch(branches)
 			.call();
 	}
 }

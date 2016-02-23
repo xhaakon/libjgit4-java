@@ -45,6 +45,7 @@
 package org.eclipse.jgit.util;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,6 +58,9 @@ import java.util.List;
  * @since 3.0
  */
 public class FS_Win32 extends FS {
+
+	private volatile Boolean supportSymlinks;
+
 	/**
 	 * Constructor
 	 */
@@ -101,34 +105,24 @@ public class FS_Win32 extends FS {
 	}
 
 	@Override
-	protected File discoverGitPrefix() {
+	protected File discoverGitExe() {
 		String path = SystemReader.getInstance().getenv("PATH"); //$NON-NLS-1$
 		File gitExe = searchPath(path, "git.exe", "git.cmd"); //$NON-NLS-1$ //$NON-NLS-2$
-		if (gitExe != null)
-			return resolveGrandparentFile(gitExe);
 
-		// This isn't likely to work, if bash is in $PATH, git should
-		// also be in $PATH. But its worth trying.
-		//
-		String w = readPipe(userHome(), //
-				new String[] { "bash", "--login", "-c", "which git" }, // //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
-				Charset.defaultCharset().name());
-		if (w != null) {
-			// The path may be in cygwin/msys notation so resolve it right away
-			gitExe = resolve(null, w);
-			if (gitExe != null)
-				return resolveGrandparentFile(gitExe);
+		if (gitExe == null) {
+			if (searchPath(path, "bash.exe") != null) { //$NON-NLS-1$
+				// This isn't likely to work, but its worth trying:
+				// If bash is in $PATH, git should also be in $PATH.
+				String w = readPipe(userHome(),
+						new String[]{"bash", "--login", "-c", "which git"}, // //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+						Charset.defaultCharset().name());
+				if (!StringUtils.isEmptyOrNull(w))
+					// The path may be in cygwin/msys notation so resolve it right away
+					gitExe = resolve(null, w);
+			}
 		}
-		return null;
-	}
 
-	private static File resolveGrandparentFile(File grandchild) {
-		if (grandchild != null) {
-			File parent = grandchild.getParentFile();
-			if (parent != null)
-				return parent.getParentFile();
-		}
-		return null;
+		return gitExe;
 	}
 
 	@Override
@@ -160,5 +154,41 @@ public class FS_Win32 extends FS {
 		ProcessBuilder proc = new ProcessBuilder();
 		proc.command(argv);
 		return proc;
+	}
+
+	@Override
+	public boolean supportsSymlinks() {
+		if (supportSymlinks == null)
+			detectSymlinkSupport();
+		return Boolean.TRUE.equals(supportSymlinks);
+	}
+
+	private void detectSymlinkSupport() {
+		File tempFile = null;
+		try {
+			tempFile = File.createTempFile("tempsymlinktarget", ""); //$NON-NLS-1$ //$NON-NLS-2$
+			File linkName = new File(tempFile.getParentFile(), "tempsymlink"); //$NON-NLS-1$
+			createSymLink(linkName, tempFile.getPath());
+			supportSymlinks = Boolean.TRUE;
+			linkName.delete();
+		} catch (IOException | UnsupportedOperationException
+				| InternalError e) {
+			supportSymlinks = Boolean.FALSE;
+		} finally {
+			if (tempFile != null)
+				try {
+					FileUtils.delete(tempFile);
+				} catch (IOException e) {
+					throw new RuntimeException(e); // panic
+				}
+		}
+	}
+
+	/**
+	 * @since 3.3
+	 */
+	@Override
+	public Attributes getAttributes(File path) {
+		return FileUtils.getFileAttributesBasic(this, path);
 	}
 }

@@ -199,7 +199,7 @@ public class IndexDiffFilter extends TreeFilter {
 
 				// If i is cnt then the path does not appear in any other tree,
 				// and this working tree entry can be safely ignored.
-				return i == cnt ? false : true;
+				return i != cnt;
 			} else {
 				// In working tree and not ignored, and not in DirCache.
 				return true;
@@ -224,7 +224,8 @@ public class IndexDiffFilter extends TreeFilter {
 		// Only one chance left to detect a diff: between index and working
 		// tree. Make use of the WorkingTreeIterator#isModified() method to
 		// avoid computing SHA1 on filesystem content if not really needed.
-		return wi.isModified(di.getDirCacheEntry(), true, tw.getObjectReader());
+		return wi.isModified(di == null ? null : di.getDirCacheEntry(), true,
+				tw.getObjectReader());
 	}
 
 	/**

@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010, Christian Halstrick <christian.halstrick@sap.com>
  * Copyright (C) 2010, Mathias Kinzler <mathias.kinzler@sap.com>
+ * Copyright (C) 2016, Laurent Delaigue <laurent.delaigue@obeo.fr>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -54,6 +55,7 @@ import org.eclipse.jgit.api.errors.InvalidConfigurationException;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.NoHeadException;
+import org.eclipse.jgit.api.errors.RefNotAdvertisedException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.api.errors.WrongRepositoryStateException;
 import org.eclipse.jgit.internal.JGitText;
@@ -129,6 +131,9 @@ public class PullCommand extends TransportCommand<PullCommand, PullResult> {
 	 * @return this instance
 	 */
 	public PullCommand setProgressMonitor(ProgressMonitor monitor) {
+		if (monitor == null) {
+			monitor = NullProgressMonitor.INSTANCE;
+		}
 		this.monitor = monitor;
 		return this;
 	}
@@ -171,6 +176,7 @@ public class PullCommand extends TransportCommand<PullCommand, PullResult> {
 	 * @throws InvalidRemoteException
 	 * @throws CanceledException
 	 * @throws RefNotFoundException
+	 * @throws RefNotAdvertisedException
 	 * @throws NoHeadException
 	 * @throws org.eclipse.jgit.api.errors.TransportException
 	 * @throws GitAPIException
@@ -178,7 +184,7 @@ public class PullCommand extends TransportCommand<PullCommand, PullResult> {
 	public PullResult call() throws GitAPIException,
 			WrongRepositoryStateException, InvalidConfigurationException,
 			DetachedHeadException, InvalidRemoteException, CanceledException,
-			RefNotFoundException, NoHeadException,
+			RefNotFoundException, RefNotAdvertisedException, NoHeadException,
 			org.eclipse.jgit.api.errors.TransportException {
 		checkCallable();
 
@@ -261,7 +267,7 @@ public class PullCommand extends TransportCommand<PullCommand, PullResult> {
 			fetchRes = fetch.call();
 		} else {
 			// we can skip the fetch altogether
-			remoteUri = "local repository";
+			remoteUri = JGitText.get().localRepository;
 			fetchRes = null;
 		}
 
@@ -284,11 +290,13 @@ public class PullCommand extends TransportCommand<PullCommand, PullResult> {
 					r = fetchRes.getAdvertisedRef(Constants.R_HEADS
 							+ remoteBranchName);
 			}
-			if (r == null)
-				throw new JGitInternalException(MessageFormat.format(JGitText
-						.get().couldNotGetAdvertisedRef, remoteBranchName));
-			else
+			if (r == null) {
+				throw new RefNotAdvertisedException(MessageFormat.format(
+						JGitText.get().couldNotGetAdvertisedRef, remote,
+						remoteBranchName));
+			} else {
 				commitToMerge = r.getObjectId();
+			}
 		} else {
 			try {
 				commitToMerge = repo.resolve(remoteBranchName);
@@ -302,9 +310,9 @@ public class PullCommand extends TransportCommand<PullCommand, PullResult> {
 			}
 		}
 
-		String upstreamName = "branch \'"
-				+ Repository.shortenRefName(remoteBranchName) + "\' of "
-				+ remoteUri;
+		String upstreamName = MessageFormat.format(
+				JGitText.get().upstreamBranchName,
+				Repository.shortenRefName(remoteBranchName), remoteUri);
 
 		PullResult result;
 		if (pullRebaseMode.rebase) {
@@ -319,6 +327,7 @@ public class PullCommand extends TransportCommand<PullCommand, PullResult> {
 			MergeCommand merge = new MergeCommand(repo);
 			merge.include(upstreamName, commitToMerge);
 			merge.setStrategy(strategy);
+			merge.setProgressMonitor(monitor);
 			MergeResult mergeRes = merge.call();
 			monitor.update(1);
 			result = new PullResult(fetchRes, remote, mergeRes);

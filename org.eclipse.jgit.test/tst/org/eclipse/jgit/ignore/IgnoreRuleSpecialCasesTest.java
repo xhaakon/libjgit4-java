@@ -46,64 +46,32 @@ package org.eclipse.jgit.ignore;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeTrue;
 
-import java.util.Arrays;
-
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameter;
-import org.junit.runners.Parameterized.Parameters;
 
-@RunWith(Parameterized.class)
-@SuppressWarnings({ "deprecation", "boxing" })
+@SuppressWarnings({ "boxing" })
 public class IgnoreRuleSpecialCasesTest {
-
-	@Parameters(name = "OldRule? {0}")
-	public static Iterable<Boolean[]> data() {
-		return Arrays.asList(new Boolean[][] { { Boolean.FALSE },
-				{ Boolean.TRUE } });
-	}
-
-	@Parameter
-	public Boolean useOldRule;
 
 	private void assertMatch(final String pattern, final String input,
 			final boolean matchExpected, Boolean... assume) {
 		boolean assumeDir = input.endsWith("/");
-		if (useOldRule.booleanValue()) {
-			final IgnoreRule matcher = new IgnoreRule(pattern);
-			if (assume.length == 0 || !assume[0].booleanValue())
-				assertEquals(matchExpected, matcher.isMatch(input, assumeDir));
-			else
-				assumeTrue(matchExpected == matcher.isMatch(input, assumeDir));
+		FastIgnoreRule matcher = new FastIgnoreRule(pattern);
+		if (assume.length == 0 || !assume[0].booleanValue()) {
+			assertEquals(matchExpected, matcher.isMatch(input, assumeDir));
 		} else {
-			FastIgnoreRule matcher = new FastIgnoreRule(pattern);
-			if (assume.length == 0 || !assume[0].booleanValue())
-				assertEquals(matchExpected, matcher.isMatch(input, assumeDir));
-			else
-				assumeTrue(matchExpected == matcher.isMatch(input, assumeDir));
+			assumeTrue(matchExpected == matcher.isMatch(input, assumeDir));
 		}
 	}
 
 	private void assertFileNameMatch(final String pattern, final String input,
 			final boolean matchExpected) {
 		boolean assumeDir = input.endsWith("/");
-		if (useOldRule.booleanValue()) {
-			final IgnoreRule matcher = new IgnoreRule(pattern);
-			assertEquals(matchExpected, matcher.isMatch(input, assumeDir));
-		} else {
-			FastIgnoreRule matcher = new FastIgnoreRule(pattern);
-			assertEquals(matchExpected, matcher.isMatch(input, assumeDir));
-		}
+		FastIgnoreRule matcher = new FastIgnoreRule(pattern);
+		assertEquals(matchExpected, matcher.isMatch(input, assumeDir));
 	}
 
 	@Test
 	public void testVerySimplePatternCase0() throws Exception {
-		if (useOldRule)
-			System.err
-					.println("IgnoreRule can't understand blank lines, skipping");
-		Boolean assume = useOldRule;
-		assertMatch("", "", false, assume);
+		assertMatch("", "", false);
 	}
 
 	@Test
@@ -800,17 +768,14 @@ public class IgnoreRuleSpecialCasesTest {
 
 	@Test
 	public void testSpecialGroupCase9() throws Exception {
-		assertMatch("][", "][", true);
+		assertMatch("][", "][", false);
 	}
 
 	@Test
 	public void testSpecialGroupCase10() throws Exception {
-		if (useOldRule)
-			System.err.println("IgnoreRule can't understand [[:], skipping");
-		Boolean assume = useOldRule;
 		// Second bracket is threated literally, so both [ and : should match
-		assertMatch("[[:]", ":", true, assume);
-		assertMatch("[[:]", "[", true, assume);
+		assertMatch("[[:]", ":", true);
+		assertMatch("[[:]", "[", true);
 	}
 
 	@Test
@@ -865,18 +830,197 @@ public class IgnoreRuleSpecialCasesTest {
 	}
 
 	@Test
+	public void testIgnoredBackslash() throws Exception {
+		// In Git CLI a\b\c is equal to abc
+		assertMatch("a\\b\\c", "abc", true);
+	}
+
+	@Test
 	public void testEscapedBackslash() throws Exception {
-		if (useOldRule)
-			System.err
-					.println("IgnoreRule can't understand escaped backslashes, skipping");
-		Boolean assume = useOldRule;
 		// In Git CLI a\\b matches a\b file
-		assertMatch("a\\\\b", "a\\b", true, assume);
+		assertMatch("a\\\\b", "a\\b", true);
+		assertMatch("a\\\\b\\c", "a\\bc", true);
+
+	}
+
+	@Test
+	public void testEscapedExclamationMark() throws Exception {
+		assertMatch("\\!b!.txt", "!b!.txt", true);
+		assertMatch("a\\!b!.txt", "a!b!.txt", true);
+	}
+
+	@Test
+	public void testEscapedHash() throws Exception {
+		assertMatch("\\#b", "#b", true);
+		assertMatch("a\\#", "a#", true);
+	}
+
+	@Test
+	public void testEscapedTrailingSpaces() throws Exception {
+		assertMatch("\\ ", " ", true);
+		assertMatch("a\\ ", "a ", true);
+	}
+
+	@Test
+	public void testNotEscapingBackslash() throws Exception {
+		assertMatch("\\out", "out", true);
+		assertMatch("\\out", "a/out", true);
+		assertMatch("c:\\/", "c:/", true);
+		assertMatch("c:\\/", "a/c:/", true);
+		assertMatch("c:\\tmp", "c:tmp", true);
+		assertMatch("c:\\tmp", "a/c:tmp", true);
 	}
 
 	@Test
 	public void testMultipleEscapedCharacters1() throws Exception {
 		assertMatch("\\]a?c\\*\\[d\\?\\]", "]abc*[d?]", true);
+	}
+
+	@Test
+	public void testBackslash() throws Exception {
+		assertMatch("a\\", "a", true);
+		assertMatch("\\a", "a", true);
+		assertMatch("a/\\", "a/", true);
+		assertMatch("a/b\\", "a/b", true);
+		assertMatch("\\a/b", "a/b", true);
+		assertMatch("/\\a", "/a", true);
+		assertMatch("\\a\\b\\c\\", "abc", true);
+		assertMatch("/\\a/\\b/\\c\\", "a/b/c", true);
+
+		// empty path segment doesn't match
+		assertMatch("\\/a", "/a", false);
+		assertMatch("\\/a", "a", false);
+	}
+
+	@Test
+	public void testDollar() throws Exception {
+		assertMatch("$", "$", true);
+		assertMatch("$x", "$x", true);
+		assertMatch("$x", "x$", false);
+		assertMatch("$x", "$", false);
+
+		assertMatch("$x.*", "$x.a", true);
+		assertMatch("*$", "x$", true);
+		assertMatch("*.$", "x.$", true);
+
+		assertMatch("$*x", "$ax", true);
+		assertMatch("x*$", "xa$", true);
+		assertMatch("x*$", "xa", false);
+		assertMatch("[a$b]", "$", true);
+	}
+
+	@Test
+	public void testCaret() throws Exception {
+		assertMatch("^", "^", true);
+		assertMatch("^x", "^x", true);
+		assertMatch("^x", "x^", false);
+		assertMatch("^x", "^", false);
+
+		assertMatch("^x.*", "^x.a", true);
+		assertMatch("*^", "x^", true);
+		assertMatch("*.^", "x.^", true);
+
+		assertMatch("x*^", "xa^", true);
+		assertMatch("^*x", "^ax", true);
+		assertMatch("^*x", "ax", false);
+		assertMatch("[a^b]", "^", true);
+	}
+
+	@Test
+	public void testPlus() throws Exception {
+		assertMatch("+", "+", true);
+		assertMatch("+x", "+x", true);
+		assertMatch("+x", "x+", false);
+		assertMatch("+x", "+", false);
+		assertMatch("x+", "xx", false);
+
+		assertMatch("+x.*", "+x.a", true);
+		assertMatch("*+", "x+", true);
+		assertMatch("*.+", "x.+", true);
+
+		assertMatch("x*+", "xa+", true);
+		assertMatch("+*x", "+ax", true);
+		assertMatch("+*x", "ax", false);
+		assertMatch("[a+b]", "+", true);
+	}
+
+	@Test
+	public void testPipe() throws Exception {
+		assertMatch("|", "|", true);
+		assertMatch("|x", "|x", true);
+		assertMatch("|x", "x|", false);
+		assertMatch("|x", "|", false);
+		assertMatch("x|x", "xx", false);
+
+		assertMatch("x|x.*", "x|x.a", true);
+		assertMatch("*|", "x|", true);
+		assertMatch("*.|", "x.|", true);
+
+		assertMatch("x*|a", "xb|a", true);
+		assertMatch("b|*x", "b|ax", true);
+		assertMatch("b|*x", "ax", false);
+		assertMatch("[a|b]", "|", true);
+	}
+
+	@Test
+	public void testBrackets() throws Exception {
+		assertMatch("{}*()", "{}x()", true);
+		assertMatch("[a{}()b][a{}()b]?[a{}()b][a{}()b]", "{}x()", true);
+		assertMatch("x*{x}3", "xa{x}3", true);
+		assertMatch("a*{x}3", "axxx", false);
+
+		assertMatch("?", "[", true);
+		assertMatch("*", "[", true);
+
+		// Escaped bracket matches, but see weird things below...
+		assertMatch("\\[", "[", true);
+	}
+
+	/**
+	 * The ignore rules here <b>do not match</b> any paths because single '['
+	 * begins character group and the entire rule cannot be parsed due the
+	 * invalid glob pattern. See
+	 * http://article.gmane.org/gmane.comp.version-control.git/278699.
+	 *
+	 * @throws Exception
+	 */
+	@Test
+	public void testBracketsUnmatched1() throws Exception {
+		assertMatch("[", "[", false);
+		assertMatch("[*", "[", false);
+		assertMatch("*[", "[", false);
+		assertMatch("*[", "a[", false);
+		assertMatch("[a][", "a[", false);
+		assertMatch("*[", "a", false);
+		assertMatch("[a", "a", false);
+		assertMatch("[*", "a", false);
+		assertMatch("[*a", "a", false);
+	}
+
+	/**
+	 * Single ']' is treated here literally, not as an and of a character group
+	 *
+	 * @throws Exception
+	 */
+	@Test
+	public void testBracketsUnmatched2() throws Exception {
+		assertMatch("*]", "a", false);
+		assertMatch("]a", "a", false);
+		assertMatch("]*", "a", false);
+		assertMatch("]*a", "a", false);
+
+		assertMatch("]", "]", true);
+		assertMatch("]*", "]", true);
+		assertMatch("]*", "]a", true);
+		assertMatch("*]", "]", true);
+		assertMatch("*]", "a]", true);
+	}
+
+	@Test
+	public void testBracketsRandom() throws Exception {
+		assertMatch("[\\]", "[$0+//r4a\\d]", false);
+		assertMatch("[:]]sZX]", "[:]]sZX]", false);
+		assertMatch("[:]]:]]]", "[:]]:]]]", false);
 	}
 
 	@Test

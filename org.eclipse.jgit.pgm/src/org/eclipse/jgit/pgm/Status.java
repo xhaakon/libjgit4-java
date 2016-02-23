@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011, 2013 François Rey <eclipse.org_@_francois_._rey_._name>
+ * Copyright (C) 2011, 2015 François Rey <eclipse.org_@_francois_._rey_._name>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -59,8 +59,14 @@ import org.eclipse.jgit.lib.IndexDiff.StageState;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.pgm.internal.CLIText;
+import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.spi.RestOfArgumentsHandler;
+import org.eclipse.jgit.pgm.opt.UntrackedFilesHandler;
 
+/**
+ * Status command
+ */
 @Command(usage = "usage_Status", common = true)
 class Status extends TextBuiltin {
 
@@ -75,17 +81,23 @@ class Status extends TextBuiltin {
 	@Option(name = "--porcelain", usage = "usage_machineReadableOutput")
 	protected boolean porcelain;
 
-	@Option(name = "--", metaVar = "metaVar_path", multiValued = true)
+	@Option(name = "--untracked-files", aliases = { "-u", "-uno", "-uall" }, usage = "usage_untrackedFilesMode", handler = UntrackedFilesHandler.class)
+	protected String untrackedFilesMode = "all"; // default value //$NON-NLS-1$
+
+	@Argument(required = false, index = 0, metaVar = "metaVar_paths")
+	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = RestOfArgumentsHandler.class)
 	protected List<String> filterPaths;
 
 	@Override
 	protected void run() throws Exception {
-		StatusCommand statusCommand = new Git(db).status();
-		if (filterPaths != null && filterPaths.size() > 0)
-			for (String path : filterPaths)
-				statusCommand.addPath(path);
-		org.eclipse.jgit.api.Status status = statusCommand.call();
-		printStatus(status);
+		try (Git git = new Git(db)) {
+			StatusCommand statusCommand = git.status();
+			if (filterPaths != null && filterPaths.size() > 0)
+				for (String path : filterPaths)
+					statusCommand.addPath(path);
+			org.eclipse.jgit.api.Status status = statusCommand.call();
+			printStatus(status);
+		}
 	}
 
 	private void printStatus(org.eclipse.jgit.api.Status status)
@@ -174,9 +186,12 @@ class Status extends TextBuiltin {
 		}
 
 		// untracked are always at the end of the list
-		TreeSet<String> untracked = new TreeSet<String>(status.getUntracked());
-		for (String path : untracked)
-			printPorcelainLine('?', '?', path);
+		if ("all".equals(untrackedFilesMode)) { //$NON-NLS-1$
+			TreeSet<String> untracked = new TreeSet<String>(
+					status.getUntracked());
+			for (String path : untracked)
+				printPorcelainLine('?', '?', path);
+		}
 	}
 
 	private void printPorcelainLine(char x, char y, String path)
@@ -240,7 +255,7 @@ class Status extends TextBuiltin {
 			firstHeader = false;
 		}
 		int nbUntracked = untracked.size();
-		if (nbUntracked > 0) {
+		if (nbUntracked > 0 && ("all".equals(untrackedFilesMode))) { //$NON-NLS-1$
 			if (!firstHeader)
 				printSectionHeader(""); //$NON-NLS-1$
 			printSectionHeader(CLIText.get().untrackedFiles);
@@ -250,11 +265,13 @@ class Status extends TextBuiltin {
 
 	protected void printSectionHeader(String pattern, Object... arguments)
 			throws IOException {
-		outw.println(CLIText.formatLine(MessageFormat
-				.format(pattern, arguments)));
-		if (!pattern.equals("")) //$NON-NLS-1$
-			outw.println(CLIText.formatLine("")); //$NON-NLS-1$
-		outw.flush();
+		if (!porcelain) {
+			outw.println(CLIText.formatLine(MessageFormat.format(pattern,
+					arguments)));
+			if (!pattern.equals("")) //$NON-NLS-1$
+				outw.println(CLIText.formatLine("")); //$NON-NLS-1$
+			outw.flush();
+		}
 	}
 
 	protected int printList(Collection<String> list) throws IOException {

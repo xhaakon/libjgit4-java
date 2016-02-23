@@ -62,6 +62,7 @@ import static org.eclipse.jgit.http.server.ServletUtils.getRepository;
 import static org.eclipse.jgit.util.HttpSupport.HDR_USER_AGENT;
 
 import java.io.IOException;
+import java.text.MessageFormat;
 import java.util.List;
 
 import javax.servlet.Filter;
@@ -74,8 +75,11 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.eclipse.jgit.errors.CorruptObjectException;
+import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.errors.UnpackException;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.transport.InternalHttpServerGlue;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.eclipse.jgit.transport.RefAdvertiser.PacketLineOutRefAdvertiser;
 import org.eclipse.jgit.transport.resolver.ReceivePackFactory;
@@ -100,6 +104,9 @@ class ReceivePackServlet extends HttpServlet {
 				throws IOException, ServiceNotEnabledException,
 				ServiceNotAuthorizedException {
 			ReceivePack rp = receivePackFactory.create(req, db);
+			InternalHttpServerGlue.setPeerUserAgent(
+					rp,
+					req.getHeader(HDR_USER_AGENT));
 			req.setAttribute(ATTRIBUTE_HANDLER, rp);
 		}
 
@@ -111,7 +118,7 @@ class ReceivePackServlet extends HttpServlet {
 			try {
 				rp.sendAdvertisedRefs(pck);
 			} finally {
-				rp.getRevWalk().release();
+				rp.getRevWalk().close();
 			}
 		}
 	}
@@ -131,11 +138,10 @@ class ReceivePackServlet extends HttpServlet {
 			try {
 				rp = receivePackFactory.create(req, getRepository(req));
 			} catch (ServiceNotAuthorizedException e) {
-				rsp.sendError(SC_UNAUTHORIZED);
+				rsp.sendError(SC_UNAUTHORIZED, e.getMessage());
 				return;
-
 			} catch (ServiceNotEnabledException e) {
-				sendError(req, rsp, SC_FORBIDDEN);
+				sendError(req, rsp, SC_FORBIDDEN, e.getMessage());
 				return;
 			}
 
@@ -186,21 +192,34 @@ class ReceivePackServlet extends HttpServlet {
 
 			rp.receive(getInputStream(req), out, null);
 			out.close();
-		} catch (UnpackException e) {
+		} catch (CorruptObjectException e ) {
 			// This should be already reported to the client.
-			getServletContext().log(
-					HttpServerText.get().internalErrorDuringReceivePack,
-					e.getCause());
+			getServletContext().log(MessageFormat.format(
+					HttpServerText.get().receivedCorruptObject,
+					e.getMessage(),
+					ServletUtils.identify(rp.getRepository())));
+			consumeRequestBody(req);
+			out.close();
+
+		} catch (UnpackException | PackProtocolException e) {
+			// This should be already reported to the client.
+			log(rp.getRepository(), e.getCause());
 			consumeRequestBody(req);
 			out.close();
 
 		} catch (Throwable e) {
-			getServletContext().log(HttpServerText.get().internalErrorDuringReceivePack, e);
+			log(rp.getRepository(), e);
 			if (!rsp.isCommitted()) {
 				rsp.reset();
 				sendError(req, rsp, SC_INTERNAL_SERVER_ERROR);
 			}
 			return;
 		}
+	}
+
+	private void log(Repository git, Throwable e) {
+		getServletContext().log(MessageFormat.format(
+				HttpServerText.get().internalErrorDuringReceivePack,
+				ServletUtils.identify(git)), e);
 	}
 }

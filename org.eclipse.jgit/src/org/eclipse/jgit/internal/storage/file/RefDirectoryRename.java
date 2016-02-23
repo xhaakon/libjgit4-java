@@ -46,6 +46,8 @@ package org.eclipse.jgit.internal.storage.file;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -54,6 +56,8 @@ import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.RefUpdate.Result;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.util.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Rename any reference stored by {@link RefDirectory}.
@@ -66,6 +70,9 @@ import org.eclipse.jgit.util.FileUtils;
  * directory that happens to match the source name.
  */
 class RefDirectoryRename extends RefRename {
+	private static final Logger LOG = LoggerFactory
+			.getLogger(RefDirectoryRename.class);
+
 	private final RefDirectory refdb;
 
 	/**
@@ -96,8 +103,7 @@ class RefDirectoryRename extends RefRename {
 		objId = source.getOldObjectId();
 		updateHEAD = needToUpdateHEAD();
 		tmp = refdb.newTemporaryUpdate();
-		final RevWalk rw = new RevWalk(refdb.getRepository());
-		try {
+		try (final RevWalk rw = new RevWalk(refdb.getRepository())) {
 			// First backup the source so its never unreachable.
 			tmp.setNewObjectId(objId);
 			tmp.setForceUpdate(true);
@@ -178,7 +184,6 @@ class RefDirectoryRename extends RefRename {
 			} catch (IOException err) {
 				FileUtils.delete(refdb.fileFor(tmp.getName()));
 			}
-			rw.release();
 		}
 	}
 
@@ -203,13 +208,25 @@ class RefDirectoryRename extends RefRename {
 	}
 
 	private static boolean rename(File src, File dst) {
-		if (src.renameTo(dst))
+		try {
+			FileUtils.rename(src, dst, StandardCopyOption.ATOMIC_MOVE);
 			return true;
+		} catch (AtomicMoveNotSupportedException e) {
+			LOG.error(e.getMessage(), e);
+		} catch (IOException e) {
+			// ignore
+		}
 
 		File dir = dst.getParentFile();
 		if ((dir.exists() || !dir.mkdirs()) && !dir.isDirectory())
 			return false;
-		return src.renameTo(dst);
+		try {
+			FileUtils.rename(src, dst, StandardCopyOption.ATOMIC_MOVE);
+			return true;
+		} catch (IOException e) {
+			LOG.error(e.getMessage(), e);
+			return false;
+		}
 	}
 
 	private boolean linkHEAD(RefUpdate target) {

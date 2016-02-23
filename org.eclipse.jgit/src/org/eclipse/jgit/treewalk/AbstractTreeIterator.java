@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 
+import org.eclipse.jgit.attributes.AttributesNode;
 import org.eclipse.jgit.dircache.DirCacheCheckout;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
@@ -58,6 +59,7 @@ import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.eclipse.jgit.util.Paths;
 
 /**
  * Walks a Git tree (directory) in Git sort order.
@@ -91,6 +93,13 @@ public abstract class AbstractTreeIterator {
 
 	/** The iterator this current entry is path equal to. */
 	AbstractTreeIterator matches;
+
+	/**
+	 * Parsed rules of .gitattributes file if it exists.
+	 *
+	 * @since 4.2
+	 */
+	protected AttributesNode attributesNode;
 
 	/**
 	 * Number of entries we moved forward to force a D/F conflict match.
@@ -320,6 +329,42 @@ public abstract class AbstractTreeIterator {
 	}
 
 	/**
+	 * Seek the iterator on a file, if present.
+	 *
+	 * @param name
+	 *            file name to find (will not find a directory).
+	 * @return true if the file exists in this tree; false otherwise.
+	 * @throws CorruptObjectException
+	 *             tree is invalid.
+	 * @since 4.2
+	 */
+	public boolean findFile(String name) throws CorruptObjectException {
+		return findFile(Constants.encode(name));
+	}
+
+	/**
+	 * Seek the iterator on a file, if present.
+	 *
+	 * @param name
+	 *            file name to find (will not find a directory).
+	 * @return true if the file exists in this tree; false otherwise.
+	 * @throws CorruptObjectException
+	 *             tree is invalid.
+	 * @since 4.2
+	 */
+	public boolean findFile(byte[] name) throws CorruptObjectException {
+		for (; !eof(); next(1)) {
+			int cmp = pathCompare(name, 0, name.length, 0, pathOffset);
+			if (cmp == 0) {
+				return true;
+			} else if (cmp > 0) {
+				return false;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Compare the path of this current entry to a raw buffer.
 	 *
 	 * @param buf
@@ -338,20 +383,9 @@ public abstract class AbstractTreeIterator {
 	}
 
 	private int pathCompare(byte[] b, int bPos, int bEnd, int bMode, int aPos) {
-		final byte[] a = path;
-		final int aEnd = pathLen;
-
-		for (; aPos < aEnd && bPos < bEnd; aPos++, bPos++) {
-			final int cmp = (a[aPos] & 0xff) - (b[bPos] & 0xff);
-			if (cmp != 0)
-				return cmp;
-		}
-
-		if (aPos < aEnd)
-			return (a[aPos] & 0xff) - lastPathChar(bMode);
-		if (bPos < bEnd)
-			return lastPathChar(mode) - (b[bPos] & 0xff);
-		return lastPathChar(mode) - lastPathChar(bMode);
+		return Paths.compare(
+				path, aPos, pathLen, mode,
+				b, bPos, bEnd, bMode);
 	}
 
 	private static int alreadyMatch(AbstractTreeIterator a,
@@ -366,10 +400,6 @@ public abstract class AbstractTreeIterator {
 			a = ap;
 			b = bp;
 		}
-	}
-
-	private static int lastPathChar(final int mode) {
-		return FileMode.TREE.equals(mode) ? '/' : '\0';
 	}
 
 	/**
@@ -645,6 +675,14 @@ public abstract class AbstractTreeIterator {
 	 */
 	public void stopWalk() {
 		// Do nothing by default.  Most iterators do not care.
+	}
+
+	/**
+	 * @return true if the iterator implements {@link #stopWalk()}.
+	 * @since 4.2
+	 */
+	protected boolean needsStopWalk() {
+		return false;
 	}
 
 	/**

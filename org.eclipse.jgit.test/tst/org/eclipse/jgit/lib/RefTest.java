@@ -84,6 +84,12 @@ public class RefTest extends SampleDataRepositoryTestCase {
 		}
 	}
 
+	private void writeNewRef(String name, ObjectId value) throws IOException {
+		RefUpdate updateRef = db.updateRef(name);
+		updateRef.setNewObjectId(value);
+		assertEquals(RefUpdate.Result.NEW, updateRef.update());
+	}
+
 	@Test
 	public void testRemoteNames() throws Exception {
 		FileBasedConfig config = db.getConfig();
@@ -157,7 +163,7 @@ public class RefTest extends SampleDataRepositoryTestCase {
 	@Test
 	public void testReadSymRefToPacked() throws IOException {
 		writeSymref("HEAD", "refs/heads/b");
-		Ref ref = db.getRef("HEAD");
+		Ref ref = db.exactRef("HEAD");
 		assertEquals(Ref.Storage.LOOSE, ref.getStorage());
 		assertTrue("is symref", ref.isSymbolic());
 		ref = ref.getTarget();
@@ -175,7 +181,7 @@ public class RefTest extends SampleDataRepositoryTestCase {
 		assertEquals(Result.FORCED, update); // internal
 
 		writeSymref("HEAD", "refs/heads/master");
-		Ref ref = db.getRef("HEAD");
+		Ref ref = db.exactRef("HEAD");
 		assertEquals(Ref.Storage.LOOSE, ref.getStorage());
 		ref = ref.getTarget();
 		assertEquals("refs/heads/master", ref.getName());
@@ -188,8 +194,52 @@ public class RefTest extends SampleDataRepositoryTestCase {
 		updateRef.setNewObjectId(db.resolve("refs/heads/master"));
 		Result update = updateRef.update();
 		assertEquals(Result.NEW, update);
-		Ref ref = db.getRef("ref/heads/new");
+		Ref ref = db.exactRef("ref/heads/new");
 		assertEquals(Storage.LOOSE, ref.getStorage());
+	}
+
+	@Test
+	public void testGetShortRef() throws IOException {
+		Ref ref = db.exactRef("refs/heads/master");
+		assertEquals("refs/heads/master", ref.getName());
+		assertEquals(db.resolve("refs/heads/master"), ref.getObjectId());
+	}
+
+	@Test
+	public void testGetShortExactRef() throws IOException {
+		assertNull(db.getRefDatabase().exactRef("master"));
+
+		Ref ref = db.getRefDatabase().exactRef("HEAD");
+		assertEquals("HEAD", ref.getName());
+		assertEquals("refs/heads/master", ref.getTarget().getName());
+		assertEquals(db.resolve("refs/heads/master"), ref.getObjectId());
+	}
+
+	@Test
+	public void testRefsUnderRefs() throws IOException {
+		ObjectId masterId = db.resolve("refs/heads/master");
+		writeNewRef("refs/heads/refs/foo/bar", masterId);
+
+		assertNull(db.getRefDatabase().exactRef("refs/foo/bar"));
+
+		Ref ref = db.findRef("refs/foo/bar");
+		assertEquals("refs/heads/refs/foo/bar", ref.getName());
+		assertEquals(db.resolve("refs/heads/master"), ref.getObjectId());
+	}
+
+	@Test
+	public void testAmbiguousRefsUnderRefs() throws IOException {
+		ObjectId masterId = db.resolve("refs/heads/master");
+		writeNewRef("refs/foo/bar", masterId);
+		writeNewRef("refs/heads/refs/foo/bar", masterId);
+
+		Ref exactRef = db.getRefDatabase().exactRef("refs/foo/bar");
+		assertEquals("refs/foo/bar", exactRef.getName());
+		assertEquals(masterId, exactRef.getObjectId());
+
+		Ref ref = db.findRef("refs/foo/bar");
+		assertEquals("refs/foo/bar", ref.getName());
+		assertEquals(masterId, ref.getObjectId());
 	}
 
 	/**
@@ -201,7 +251,7 @@ public class RefTest extends SampleDataRepositoryTestCase {
 	@Test
 	public void testReadLoosePackedRef() throws IOException,
 			InterruptedException {
-		Ref ref = db.getRef("refs/heads/master");
+		Ref ref = db.exactRef("refs/heads/master");
 		assertEquals(Storage.PACKED, ref.getStorage());
 		FileOutputStream os = new FileOutputStream(new File(db.getDirectory(),
 				"refs/heads/master"));
@@ -209,7 +259,7 @@ public class RefTest extends SampleDataRepositoryTestCase {
 		os.write('\n');
 		os.close();
 
-		ref = db.getRef("refs/heads/master");
+		ref = db.exactRef("refs/heads/master");
 		assertEquals(Storage.LOOSE, ref.getStorage());
 	}
 
@@ -221,7 +271,7 @@ public class RefTest extends SampleDataRepositoryTestCase {
 	 */
 	@Test
 	public void testReadSimplePackedRefSameRepo() throws IOException {
-		Ref ref = db.getRef("refs/heads/master");
+		Ref ref = db.exactRef("refs/heads/master");
 		ObjectId pid = db.resolve("refs/heads/master^");
 		assertEquals(Storage.PACKED, ref.getStorage());
 		RefUpdate updateRef = db.updateRef("refs/heads/master");
@@ -230,19 +280,19 @@ public class RefTest extends SampleDataRepositoryTestCase {
 		Result update = updateRef.update();
 		assertEquals(Result.FORCED, update);
 
-		ref = db.getRef("refs/heads/master");
+		ref = db.exactRef("refs/heads/master");
 		assertEquals(Storage.LOOSE, ref.getStorage());
 	}
 
 	@Test
 	public void testResolvedNamesBranch() throws IOException {
-		Ref ref = db.getRef("a");
+		Ref ref = db.findRef("a");
 		assertEquals("refs/heads/a", ref.getName());
 	}
 
 	@Test
 	public void testResolvedSymRef() throws IOException {
-		Ref ref = db.getRef(Constants.HEAD);
+		Ref ref = db.exactRef(Constants.HEAD);
 		assertEquals(Constants.HEAD, ref.getName());
 		assertTrue("is symbolic ref", ref.isSymbolic());
 		assertSame(Ref.Storage.LOOSE, ref.getStorage());

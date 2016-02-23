@@ -51,6 +51,7 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
 
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.util.SystemReader;
 
 /**
@@ -61,6 +62,54 @@ import org.eclipse.jgit.util.SystemReader;
  */
 public class PersonIdent implements Serializable {
 	private static final long serialVersionUID = 1L;
+
+	/**
+	 * @param tzOffset
+	 *            timezone offset as in {@link #getTimeZoneOffset()}.
+	 * @return time zone object for the given offset.
+	 * @since 4.1
+	 */
+	public static TimeZone getTimeZone(int tzOffset) {
+		StringBuilder tzId = new StringBuilder(8);
+		tzId.append("GMT"); //$NON-NLS-1$
+		appendTimezone(tzId, tzOffset);
+		return TimeZone.getTimeZone(tzId.toString());
+	}
+
+	/**
+	 * Format a timezone offset.
+	 *
+	 * @param r
+	 *            string builder to append to.
+	 * @param offset
+	 *            timezone offset as in {@link #getTimeZoneOffset()}.
+	 * @since 4.1
+	 */
+	public static void appendTimezone(StringBuilder r, int offset) {
+		final char sign;
+		final int offsetHours;
+		final int offsetMins;
+
+		if (offset < 0) {
+			sign = '-';
+			offset = -offset;
+		} else {
+			sign = '+';
+		}
+
+		offsetHours = offset / 60;
+		offsetMins = offset % 60;
+
+		r.append(sign);
+		if (offsetHours < 10) {
+			r.append('0');
+		}
+		r.append(offsetHours);
+		if (offsetMins < 10) {
+			r.append('0');
+		}
+		r.append(offsetMins);
+	}
 
 	private final String name;
 
@@ -181,10 +230,10 @@ public class PersonIdent implements Serializable {
 			final long aWhen, final int aTZ) {
 		if (aName == null)
 			throw new IllegalArgumentException(
-					"Name of PersonIdent must not be null.");
+					JGitText.get().personIdentNameNonNull);
 		if (aEmailAddress == null)
 			throw new IllegalArgumentException(
-					"E-mail address of PersonIdent must not be null.");
+					JGitText.get().personIdentEmailNonNull);
 		name = aName;
 		emailAddress = aEmailAddress;
 		when = aWhen;
@@ -216,10 +265,7 @@ public class PersonIdent implements Serializable {
 	 * @return this person's declared time zone; null if time zone is unknown.
 	 */
 	public TimeZone getTimeZone() {
-		StringBuilder tzId = new StringBuilder(8);
-		tzId.append("GMT"); //$NON-NLS-1$
-		appendTimezone(tzId);
-		return TimeZone.getTimeZone(tzId.toString());
+		return getTimeZone(tzOffset);
 	}
 
 	/**
@@ -260,35 +306,8 @@ public class PersonIdent implements Serializable {
 		r.append("> "); //$NON-NLS-1$
 		r.append(when / 1000);
 		r.append(' ');
-		appendTimezone(r);
+		appendTimezone(r, tzOffset);
 		return r.toString();
-	}
-
-	private void appendTimezone(final StringBuilder r) {
-		int offset = tzOffset;
-		final char sign;
-		final int offsetHours;
-		final int offsetMins;
-
-		if (offset < 0) {
-			sign = '-';
-			offset = -offset;
-		} else {
-			sign = '+';
-		}
-
-		offsetHours = offset / 60;
-		offsetMins = offset % 60;
-
-		r.append(sign);
-		if (offsetHours < 10) {
-			r.append('0');
-		}
-		r.append(offsetHours);
-		if (offsetMins < 10) {
-			r.append('0');
-		}
-		r.append(offsetMins);
 	}
 
 	@SuppressWarnings("nls")

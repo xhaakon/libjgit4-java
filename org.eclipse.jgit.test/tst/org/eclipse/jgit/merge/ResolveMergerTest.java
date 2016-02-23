@@ -184,7 +184,7 @@ public class ResolveMergerTest extends RepositoryTestCase {
 		MergeResult mergeRes = git.merge().setStrategy(strategy)
 				.include(masterCommit).call();
 		assertEquals(MergeStatus.MERGED, mergeRes.getMergeStatus());
-		assertEquals("[d/1, mode:100644, content:1master\n2\n3side\n]",
+		assertEquals("[d/1, mode:100644, content:1master\n2\n3side]",
 				indexState(CONTENT));
 	}
 
@@ -223,6 +223,80 @@ public class ResolveMergerTest extends RepositoryTestCase {
 		assertEquals(MergeStatus.MERGED, mergeRes.getMergeStatus());
 		assertEquals(
 				"[d/1, mode:100644, content:1][e/1, mode:100644, content:4][f/1, mode:100644, content:5]",
+				indexState(CONTENT));
+	}
+
+	/**
+	 * A tracked file is replaced by a folder in THEIRS.
+	 *
+	 * @param strategy
+	 * @throws Exception
+	 */
+	@Theory
+	public void checkFileReplacedByFolderInTheirs(MergeStrategy strategy)
+			throws Exception {
+		Git git = Git.wrap(db);
+
+		writeTrashFile("sub", "file");
+		git.add().addFilepattern("sub").call();
+		RevCommit first = git.commit().setMessage("initial").call();
+
+		git.checkout().setCreateBranch(true).setStartPoint(first)
+				.setName("side").call();
+
+		git.rm().addFilepattern("sub").call();
+		writeTrashFile("sub/file", "subfile");
+		git.add().addFilepattern("sub/file").call();
+		RevCommit masterCommit = git.commit().setMessage("file -> folder")
+				.call();
+
+		git.checkout().setName("master").call();
+		writeTrashFile("noop", "other");
+		git.add().addFilepattern("noop").call();
+		git.commit().setAll(true).setMessage("noop").call();
+
+		MergeResult mergeRes = git.merge().setStrategy(strategy)
+				.include(masterCommit).call();
+		assertEquals(MergeStatus.MERGED, mergeRes.getMergeStatus());
+		assertEquals(
+				"[noop, mode:100644, content:other][sub/file, mode:100644, content:subfile]",
+				indexState(CONTENT));
+	}
+
+	/**
+	 * A tracked file is replaced by a folder in OURS.
+	 *
+	 * @param strategy
+	 * @throws Exception
+	 */
+	@Theory
+	public void checkFileReplacedByFolderInOurs(MergeStrategy strategy)
+			throws Exception {
+		Git git = Git.wrap(db);
+
+		writeTrashFile("sub", "file");
+		git.add().addFilepattern("sub").call();
+		RevCommit first = git.commit().setMessage("initial").call();
+
+		git.checkout().setCreateBranch(true).setStartPoint(first)
+				.setName("side").call();
+		writeTrashFile("noop", "other");
+		git.add().addFilepattern("noop").call();
+		RevCommit sideCommit = git.commit().setAll(true).setMessage("noop")
+				.call();
+
+		git.checkout().setName("master").call();
+		git.rm().addFilepattern("sub").call();
+		writeTrashFile("sub/file", "subfile");
+		git.add().addFilepattern("sub/file").call();
+		git.commit().setMessage("file -> folder")
+				.call();
+
+		MergeResult mergeRes = git.merge().setStrategy(strategy)
+				.include(sideCommit).call();
+		assertEquals(MergeStatus.MERGED, mergeRes.getMergeStatus());
+		assertEquals(
+				"[noop, mode:100644, content:other][sub/file, mode:100644, content:subfile]",
 				indexState(CONTENT));
 	}
 
@@ -556,12 +630,12 @@ public class ResolveMergerTest extends RepositoryTestCase {
 		// ResolveMerge
 		try {
 			MergeResult mergeResult = git.merge().setStrategy(strategy)
-					.include(git.getRepository().getRef("refs/heads/side"))
+					.include(git.getRepository().exactRef("refs/heads/side"))
 					.call();
 			assertEquals(MergeStrategy.RECURSIVE, strategy);
 			assertEquals(MergeResult.MergeStatus.MERGED,
 					mergeResult.getMergeStatus());
-			assertEquals("1master2\n2\n3side2\n", read("1"));
+			assertEquals("1master2\n2\n3side2", read("1"));
 		} catch (JGitInternalException e) {
 			assertEquals(MergeStrategy.RESOLVE, strategy);
 			assertTrue(e.getCause() instanceof NoMergeBaseException);
@@ -697,7 +771,7 @@ public class ResolveMergerTest extends RepositoryTestCase {
 		assertEquals(
 				"[0, mode:100644, content:master]" //
 						+ "[1, mode:100644, content:side]" //
-						+ "[2, mode:100644, content:1master\n2\n3side\n]" //
+						+ "[2, mode:100644, content:1master\n2\n3side]" //
 						+ "[3, mode:100644, stage:1, content:orig][3, mode:100644, stage:2, content:side][3, mode:100644, stage:3, content:master]" //
 						+ "[4, mode:100644, content:orig]", //
 				indexState(CONTENT));

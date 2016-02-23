@@ -44,12 +44,17 @@
 
 package org.eclipse.jgit.revwalk;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.IllegalCharsetNameException;
+import java.nio.charset.UnsupportedCharsetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.AnyObjectId;
@@ -92,29 +97,34 @@ public class RevCommit extends RevObject {
 
 	/**
 	 * Parse a commit from its canonical format.
-	 *
+	 * <p>
 	 * This method inserts the commit directly into the caller supplied revision
 	 * pool, making it appear as though the commit exists in the repository,
 	 * even if it doesn't. The repository under the pool is not affected.
+	 * <p>
+	 * The body of the commit (message, author, committer) is always retained in
+	 * the returned {@code RevCommit}, even if the supplied {@code RevWalk} has
+	 * been configured with {@code setRetainBody(false)}.
 	 *
 	 * @param rw
 	 *            the revision pool to allocate the commit within. The commit's
 	 *            tree and parent pointers will be obtained from this pool.
 	 * @param raw
-	 *            the canonical formatted commit to be parsed.
+	 *            the canonical formatted commit to be parsed. This buffer will
+	 *            be retained by the returned {@code RevCommit} and must not be
+	 *            modified by the caller.
 	 * @return the parsed commit, in an isolated revision pool that is not
 	 *         available to the caller.
 	 * @throws IOException
 	 *             in case of RevWalk initialization fails
 	 */
 	public static RevCommit parse(RevWalk rw, byte[] raw) throws IOException {
-		ObjectInserter.Formatter fmt = new ObjectInserter.Formatter();
-		boolean retain = rw.isRetainBody();
-		rw.setRetainBody(true);
-		RevCommit r = rw.lookupCommit(fmt.idFor(Constants.OBJ_COMMIT, raw));
-		r.parseCanonical(rw, raw);
-		rw.setRetainBody(retain);
-		return r;
+		try (ObjectInserter.Formatter fmt = new ObjectInserter.Formatter()) {
+			RevCommit r = rw.lookupCommit(fmt.idFor(Constants.OBJ_COMMIT, raw));
+			r.parseCanonical(rw, raw);
+			r.buffer = raw;
+			return r;
+		}
 	}
 
 	static final RevCommit[] NO_PARENTS = {};
@@ -436,12 +446,12 @@ public class RevCommit extends RevObject {
 	 * @return decoded commit message as a string. Never null.
 	 */
 	public final String getFullMessage() {
-		final byte[] raw = buffer;
-		final int msgB = RawParseUtils.commitMessage(raw, 0);
-		if (msgB < 0)
+		byte[] raw = buffer;
+		int msgB = RawParseUtils.commitMessage(raw, 0);
+		if (msgB < 0) {
 			return ""; //$NON-NLS-1$
-		final Charset enc = RawParseUtils.parseEncoding(raw);
-		return RawParseUtils.decode(enc, raw, msgB, raw.length);
+		}
+		return RawParseUtils.decode(guessEncoding(), raw, msgB, raw.length);
 	}
 
 	/**
@@ -460,16 +470,17 @@ public class RevCommit extends RevObject {
 	 *         spanned multiple lines. Embedded LFs are converted to spaces.
 	 */
 	public final String getShortMessage() {
-		final byte[] raw = buffer;
-		final int msgB = RawParseUtils.commitMessage(raw, 0);
-		if (msgB < 0)
+		byte[] raw = buffer;
+		int msgB = RawParseUtils.commitMessage(raw, 0);
+		if (msgB < 0) {
 			return ""; //$NON-NLS-1$
+		}
 
-		final Charset enc = RawParseUtils.parseEncoding(raw);
-		final int msgE = RawParseUtils.endOfParagraph(raw, msgB);
-		String str = RawParseUtils.decode(enc, raw, msgB, msgE);
-		if (hasLF(raw, msgB, msgE))
+		int msgE = RawParseUtils.endOfParagraph(raw, msgB);
+		String str = RawParseUtils.decode(guessEncoding(), raw, msgB, msgE);
+		if (hasLF(raw, msgB, msgE)) {
 			str = StringUtils.replaceLineBreaksWithSpace(str);
+		}
 		return str;
 	}
 
@@ -483,16 +494,47 @@ public class RevCommit extends RevObject {
 	/**
 	 * Determine the encoding of the commit message buffer.
 	 * <p>
+	 * Locates the "encoding" header (if present) and returns its value. Due to
+	 * corruption in the wild this may be an invalid encoding name that is not
+	 * recognized by any character encoding library.
+	 * <p>
+	 * If no encoding header is present, null.
+	 *
+	 * @return the preferred encoding of {@link #getRawBuffer()}; or null.
+	 * @since 4.2
+	 */
+	@Nullable
+	public final String getEncodingName() {
+		return RawParseUtils.parseEncodingName(buffer);
+	}
+
+	/**
+	 * Determine the encoding of the commit message buffer.
+	 * <p>
 	 * Locates the "encoding" header (if present) and then returns the proper
 	 * character set to apply to this buffer to evaluate its contents as
 	 * character data.
 	 * <p>
-	 * If no encoding header is present, {@link Constants#CHARSET} is assumed.
+	 * If no encoding header is present {@code UTF-8} is assumed.
 	 *
 	 * @return the preferred encoding of {@link #getRawBuffer()}.
+	 * @throws IllegalCharsetNameException
+	 *             if the character set requested by the encoding header is
+	 *             malformed and unsupportable.
+	 * @throws UnsupportedCharsetException
+	 *             if the JRE does not support the character set requested by
+	 *             the encoding header.
 	 */
 	public final Charset getEncoding() {
 		return RawParseUtils.parseEncoding(buffer);
+	}
+
+	private Charset guessEncoding() {
+		try {
+			return getEncoding();
+		} catch (IllegalCharsetNameException | UnsupportedCharsetException e) {
+			return UTF_8;
+		}
 	}
 
 	/**
@@ -524,7 +566,7 @@ public class RevCommit extends RevObject {
 
 		final int msgB = RawParseUtils.commitMessage(raw, 0);
 		final ArrayList<FooterLine> r = new ArrayList<FooterLine>(4);
-		final Charset enc = getEncoding();
+		final Charset enc = guessEncoding();
 		for (;;) {
 			ptr = RawParseUtils.prevLF(raw, ptr);
 			if (ptr <= msgB)
@@ -604,7 +646,19 @@ public class RevCommit extends RevObject {
 		inDegree = 0;
 	}
 
-	final void disposeBody() {
+	/**
+	 * Discard the message buffer to reduce memory usage.
+	 * <p>
+	 * After discarding the memory usage of the {@code RevCommit} is reduced to
+	 * only the {@link #getTree()} and {@link #getParents()} pointers and the
+	 * time in {@link #getCommitTime()}. Accessing other properties such as
+	 * {@link #getAuthorIdent()}, {@link #getCommitterIdent()} or either message
+	 * function requires reloading the buffer by invoking
+	 * {@link RevWalk#parseBody(RevObject)}.
+	 *
+	 * @since 4.0
+	 */
+	public final void disposeBody() {
 		buffer = null;
 	}
 

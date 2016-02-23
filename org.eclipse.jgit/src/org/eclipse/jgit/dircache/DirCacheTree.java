@@ -103,7 +103,7 @@ public class DirCacheTree {
 	private DirCacheTree parent;
 
 	/** Name of this tree within its parent. */
-	private byte[] encodedName;
+	byte[] encodedName;
 
 	/** Number of {@link DirCacheEntry} records that belong to this tree. */
 	private int entrySpan;
@@ -399,7 +399,7 @@ public class DirCacheTree {
 		for (int eOff = 0; eOff < eLen && aOff < aLen; eOff++, aOff++)
 			if (e[eOff] != a[aOff])
 				return false;
-		if (aOff == aLen)
+		if (aOff >= aLen)
 			return false;
 		return a[aOff] == '/';
 	}
@@ -478,6 +478,7 @@ public class DirCacheTree {
 
 			// The entry is contained in this subtree.
 			//
+			assert(st != null);
 			st.validate(cache, cCnt, cIdx, pathOff + st.nameLength() + 1);
 			cIdx += st.entrySpan;
 			entrySpan += st.entrySpan;

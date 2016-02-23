@@ -43,9 +43,13 @@
 
 package org.eclipse.jgit.transport;
 
+import static org.eclipse.jgit.transport.ReceiveCommand.Result.NOT_ATTEMPTED;
+import static org.eclipse.jgit.transport.ReceiveCommand.Result.REJECTED_OTHER_REASON;
+
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.eclipse.jgit.internal.JGitText;
@@ -127,6 +131,31 @@ public class ReceiveCommand {
 	}
 
 	/**
+	 * Filter a collection of commands according to result.
+	 *
+	 * @param in
+	 *            commands to filter.
+	 * @param want
+	 *            desired status to filter by.
+	 * @return a copy of the command list containing only those commands with
+	 *         the desired status.
+	 * @since 4.2
+	 */
+	public static List<ReceiveCommand> filter(Iterable<ReceiveCommand> in,
+			Result want) {
+		List<ReceiveCommand> r;
+		if (in instanceof Collection)
+			r = new ArrayList<>(((Collection<?>) in).size());
+		else
+			r = new ArrayList<>();
+		for (ReceiveCommand cmd : in) {
+			if (cmd.getResult() == want)
+				r.add(cmd);
+		}
+		return r;
+	}
+
+	/**
 	 * Filter a list of commands according to result.
 	 *
 	 * @param commands
@@ -138,13 +167,27 @@ public class ReceiveCommand {
 	 * @since 2.0
 	 */
 	public static List<ReceiveCommand> filter(List<ReceiveCommand> commands,
-			final Result want) {
-		List<ReceiveCommand> r = new ArrayList<ReceiveCommand>(commands.size());
-		for (final ReceiveCommand cmd : commands) {
-			if (cmd.getResult() == want)
-				r.add(cmd);
+			Result want) {
+		return filter((Iterable<ReceiveCommand>) commands, want);
+	}
+
+	/**
+	 * Set unprocessed commands as failed due to transaction aborted.
+	 * <p>
+	 * If a command is still {@link Result#NOT_ATTEMPTED} it will be set to
+	 * {@link Result#REJECTED_OTHER_REASON}.
+	 *
+	 * @param commands
+	 *            commands to mark as failed.
+	 * @since 4.2
+	 */
+	public static void abort(Iterable<ReceiveCommand> commands) {
+		for (ReceiveCommand c : commands) {
+			if (c.getResult() == NOT_ATTEMPTED) {
+				c.setResult(REJECTED_OTHER_REASON,
+						JGitText.get().transactionAborted);
+			}
 		}
-		return r;
 	}
 
 	private final ObjectId oldId;

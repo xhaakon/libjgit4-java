@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008-2013, Google Inc.
+ * Copyright (C) 2016, Laurent Delaigue <laurent.delaigue@obeo.fr>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -51,10 +52,11 @@ import org.eclipse.jgit.errors.NoMergeBaseException;
 import org.eclipse.jgit.errors.NoMergeBaseException.MergeBaseFailureReason;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
-import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
@@ -87,6 +89,13 @@ public abstract class Merger {
 
 	/** The trees matching every entry in {@link #sourceObjects}. */
 	protected RevTree[] sourceTrees;
+
+	/**
+	 * A progress monitor.
+	 *
+	 * @since 4.2
+	 */
+	protected ProgressMonitor monitor = NullProgressMonitor.INSTANCE;
 
 	/**
 	 * Create a new merge instance for a repository.
@@ -125,9 +134,9 @@ public abstract class Merger {
 	 *            repository instance returned by {@link #getRepository()}.
 	 */
 	public void setObjectInserter(ObjectInserter oi) {
-		walk.release();
-		reader.release();
-		inserter.release();
+		walk.close();
+		reader.close();
+		inserter.close();
 		inserter = oi;
 		reader = oi.newReader();
 		walk = new RevWalk(reader);
@@ -206,8 +215,8 @@ public abstract class Merger {
 			return ok;
 		} finally {
 			if (flush)
-				inserter.release();
-			reader.release();
+				inserter.close();
+			reader.close();
 		}
 	}
 
@@ -217,38 +226,6 @@ public abstract class Merger {
 	 * @since 3.2
 	 */
 	public abstract ObjectId getBaseCommitId();
-
-	/**
-	 * Return the merge base of two commits.
-	 * <p>
-	 * May only be called after {@link #merge(RevCommit...)}.
-	 *
-	 * @param aIdx
-	 *            index of the first commit in tips passed to
-	 *            {@link #merge(RevCommit...)}.
-	 * @param bIdx
-	 *            index of the second commit in tips passed to
-	 *            {@link #merge(RevCommit...)}.
-	 * @return the merge base of two commits
-	 * @throws IncorrectObjectTypeException
-	 *             one of the input objects is not a commit.
-	 * @throws IOException
-	 *             objects are missing or multiple merge bases were found.
-	 * @deprecated use {@link #getBaseCommitId()} instead, as that does not
-	 *             require walking the commits again
-	 */
-	@Deprecated
-	public RevCommit getBaseCommit(final int aIdx, final int bIdx)
-			throws IncorrectObjectTypeException,
-			IOException {
-		if (sourceCommits[aIdx] == null)
-			throw new IncorrectObjectTypeException(sourceObjects[aIdx],
-					Constants.TYPE_COMMIT);
-		if (sourceCommits[bIdx] == null)
-			throw new IncorrectObjectTypeException(sourceObjects[bIdx],
-					Constants.TYPE_COMMIT);
-		return getBaseCommit(sourceCommits[aIdx], sourceCommits[bIdx]);
-	}
 
 	/**
 	 * Return the merge base of two commits.
@@ -323,4 +300,20 @@ public abstract class Merger {
 	 * @return resulting tree, if {@link #merge(AnyObjectId[])} returned true.
 	 */
 	public abstract ObjectId getResultTreeId();
+
+	/**
+	 * Set a progress monitor.
+	 *
+	 * @param monitor
+	 *            Monitor to use, can be null to indicate no progress reporting
+	 *            is desired.
+	 * @since 4.2
+	 */
+	public void setProgressMonitor(ProgressMonitor monitor) {
+		if (monitor == null) {
+			this.monitor = NullProgressMonitor.INSTANCE;
+		} else {
+			this.monitor = monitor;
+		}
+	}
 }

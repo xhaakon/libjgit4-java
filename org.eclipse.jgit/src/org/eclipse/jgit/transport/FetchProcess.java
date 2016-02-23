@@ -136,6 +136,7 @@ class FetchProcess {
 		conn = transport.openFetch();
 		try {
 			result.setAdvertisedRefs(transport.getURI(), conn.getRefsMap());
+			result.peerUserAgent = conn.getPeerUserAgent();
 			final Set<Ref> matched = new HashSet<Ref>();
 			for (final RefSpec spec : toFetch) {
 				if (spec.getSource() == null)
@@ -196,8 +197,7 @@ class FetchProcess {
 				.newBatchUpdate()
 				.setAllowNonFastForwards(true)
 				.setRefLogMessage("fetch", true); //$NON-NLS-1$
-		final RevWalk walk = new RevWalk(transport.local);
-		try {
+		try (final RevWalk walk = new RevWalk(transport.local)) {
 			if (monitor instanceof BatchingProgressMonitor) {
 				((BatchingProgressMonitor) monitor).setDelayStart(
 						250, TimeUnit.MILLISECONDS);
@@ -226,8 +226,6 @@ class FetchProcess {
 			throw new TransportException(MessageFormat.format(
 					JGitText.get().failureUpdatingTrackingRef,
 					getFirstFailedRefName(batch), err.getMessage()), err);
-		} finally {
-			walk.release();
 		}
 
 		if (!fetchHeadUpdates.isEmpty()) {
@@ -338,15 +336,12 @@ class FetchProcess {
 
 	private boolean askForIsComplete() throws TransportException {
 		try {
-			final ObjectWalk ow = new ObjectWalk(transport.local);
-			try {
+			try (final ObjectWalk ow = new ObjectWalk(transport.local)) {
 				for (final ObjectId want : askFor.keySet())
 					ow.markStart(ow.parseAny(want));
 				for (final Ref ref : localRefs().values())
 					ow.markUninteresting(ow.parseAny(ref.getObjectId()));
 				ow.checkConnectivity();
-			} finally {
-				ow.release();
 			}
 			return true;
 		} catch (MissingObjectException e) {
@@ -402,11 +397,17 @@ class FetchProcess {
 	private void expandFetchTags() throws TransportException {
 		final Map<String, Ref> haveRefs = localRefs();
 		for (final Ref r : conn.getRefs()) {
-			if (!isTag(r))
+			if (!isTag(r)) {
 				continue;
+			}
+			ObjectId id = r.getObjectId();
+			if (id == null) {
+				continue;
+			}
 			final Ref local = haveRefs.get(r.getName());
-			if (local == null || !r.getObjectId().equals(local.getObjectId()))
+			if (local == null || !id.equals(local.getObjectId())) {
 				wantTag(r);
+			}
 		}
 	}
 
@@ -418,6 +419,11 @@ class FetchProcess {
 	private void want(final Ref src, final RefSpec spec)
 			throws TransportException {
 		final ObjectId newId = src.getObjectId();
+		if (newId == null) {
+			throw new NullPointerException(MessageFormat.format(
+					JGitText.get().transportProvidedRefWithNoObjectId,
+					src.getName()));
+		}
 		if (spec.getDestination() != null) {
 			final TrackingRefUpdate tru = createUpdate(spec, newId);
 			if (newId.equals(tru.getOldObjectId()))

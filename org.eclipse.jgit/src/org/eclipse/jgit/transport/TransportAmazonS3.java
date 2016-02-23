@@ -125,10 +125,10 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 	};
 
 	/** User information necessary to connect to S3. */
-	private final AmazonS3 s3;
+	final AmazonS3 s3;
 
 	/** Bucket the remote repository is stored in. */
-	private final String bucket;
+	final String bucket;
 
 	/**
 	 * Key prefix which all objects related to the repository start with.
@@ -148,8 +148,9 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		super(local, uri);
 
 		Properties props = loadProperties();
-		if (!props.contains("tmpdir") && local.getDirectory() != null) //$NON-NLS-1$
-			props.put("tmpdir", local.getDirectory().getPath()); //$NON-NLS-1$
+		File directory = local.getDirectory();
+		if (!props.containsKey("tmpdir") && directory != null) //$NON-NLS-1$
+			props.put("tmpdir", directory.getPath()); //$NON-NLS-1$
 
 		s3 = new AmazonS3(props);
 		bucket = uri.getHost();

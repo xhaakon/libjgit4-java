@@ -51,9 +51,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.zip.Deflater;
 
+import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource;
 import org.eclipse.jgit.internal.storage.pack.PackExt;
 import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.junit.TestRng;
@@ -78,12 +81,11 @@ public class DfsInserterTest {
 
 	@Test
 	public void testInserterDiscardsPack() throws IOException {
-		ObjectInserter ins = db.newObjectInserter();
-		ins.insert(Constants.OBJ_BLOB, Constants.encode("foo"));
-		ins.insert(Constants.OBJ_BLOB, Constants.encode("bar"));
-		assertEquals(0, db.getObjectDatabase().listPacks().size());
-
-		ins.release();
+		try (ObjectInserter ins = db.newObjectInserter()) {
+			ins.insert(Constants.OBJ_BLOB, Constants.encode("foo"));
+			ins.insert(Constants.OBJ_BLOB, Constants.encode("bar"));
+			assertEquals(0, db.getObjectDatabase().listPacks().size());
+		}
 		assertEquals(0, db.getObjectDatabase().listPacks().size());
 	}
 
@@ -160,6 +162,56 @@ public class DfsInserterTest {
 		objs = reader.resolve(AbbreviatedObjectId.fromString(abbr2));
 		assertEquals(1, objs.size());
 		assertEquals(id2, objs.iterator().next());
+	}
+
+	@Test
+	public void testGarbageSelectivelyVisible() throws IOException {
+		ObjectInserter ins = db.newObjectInserter();
+		ObjectId fooId = ins.insert(Constants.OBJ_BLOB, Constants.encode("foo"));
+		ins.flush();
+		assertEquals(1, db.getObjectDatabase().listPacks().size());
+
+		// Make pack 0 garbage.
+		db.getObjectDatabase().listPacks().get(0).setPackSource(PackSource.UNREACHABLE_GARBAGE);
+
+		// Default behavior should be that the database has foo, because we allow garbage objects.
+		assertTrue(db.getObjectDatabase().has(fooId));
+		// But we should not be able to see it if we pass the right args.
+		assertFalse(db.getObjectDatabase().has(fooId, true));
+	}
+
+	@Test
+	public void testInserterIgnoresUnreachable() throws IOException {
+		ObjectInserter ins = db.newObjectInserter();
+		ObjectId fooId = ins.insert(Constants.OBJ_BLOB, Constants.encode("foo"));
+		ins.flush();
+		assertEquals(1, db.getObjectDatabase().listPacks().size());
+
+		// Make pack 0 garbage.
+		db.getObjectDatabase().listPacks().get(0).setPackSource(PackSource.UNREACHABLE_GARBAGE);
+
+		// We shouldn't be able to see foo because it's garbage.
+		assertFalse(db.getObjectDatabase().has(fooId, true));
+
+		// But if we re-insert foo, it should become visible again.
+		ins.insert(Constants.OBJ_BLOB, Constants.encode("foo"));
+		ins.flush();
+		assertTrue(db.getObjectDatabase().has(fooId, true));
+
+		// Verify that we have a foo in both packs, and 1 of them is garbage.
+		DfsReader reader = new DfsReader(db.getObjectDatabase());
+		DfsPackFile packs[] = db.getObjectDatabase().getPacks();
+		Set<PackSource> pack_sources = new HashSet<PackSource>();
+
+		assertEquals(2, packs.length);
+
+		pack_sources.add(packs[0].getPackDescription().getPackSource());
+		pack_sources.add(packs[1].getPackDescription().getPackSource());
+
+		assertTrue(packs[0].hasObject(reader, fooId));
+		assertTrue(packs[1].hasObject(reader, fooId));
+		assertTrue(pack_sources.contains(PackSource.UNREACHABLE_GARBAGE));
+		assertTrue(pack_sources.contains(PackSource.INSERT));
 	}
 
 	private static String readString(ObjectLoader loader) throws IOException {

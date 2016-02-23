@@ -43,11 +43,15 @@
 
 package org.eclipse.jgit.pgm;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.spi.RestOfArgumentsHandler;
 
 @Command(common = true, usage = "usage_reset")
 class Reset extends TextBuiltin {
@@ -61,29 +65,40 @@ class Reset extends TextBuiltin {
 	@Option(name = "--hard", usage = "usage_resetHard")
 	private boolean hard = false;
 
-	@Argument(required = true, metaVar = "metaVar_name", usage = "usage_reset")
+	@Argument(required = false, index = 0, metaVar = "metaVar_commitish", usage = "usage_resetReference")
 	private String commit;
+
+	@Argument(required = false, index = 1, metaVar = "metaVar_paths")
+	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = RestOfArgumentsHandler.class)
+	private List<String> paths = new ArrayList<>();
 
 	@Override
 	protected void run() throws Exception {
-		ResetCommand command = new Git(db).reset();
-		command.setRef(commit);
-		ResetType mode = null;
-		if (soft)
-			mode = selectMode(mode, ResetType.SOFT);
-		if (mixed)
-			mode = selectMode(mode, ResetType.MIXED);
-		if (hard)
-			mode = selectMode(mode, ResetType.HARD);
-		if (mode == null)
-			throw die("no reset mode set");
-		command.setMode(mode);
-		command.call();
+		try (Git git = new Git(db)) {
+			ResetCommand command = git.reset();
+			command.setRef(commit);
+			if (paths.size() > 0) {
+				for (String path : paths)
+					command.addPath(path);
+			} else {
+				ResetType mode = null;
+				if (soft)
+					mode = selectMode(mode, ResetType.SOFT);
+				if (mixed)
+					mode = selectMode(mode, ResetType.MIXED);
+				if (hard)
+					mode = selectMode(mode, ResetType.HARD);
+				if (mode == null)
+					throw die("no reset mode set"); //$NON-NLS-1$
+				command.setMode(mode);
+			}
+			command.call();
+		}
 	}
 
 	private static ResetType selectMode(ResetType mode, ResetType want) {
 		if (mode != null)
-			throw die("reset modes are mutually exclusive, select one");
+			throw die("reset modes are mutually exclusive, select one"); //$NON-NLS-1$
 		return want;
 	}
 }

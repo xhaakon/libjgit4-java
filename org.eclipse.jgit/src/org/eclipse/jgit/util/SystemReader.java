@@ -71,6 +71,11 @@ import org.eclipse.jgit.lib.ObjectChecker;
  */
 public abstract class SystemReader {
 	private static final SystemReader DEFAULT;
+
+	private static Boolean isMacOS;
+
+	private static Boolean isWindows;
+
 	static {
 		SystemReader r = new Default();
 		r.init();
@@ -89,8 +94,8 @@ public abstract class SystemReader {
 		}
 
 		public FileBasedConfig openSystemConfig(Config parent, FS fs) {
-			File prefix = fs.gitPrefix();
-			if (prefix == null) {
+			File configFile = fs.getGitSystemConfig();
+			if (configFile == null) {
 				return new FileBasedConfig(null, fs) {
 					public void load() {
 						// empty, do not load
@@ -102,9 +107,7 @@ public abstract class SystemReader {
 					}
 				};
 			}
-			File etc = fs.resolve(prefix, "etc"); //$NON-NLS-1$
-			File config = fs.resolve(etc, "gitconfig"); //$NON-NLS-1$
-			return new FileBasedConfig(parent, config, fs);
+			return new FileBasedConfig(parent, configFile, fs);
 		}
 
 		public FileBasedConfig openUserConfig(Config parent, FS fs) {
@@ -150,6 +153,8 @@ public abstract class SystemReader {
 	 *            the default instance.
 	 */
 	public static void setInstance(SystemReader newReader) {
+		isMacOS = null;
+		isWindows = null;
 		if (newReader == null)
 			INSTANCE = DEFAULT;
 		else {
@@ -295,26 +300,31 @@ public abstract class SystemReader {
 	 * @return true if we are running on a Windows.
 	 */
 	public boolean isWindows() {
-		String osDotName = AccessController
-				.doPrivileged(new PrivilegedAction<String>() {
-					public String run() {
-						return getProperty("os.name"); //$NON-NLS-1$
-					}
-				});
-		return osDotName.startsWith("Windows"); //$NON-NLS-1$
+		if (isWindows == null) {
+			String osDotName = getOsName();
+			isWindows = Boolean.valueOf(osDotName.startsWith("Windows")); //$NON-NLS-1$
+		}
+		return isWindows.booleanValue();
 	}
 
 	/**
 	 * @return true if we are running on Mac OS X
 	 */
 	public boolean isMacOS() {
-		String osDotName = AccessController
-				.doPrivileged(new PrivilegedAction<String>() {
-					public String run() {
-						return getProperty("os.name"); //$NON-NLS-1$
-					}
-				});
-		return "Mac OS X".equals(osDotName) || "Darwin".equals(osDotName); //$NON-NLS-1$ //$NON-NLS-2$
+		if (isMacOS == null) {
+			String osDotName = getOsName();
+			isMacOS = Boolean.valueOf(
+					"Mac OS X".equals(osDotName) || "Darwin".equals(osDotName)); //$NON-NLS-1$ //$NON-NLS-2$
+		}
+		return isMacOS.booleanValue();
+	}
+
+	private String getOsName() {
+		return AccessController.doPrivileged(new PrivilegedAction<String>() {
+			public String run() {
+				return getProperty("os.name"); //$NON-NLS-1$
+			}
+		});
 	}
 
 	/**
@@ -328,5 +338,20 @@ public abstract class SystemReader {
 	 */
 	public void checkPath(String path) throws CorruptObjectException {
 		platformChecker.checkPath(path);
+	}
+
+	/**
+	 * Check tree path entry for validity.
+	 * <p>
+	 * Scans a multi-directory path string such as {@code "src/main.c"}.
+	 *
+	 * @param path
+	 *            path string to scan.
+	 * @throws CorruptObjectException
+	 *             path is invalid.
+	 * @since 4.2
+	 */
+	public void checkPath(byte[] path) throws CorruptObjectException {
+		platformChecker.checkPath(path, 0, path.length);
 	}
 }

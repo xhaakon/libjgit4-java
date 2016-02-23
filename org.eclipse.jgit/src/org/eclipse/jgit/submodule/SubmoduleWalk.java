@@ -76,7 +76,7 @@ import org.eclipse.jgit.util.FS;
 /**
  * Walker that visits all submodule entries found in a tree
  */
-public class SubmoduleWalk {
+public class SubmoduleWalk implements AutoCloseable {
 
 	/**
 	 * The values for the config param submodule.<name>.ignore
@@ -122,7 +122,7 @@ public class SubmoduleWalk {
 			DirCache index = repository.readDirCache();
 			generator.setTree(new DirCacheIterator(index));
 		} catch (IOException e) {
-			generator.release();
+			generator.close();
 			throw e;
 		}
 		return generator;
@@ -152,10 +152,10 @@ public class SubmoduleWalk {
 				if (filter.isDone(generator.walk))
 					return generator;
 		} catch (IOException e) {
-			generator.release();
+			generator.close();
 			throw e;
 		}
-		generator.release();
+		generator.close();
 		return null;
 	}
 
@@ -183,10 +183,10 @@ public class SubmoduleWalk {
 				if (filter.isDone(generator.walk))
 					return generator;
 		} catch (IOException e) {
-			generator.release();
+			generator.close();
 			throw e;
 		}
-		generator.release();
+		generator.close();
 		return null;
 	}
 
@@ -419,8 +419,7 @@ public class SubmoduleWalk {
 			config.load();
 			modulesConfig = config;
 		} else {
-			TreeWalk configWalk = new TreeWalk(repository);
-			try {
+			try (TreeWalk configWalk = new TreeWalk(repository)) {
 				configWalk.addTree(rootTree);
 
 				// The root tree may be part of the submodule walk, so we need to revert
@@ -446,21 +445,20 @@ public class SubmoduleWalk {
 					if (idx > 0)
 						rootTree.next(idx);
 				}
-			} finally {
-				configWalk.release();
 			}
 		}
 		return this;
 	}
 
 	/**
-	 * Checks whether the working tree (or the index in case of a bare repo)
-	 * contains a .gitmodules file. That's a hint that the repo contains
-	 * submodules.
+	 * Checks whether the working tree contains a .gitmodules file. That's a
+	 * hint that the repo contains submodules.
 	 *
 	 * @param repository
 	 *            the repository to check
-	 * @return <code>true</code> if the repo contains a .gitmodules file
+	 * @return <code>true</code> if the working tree contains a .gitmodules file,
+	 *         <code>false</code> otherwise. Always returns <code>false</code>
+	 *         for bare repositories.
 	 * @throws IOException
 	 * @throws CorruptObjectException
 	 * @since 3.6
@@ -468,8 +466,7 @@ public class SubmoduleWalk {
 	public static boolean containsGitModulesFile(Repository repository)
 			throws IOException {
 		if (repository.isBare()) {
-			DirCache dc = repository.readDirCache();
-			return (dc.findEntry(Constants.DOT_GIT_MODULES) >= 0);
+			return false;
 		}
 		File modulesFile = new File(repository.getWorkTree(),
 				Constants.DOT_GIT_MODULES);
@@ -729,8 +726,13 @@ public class SubmoduleWalk {
 		return url != null ? getSubmoduleRemoteUrl(repository, url) : null;
 	}
 
-	/** Release any resources used by this walker's reader. */
-	public void release() {
-		walk.release();
+	/**
+	 * Release any resources used by this walker's reader.
+	 *
+	 * @since 4.0
+	 */
+	@Override
+	public void close() {
+		walk.close();
 	}
 }

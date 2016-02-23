@@ -126,25 +126,39 @@ public class BundleWriterTest extends SampleDataRepositoryTestCase {
 		assertNull(newRepo.resolve("refs/heads/a"));
 
 		// Next an incremental bundle
-		bundle = makeBundle("refs/heads/cc", db.resolve("c").name(),
-				new RevWalk(db).parseCommit(db.resolve("a").toObjectId()));
-		fetchResult = fetchFromBundle(newRepo, bundle);
-		advertisedRef = fetchResult.getAdvertisedRef("refs/heads/cc");
-		assertEquals(db.resolve("c").name(), advertisedRef.getObjectId().name());
-		assertEquals(db.resolve("c").name(), newRepo.resolve("refs/heads/cc")
-				.name());
-		assertNull(newRepo.resolve("refs/heads/c"));
-		assertNull(newRepo.resolve("refs/heads/a")); // still unknown
+		try (RevWalk rw = new RevWalk(db)) {
+			bundle = makeBundle("refs/heads/cc", db.resolve("c").name(),
+					rw.parseCommit(db.resolve("a").toObjectId()));
+			fetchResult = fetchFromBundle(newRepo, bundle);
+			advertisedRef = fetchResult.getAdvertisedRef("refs/heads/cc");
+			assertEquals(db.resolve("c").name(), advertisedRef.getObjectId().name());
+			assertEquals(db.resolve("c").name(), newRepo.resolve("refs/heads/cc")
+					.name());
+			assertNull(newRepo.resolve("refs/heads/c"));
+			assertNull(newRepo.resolve("refs/heads/a")); // still unknown
 
-		try {
-			// Check that we actually needed the first bundle
-			Repository newRepo2 = createBareRepository();
-			fetchResult = fetchFromBundle(newRepo2, bundle);
-			fail("We should not be able to fetch from bundle with prerequisites that are not fulfilled");
-		} catch (MissingBundlePrerequisiteException e) {
-			assertTrue(e.getMessage()
-					.indexOf(db.resolve("refs/heads/a").name()) >= 0);
+			try {
+				// Check that we actually needed the first bundle
+				Repository newRepo2 = createBareRepository();
+				fetchResult = fetchFromBundle(newRepo2, bundle);
+				fail("We should not be able to fetch from bundle with prerequisites that are not fulfilled");
+			} catch (MissingBundlePrerequisiteException e) {
+				assertTrue(e.getMessage()
+						.indexOf(db.resolve("refs/heads/a").name()) >= 0);
+			}
 		}
+	}
+
+	@Test
+	public void testAbortWrite() throws Exception {
+		boolean caught = false;
+		try {
+			makeBundleWithCallback(
+					"refs/heads/aa", db.resolve("a").name(), null, false);
+		} catch (WriteAbortedException e) {
+			caught = true;
+		}
+		assertTrue(caught);
 	}
 
 	private static FetchResult fetchFromBundle(final Repository newRepo,
@@ -154,22 +168,47 @@ public class BundleWriterTest extends SampleDataRepositoryTestCase {
 		final ByteArrayInputStream in = new ByteArrayInputStream(bundle);
 		final RefSpec rs = new RefSpec("refs/heads/*:refs/heads/*");
 		final Set<RefSpec> refs = Collections.singleton(rs);
-		return new TransportBundleStream(newRepo, uri, in).fetch(
-				NullProgressMonitor.INSTANCE, refs);
+		try (TransportBundleStream transport = new TransportBundleStream(
+				newRepo, uri, in)) {
+			return transport.fetch(NullProgressMonitor.INSTANCE, refs);
+		}
 	}
 
 	private byte[] makeBundle(final String name,
 			final String anObjectToInclude, final RevCommit assume)
 			throws FileNotFoundException, IOException {
+		return makeBundleWithCallback(name, anObjectToInclude, assume, true);
+	}
+
+	private byte[] makeBundleWithCallback(final String name,
+			final String anObjectToInclude, final RevCommit assume,
+			boolean value)
+			throws FileNotFoundException, IOException {
 		final BundleWriter bw;
 
 		bw = new BundleWriter(db);
+		bw.setObjectCountCallback(new NaiveObjectCountCallback(value));
 		bw.include(name, ObjectId.fromString(anObjectToInclude));
 		if (assume != null)
 			bw.assume(assume);
 		final ByteArrayOutputStream out = new ByteArrayOutputStream();
 		bw.writeBundle(NullProgressMonitor.INSTANCE, out);
 		return out.toByteArray();
+	}
+
+	private static class NaiveObjectCountCallback
+			implements ObjectCountCallback {
+		private final boolean value;
+
+		NaiveObjectCountCallback(boolean value) {
+			this.value = value;
+		}
+
+		@Override
+		public void setObjectCount(long unused) throws WriteAbortedException {
+			if (!value)
+				throw new WriteAbortedException();
+		}
 	}
 
 }

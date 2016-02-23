@@ -55,6 +55,7 @@ import java.io.Writer;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Path;
 
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.util.FileUtils;
@@ -238,6 +239,23 @@ public abstract class JGitTestUtil {
 			final String name) throws IOException {
 		File path = new File(db.getWorkTree(), name);
 		FileUtils.delete(path);
+	}
+
+	/**
+	 * @param db
+	 *            the repository
+	 * @param link
+	 *            the path of the symbolic link to create
+	 * @param target
+	 *            the target of the symbolic link
+	 * @return the path to the symbolic link
+	 * @throws Exception
+	 * @since 4.2
+	 */
+	public static Path writeLink(Repository db, String link,
+			String target) throws Exception {
+		return FileUtils.createSymLink(new File(db.getWorkTree(), link),
+				target);
 	}
 
 }

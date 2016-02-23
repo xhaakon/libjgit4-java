@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2011, GitHub Inc.
+ * Copyright (C) 2016, Laurent Delaigue <laurent.delaigue@obeo.fr>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -143,8 +144,7 @@ public class SubmoduleUpdateCommand extends
 			RefNotFoundException, GitAPIException {
 		checkCallable();
 
-		try {
-			SubmoduleWalk generator = SubmoduleWalk.forIndex(repo);
+		try (SubmoduleWalk generator = SubmoduleWalk.forIndex(repo)) {
 			if (!paths.isEmpty())
 				generator.setFilter(PathFilterGroup.createFromStrings(paths));
 			List<String> updated = new ArrayList<String>();
@@ -171,8 +171,7 @@ public class SubmoduleUpdateCommand extends
 					submoduleRepo = clone.call().getRepository();
 				}
 
-				try {
-					RevWalk walk = new RevWalk(submoduleRepo);
+				try (RevWalk walk = new RevWalk(submoduleRepo)) {
 					RevCommit commit = walk
 							.parseCommit(generator.getObjectId());
 
@@ -180,11 +179,13 @@ public class SubmoduleUpdateCommand extends
 					if (ConfigConstants.CONFIG_KEY_MERGE.equals(update)) {
 						MergeCommand merge = new MergeCommand(submoduleRepo);
 						merge.include(commit);
+						merge.setProgressMonitor(monitor);
 						merge.setStrategy(strategy);
 						merge.call();
 					} else if (ConfigConstants.CONFIG_KEY_REBASE.equals(update)) {
 						RebaseCommand rebase = new RebaseCommand(submoduleRepo);
 						rebase.setUpstream(commit);
+						rebase.setProgressMonitor(monitor);
 						rebase.setStrategy(strategy);
 						rebase.call();
 					} else {

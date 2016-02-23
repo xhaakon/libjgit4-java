@@ -52,7 +52,7 @@
   <parent>
     <groupId>org.eclipse.jgit</groupId>
     <artifactId>org.eclipse.jgit-parent</artifactId>
-    <version>3.7.1.201504261725-r</version>
+    <version>4.2.0.201601211800-r</version>
   </parent>
 
   <artifactId>org.eclipse.jgit.test</artifactId>
@@ -62,28 +62,22 @@
     JUnit tests for the core library.
   </description>
 
-  <profiles>
-    <profile>
-      <id>jgit.java7</id>
-      <activation>
-	<jdk>[1.7,)</jdk>
-      </activation>
-      <dependencies>
-	<dependency>
-	  <groupId>org.eclipse.jgit</groupId>
-	  <artifactId>org.eclipse.jgit.java7</artifactId>
-	  <version>${project.version}</version>
-	</dependency>
-      </dependencies>
-    </profile>
-  </profiles>
-
   <dependencies>
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <scope>test</scope>
     </dependency>
+
+    <!-- Optional security provider for encryption tests. -->
+    <!-- See https://dev.eclipse.org/ipzilla/show_bug.cgi?id=9554 -->
+    <!-- See https://bugs.eclipse.org/bugs/show_bug.cgi?id=467064 -->
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk15on</artifactId>
+      <version>1.52</version>
+      <scope>test</scope>
+     </dependency>
 
     <dependency>
       <groupId>org.hamcrest</groupId>
@@ -112,18 +106,31 @@
 
     <dependency>
       <groupId>org.eclipse.jgit</groupId>
-      <artifactId>org.eclipse.jgit.console</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.eclipse.jgit</groupId>
       <artifactId>org.eclipse.jgit.pgm</artifactId>
       <version>${project.version}</version>
     </dependency>
   </dependencies>
 
+  <profiles>
+    <!-- Profile provides a property which enables long running tests. -->
+    <profile>
+      <id>test.long</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <argLine>-Djgit.test.long=true</argLine>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
   <build>
+    <sourceDirectory>src/</sourceDirectory>
     <testSourceDirectory>tst/</testSourceDirectory>
 
     <testResources>

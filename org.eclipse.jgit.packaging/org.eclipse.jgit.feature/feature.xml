@@ -2,7 +2,7 @@
 <feature
       id="org.eclipse.jgit"
       label="%featureName"
-      version="3.7.1.201504261725-r"
+      version="4.2.0.201601211800-r"
       provider-name="%providerName">
 
    <description url="http://www.eclipse.org/jgit/">
@@ -21,12 +21,6 @@
       <update label="%updateSiteName" url="http://download.eclipse.org/egit/updates"/>
       <discovery label="%updateSiteName" url="http://download.eclipse.org/egit/updates"/>
    </url>
-
-   <includes
-         id="org.eclipse.jgit.java7"
-         version="0.0.0"
-         name="Java implementation of Git - optional Java 7 libraries"
-         optional="true"/>
 
    <plugin
          id="org.eclipse.jgit"

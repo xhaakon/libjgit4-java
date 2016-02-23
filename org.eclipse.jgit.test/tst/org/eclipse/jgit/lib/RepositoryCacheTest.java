@@ -43,11 +43,13 @@
 
 package org.eclipse.jgit.lib;
 
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -147,4 +149,28 @@ public class RepositoryCacheTest extends RepositoryTestCase {
 		d2.close();
 		d2.close();
 	}
+
+	@Test
+	public void testGetRegisteredWhenEmpty() {
+		assertEquals(0, RepositoryCache.getRegisteredKeys().size());
+	}
+
+	@Test
+	public void testGetRegistered() {
+		RepositoryCache.register(db);
+
+		assertThat(RepositoryCache.getRegisteredKeys(),
+				hasItem(FileKey.exact(db.getDirectory(), db.getFS())));
+		assertEquals(1, RepositoryCache.getRegisteredKeys().size());
+	}
+
+	@Test
+	public void testUnregister() {
+		RepositoryCache.register(db);
+		RepositoryCache
+				.unregister(FileKey.exact(db.getDirectory(), db.getFS()));
+
+		assertEquals(0, RepositoryCache.getRegisteredKeys().size());
+	}
+
 }

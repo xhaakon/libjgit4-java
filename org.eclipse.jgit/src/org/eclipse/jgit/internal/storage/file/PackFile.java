@@ -51,6 +51,7 @@ import static org.eclipse.jgit.internal.storage.pack.PackExt.INDEX;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel.MapMode;
@@ -118,7 +119,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 
 	private int activeCopyRawData;
 
-	private int packLastModified;
+	int packLastModified;
 
 	private volatile boolean invalid;
 
@@ -177,6 +178,9 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 							packFile.getPath()));
 				}
 				loadedIdx = idx;
+			} catch (InterruptedIOException e) {
+				// don't invalidate the pack, we are interrupted from another thread
+				throw e;
 			} catch (IOException e) {
 				invalid = true;
 				throw e;
@@ -344,11 +348,11 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 		return dstbuf;
 	}
 
-	void copyPackAsIs(PackOutputStream out, boolean validate, WindowCursor curs)
+	void copyPackAsIs(PackOutputStream out, WindowCursor curs)
 			throws IOException {
 		// Pin the first window, this ensures the length is accurate.
 		curs.pin(this, 0);
-		curs.copyPackAsIs(this, length, validate, out);
+		curs.copyPackAsIs(this, length, out);
 	}
 
 	final void copyAsIs(PackOutputStream out, LocalObjectToPack src,
@@ -388,22 +392,26 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 				c = buf[headerCnt++] & 0xff;
 			} while ((c & 128) != 0);
 			if (validate) {
+				assert(crc1 != null && crc2 != null);
 				crc1.update(buf, 0, headerCnt);
 				crc2.update(buf, 0, headerCnt);
 			}
 		} else if (typeCode == Constants.OBJ_REF_DELTA) {
 			if (validate) {
+				assert(crc1 != null && crc2 != null);
 				crc1.update(buf, 0, headerCnt);
 				crc2.update(buf, 0, headerCnt);
 			}
 
 			readFully(src.offset + headerCnt, buf, 0, 20, curs);
 			if (validate) {
+				assert(crc1 != null && crc2 != null);
 				crc1.update(buf, 0, 20);
 				crc2.update(buf, 0, 20);
 			}
 			headerCnt += 20;
 		} else if (validate) {
+			assert(crc1 != null && crc2 != null);
 			crc1.update(buf, 0, headerCnt);
 			crc2.update(buf, 0, headerCnt);
 		}
@@ -420,6 +428,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 			quickCopy = curs.quickCopy(this, dataOffset, dataLength);
 
 			if (validate && idx().hasCRC32Support()) {
+				assert(crc1 != null);
 				// Index has the CRC32 code cached, validate the object.
 				//
 				expectedCRC = idx().findCRC32(src);
@@ -452,6 +461,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 				if (quickCopy != null) {
 					quickCopy.check(inf, tmp, dataOffset, (int) dataLength);
 				} else {
+					assert(crc1 != null);
 					long pos = dataOffset;
 					long cnt = dataLength;
 					while (cnt > 0) {
@@ -471,6 +481,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 							JGitText.get().shortCompressedStreamAt,
 							Long.valueOf(src.offset)));
 				}
+				assert(crc1 != null);
 				expectedCRC = crc1.getValue();
 			} else {
 				expectedCRC = -1;
@@ -501,7 +512,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 			// and we have it pinned.  Write this out without copying.
 			//
 			out.writeHeader(src, inflatedLength);
-			quickCopy.write(out, dataOffset, (int) dataLength, null);
+			quickCopy.write(out, dataOffset, (int) dataLength);
 
 		} else if (dataLength <= buf.length) {
 			// Tiny optimization: Lots of objects are very small deltas or
@@ -530,16 +541,21 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 			while (cnt > 0) {
 				final int n = (int) Math.min(cnt, buf.length);
 				readFully(pos, buf, 0, n, curs);
-				if (validate)
+				if (validate) {
+					assert(crc2 != null);
 					crc2.update(buf, 0, n);
+				}
 				out.write(buf, 0, n);
 				pos += n;
 				cnt -= n;
 			}
-			if (validate && crc2.getValue() != expectedCRC) {
-				throw new CorruptObjectException(MessageFormat.format(
-						JGitText.get().objectAtHasBadZlibStream,
-						Long.valueOf(src.offset), getPackFile()));
+			if (validate) {
+				assert(crc2 != null);
+				if (crc2.getValue() != expectedCRC) {
+					throw new CorruptObjectException(MessageFormat.format(
+							JGitText.get().objectAtHasBadZlibStream,
+							Long.valueOf(src.offset), getPackFile()));
+				}
 			}
 		}
 	}
@@ -604,22 +620,26 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 				length = fd.length();
 				onOpenPack();
 			}
+		} catch (InterruptedIOException e) {
+			// don't invalidate the pack, we are interrupted from another thread
+			openFail(false);
+			throw e;
 		} catch (IOException ioe) {
-			openFail();
+			openFail(true);
 			throw ioe;
 		} catch (RuntimeException re) {
-			openFail();
+			openFail(true);
 			throw re;
 		} catch (Error re) {
-			openFail();
+			openFail(true);
 			throw re;
 		}
 	}
 
-	private void openFail() {
+	private void openFail(boolean invalidate) {
 		activeWindows = 0;
 		activeCopyRawData = 0;
-		invalid = true;
+		invalid = invalidate;
 		doClose();
 	}
 
@@ -801,6 +821,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 			if (data == null)
 				throw new IOException(JGitText.get().inMemoryBufferLimitExceeded);
 
+			assert(delta != null);
 			do {
 				// Cache only the base immediately before desired object.
 				if (cached)

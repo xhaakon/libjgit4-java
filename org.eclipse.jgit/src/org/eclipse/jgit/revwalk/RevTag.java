@@ -45,8 +45,12 @@
 
 package org.eclipse.jgit.revwalk;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.IllegalCharsetNameException;
+import java.nio.charset.UnsupportedCharsetException;
 
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
@@ -87,16 +91,22 @@ public class RevTag extends RevObject {
 
 	/**
 	 * Parse an annotated tag from its canonical format.
-	 *
+	 * <p>
 	 * This method inserts the tag directly into the caller supplied revision
 	 * pool, making it appear as though the tag exists in the repository, even
 	 * if it doesn't. The repository under the pool is not affected.
+	 * <p>
+	 * The body of the tag (message, tagger, signature) is always retained in
+	 * the returned {@code RevTag}, even if the supplied {@code RevWalk} has
+	 * been configured with {@code setRetainBody(false)}.
 	 *
 	 * @param rw
 	 *            the revision pool to allocate the tag within. The tag's object
 	 *            pointer will be obtained from this pool.
 	 * @param raw
-	 *            the canonical formatted tag to be parsed.
+	 *            the canonical formatted tag to be parsed. This buffer will be
+	 *            retained by the returned {@code RevTag} and must not be
+	 *            modified by the caller.
 	 * @return the parsed tag, in an isolated revision pool that is not
 	 *         available to the caller.
 	 * @throws CorruptObjectException
@@ -104,13 +114,12 @@ public class RevTag extends RevObject {
 	 */
 	public static RevTag parse(RevWalk rw, byte[] raw)
 			throws CorruptObjectException {
-		ObjectInserter.Formatter fmt = new ObjectInserter.Formatter();
-		boolean retain = rw.isRetainBody();
-		rw.setRetainBody(true);
-		RevTag r = rw.lookupTag(fmt.idFor(Constants.OBJ_TAG, raw));
-		r.parseCanonical(rw, raw);
-		rw.setRetainBody(retain);
-		return r;
+		try (ObjectInserter.Formatter fmt = new ObjectInserter.Formatter()) {
+			RevTag r = rw.lookupTag(fmt.idFor(Constants.OBJ_TAG, raw));
+			r.parseCanonical(rw, raw);
+			r.buffer = raw;
+			return r;
+		}
 	}
 
 	private RevObject object;
@@ -157,7 +166,7 @@ public class RevTag extends RevObject {
 
 		int p = pos.value += 4; // "tag "
 		final int nameEnd = RawParseUtils.nextLF(rawTag, p) - 1;
-		tagName = RawParseUtils.decode(Constants.CHARSET, rawTag, p, nameEnd);
+		tagName = RawParseUtils.decode(UTF_8, rawTag, p, nameEnd);
 
 		if (walk.isRetainBody())
 			buffer = rawTag;
@@ -202,12 +211,12 @@ public class RevTag extends RevObject {
 	 * @return decoded tag message as a string. Never null.
 	 */
 	public final String getFullMessage() {
-		final byte[] raw = buffer;
-		final int msgB = RawParseUtils.tagMessage(raw, 0);
-		if (msgB < 0)
+		byte[] raw = buffer;
+		int msgB = RawParseUtils.tagMessage(raw, 0);
+		if (msgB < 0) {
 			return ""; //$NON-NLS-1$
-		final Charset enc = RawParseUtils.parseEncoding(raw);
-		return RawParseUtils.decode(enc, raw, msgB, raw.length);
+		}
+		return RawParseUtils.decode(guessEncoding(), raw, msgB, raw.length);
 	}
 
 	/**
@@ -226,17 +235,26 @@ public class RevTag extends RevObject {
 	 *         multiple lines. Embedded LFs are converted to spaces.
 	 */
 	public final String getShortMessage() {
-		final byte[] raw = buffer;
-		final int msgB = RawParseUtils.tagMessage(raw, 0);
-		if (msgB < 0)
+		byte[] raw = buffer;
+		int msgB = RawParseUtils.tagMessage(raw, 0);
+		if (msgB < 0) {
 			return ""; //$NON-NLS-1$
+		}
 
-		final Charset enc = RawParseUtils.parseEncoding(raw);
-		final int msgE = RawParseUtils.endOfParagraph(raw, msgB);
-		String str = RawParseUtils.decode(enc, raw, msgB, msgE);
-		if (RevCommit.hasLF(raw, msgB, msgE))
+		int msgE = RawParseUtils.endOfParagraph(raw, msgB);
+		String str = RawParseUtils.decode(guessEncoding(), raw, msgB, msgE);
+		if (RevCommit.hasLF(raw, msgB, msgE)) {
 			str = StringUtils.replaceLineBreaksWithSpace(str);
+		}
 		return str;
+	}
+
+	private Charset guessEncoding() {
+		try {
+			return RawParseUtils.parseEncoding(buffer);
+		} catch (IllegalCharsetNameException | UnsupportedCharsetException e) {
+			return UTF_8;
+		}
 	}
 
 	/**
@@ -265,7 +283,18 @@ public class RevTag extends RevObject {
 		return tagName;
 	}
 
-	final void disposeBody() {
+	/**
+	 * Discard the message buffer to reduce memory usage.
+	 * <p>
+	 * After discarding the memory usage of the {@code RevTag} is reduced to
+	 * only the {@link #getObject()} pointer and {@link #getTagName()}.
+	 * Accessing other properties such as {@link #getTaggerIdent()} or either
+	 * message function requires reloading the buffer by invoking
+	 * {@link RevWalk#parseBody(RevObject)}.
+	 *
+	 * @since 4.0
+	 */
+	public final void disposeBody() {
 		buffer = null;
 	}
 }

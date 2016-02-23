@@ -71,11 +71,17 @@ final class PackWriterBitmapWalker {
 
 	private final ProgressMonitor pm;
 
+	private long countOfBitmapIndexMisses;
+
 	PackWriterBitmapWalker(
 			ObjectWalk walker, BitmapIndex bitmapIndex, ProgressMonitor pm) {
 		this.walker = walker;
 		this.bitmapIndex = bitmapIndex;
 		this.pm = (pm == null) ? NullProgressMonitor.INSTANCE : pm;
+	}
+
+	long getCountOfBitmapIndexMisses() {
+		return countOfBitmapIndexMisses;
 	}
 
 	BitmapBuilder findObjects(Set<? extends ObjectId> start, BitmapBuilder seen, boolean ignoreMissingStart)
@@ -104,17 +110,30 @@ final class PackWriterBitmapWalker {
 		}
 
 		if (marked) {
-			walker.setRevFilter(newRevFilter(seen, bitmapResult));
+			if (seen == null) {
+				walker.setRevFilter(new AddToBitmapFilter(bitmapResult));
+			} else {
+				walker.setRevFilter(
+						new AddUnseenToBitmapFilter(seen, bitmapResult));
+			}
 
 			while (walker.next() != null) {
 				// Iterate through all of the commits. The BitmapRevFilter does
 				// the work.
+				//
+				// filter.include returns true for commits that do not have
+				// a bitmap in bitmapIndex and are not reachable from a
+				// bitmap in bitmapIndex encountered earlier in the walk.
+				// Thus the number of commits returned by next() measures how
+				// much history was traversed without being able to make use
+				// of bitmaps.
 				pm.update(1);
+				countOfBitmapIndexMisses++;
 			}
 
 			RevObject ro;
 			while ((ro = walker.nextObject()) != null) {
-				bitmapResult.add(ro, ro.getType());
+				bitmapResult.addObject(ro, ro.getType());
 				pm.update(1);
 			}
 		}
@@ -126,40 +145,100 @@ final class PackWriterBitmapWalker {
 		walker.reset();
 	}
 
-	static RevFilter newRevFilter(
-			final BitmapBuilder seen, final BitmapBuilder bitmapResult) {
-		if (seen != null) {
-			return new BitmapRevFilter() {
-				protected boolean load(RevCommit cmit) {
-					if (seen.contains(cmit))
-						return false;
-					return bitmapResult.add(cmit, Constants.OBJ_COMMIT);
-				}
-			};
-		}
-		return new BitmapRevFilter() {
-			@Override
-			protected boolean load(RevCommit cmit) {
-				return bitmapResult.add(cmit, Constants.OBJ_COMMIT);
-			}
-		};
-	}
+	/**
+	 * A RevFilter that adds the visited commits to {@code bitmap} as a side
+	 * effect.
+	 * <p>
+	 * When the walk hits a commit that is part of {@code bitmap}'s
+	 * BitmapIndex, that entire bitmap is ORed into {@code bitmap} and the
+	 * commit and its parents are marked as SEEN so that the walk does not
+	 * have to visit its ancestors.  This ensures the walk is very short if
+	 * there is good bitmap coverage.
+	 */
+	static class AddToBitmapFilter extends RevFilter {
+		private final BitmapBuilder bitmap;
 
-	static abstract class BitmapRevFilter extends RevFilter {
-		protected abstract boolean load(RevCommit cmit);
+		AddToBitmapFilter(BitmapBuilder bitmap) {
+			this.bitmap = bitmap;
+		}
 
 		@Override
 		public final boolean include(RevWalk walker, RevCommit cmit) {
-			if (load(cmit))
+			Bitmap visitedBitmap;
+
+			if (bitmap.contains(cmit)) {
+				// already included
+			} else if ((visitedBitmap = bitmap.getBitmapIndex()
+					.getBitmap(cmit)) != null) {
+				bitmap.or(visitedBitmap);
+			} else {
+				bitmap.addObject(cmit, Constants.OBJ_COMMIT);
 				return true;
-			for (RevCommit p : cmit.getParents())
+			}
+
+			for (RevCommit p : cmit.getParents()) {
 				p.add(RevFlag.SEEN);
+			}
 			return false;
 		}
 
 		@Override
 		public final RevFilter clone() {
-			return this;
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public final boolean requiresCommitBody() {
+			return false;
+		}
+	}
+
+	/**
+	 * A RevFilter that adds the visited commits to {@code bitmap} as a side
+	 * effect.
+	 * <p>
+	 * When the walk hits a commit that is part of {@code bitmap}'s
+	 * BitmapIndex, that entire bitmap is ORed into {@code bitmap} and the
+	 * commit and its parents are marked as SEEN so that the walk does not
+	 * have to visit its ancestors.  This ensures the walk is very short if
+	 * there is good bitmap coverage.
+	 * <p>
+	 * Commits named in {@code seen} are considered already seen.  If one is
+	 * encountered, that commit and its parents will be marked with the SEEN
+	 * flag to prevent the walk from visiting its ancestors.
+	 */
+	static class AddUnseenToBitmapFilter extends RevFilter {
+		private final BitmapBuilder seen;
+		private final BitmapBuilder bitmap;
+
+		AddUnseenToBitmapFilter(BitmapBuilder seen, BitmapBuilder bitmapResult) {
+			this.seen = seen;
+			this.bitmap = bitmapResult;
+		}
+
+		@Override
+		public final boolean include(RevWalk walker, RevCommit cmit) {
+			Bitmap visitedBitmap;
+
+			if (seen.contains(cmit) || bitmap.contains(cmit)) {
+				// already seen or included
+			} else if ((visitedBitmap = bitmap.getBitmapIndex()
+					.getBitmap(cmit)) != null) {
+				bitmap.or(visitedBitmap);
+			} else {
+				bitmap.addObject(cmit, Constants.OBJ_COMMIT);
+				return true;
+			}
+
+			for (RevCommit p : cmit.getParents()) {
+				p.add(RevFlag.SEEN);
+			}
+			return false;
+		}
+
+		@Override
+		public final RevFilter clone() {
+			throw new UnsupportedOperationException();
 		}
 
 		@Override

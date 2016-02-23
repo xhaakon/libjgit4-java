@@ -359,6 +359,33 @@ public class RefDirectoryTest extends LocalDiskRepositoryTestCase {
 	}
 
 	@Test
+	public void testFirstExactRef_IgnoresGarbageRef() throws IOException {
+		writeLooseRef("refs/heads/A", A);
+		write(new File(diskRepo.getDirectory(), "refs/heads/bad"), "FAIL\n");
+
+		Ref a = refdir.firstExactRef("refs/heads/bad", "refs/heads/A");
+		assertEquals("refs/heads/A", a.getName());
+		assertEquals(A, a.getObjectId());
+	}
+
+	@Test
+	public void testExactRef_IgnoresGarbageRef() throws IOException {
+		writeLooseRef("refs/heads/A", A);
+		write(new File(diskRepo.getDirectory(), "refs/heads/bad"), "FAIL\n");
+
+		Map<String, Ref> refs =
+				refdir.exactRef("refs/heads/bad", "refs/heads/A");
+
+		assertNull("no refs/heads/bad", refs.get("refs/heads/bad"));
+
+		Ref a = refs.get("refs/heads/A");
+		assertEquals("refs/heads/A", a.getName());
+		assertEquals(A, a.getObjectId());
+
+		assertEquals(1, refs.size());
+	}
+
+	@Test
 	public void testGetRefs_InvalidName() throws IOException {
 		writeLooseRef("refs/heads/A", A);
 
@@ -461,6 +488,21 @@ public class RefDirectoryTest extends LocalDiskRepositoryTestCase {
 
 		assertEquals(A, a.getObjectId());
 		assertEquals(B, b.getObjectId());
+	}
+
+	@Test
+	public void testFirstExactRef_Mixed() throws IOException {
+		writeLooseRef("refs/heads/A", A);
+		writePackedRef("refs/tags/v1.0", v1_0);
+
+		Ref a = refdir.firstExactRef("refs/heads/A", "refs/tags/v1.0");
+		Ref one = refdir.firstExactRef("refs/tags/v1.0", "refs/heads/A");
+
+		assertEquals("refs/heads/A", a.getName());
+		assertEquals("refs/tags/v1.0", one.getName());
+
+		assertEquals(A, a.getObjectId());
+		assertEquals(v1_0, one.getObjectId());
 	}
 
 	@Test
@@ -816,6 +858,36 @@ public class RefDirectoryTest extends LocalDiskRepositoryTestCase {
 	}
 
 	@Test
+	public void testGetRef_CycleInSymbolicRef() throws IOException {
+		Ref r;
+
+		writeLooseRef("refs/1", "ref: refs/2\n");
+		writeLooseRef("refs/2", "ref: refs/3\n");
+		writeLooseRef("refs/3", "ref: refs/4\n");
+		writeLooseRef("refs/4", "ref: refs/5\n");
+		writeLooseRef("refs/5", "ref: refs/end\n");
+		writeLooseRef("refs/end", A);
+
+		r = refdir.getRef("1");
+		assertEquals("refs/1", r.getName());
+		assertEquals(A, r.getObjectId());
+		assertTrue(r.isSymbolic());
+
+		writeLooseRef("refs/5", "ref: refs/6\n");
+		writeLooseRef("refs/6", "ref: refs/end\n");
+
+		r = refdir.getRef("1");
+		assertNull("missing 1 due to cycle", r);
+
+		writeLooseRef("refs/heads/1", B);
+
+		r = refdir.getRef("1");
+		assertEquals("refs/heads/1", r.getName());
+		assertEquals(B, r.getObjectId());
+		assertFalse(r.isSymbolic());
+	}
+
+	@Test
 	public void testGetRefs_PackedNotPeeled_Sorted() throws IOException {
 		Map<String, Ref> all;
 
@@ -983,6 +1055,25 @@ public class RefDirectoryTest extends LocalDiskRepositoryTestCase {
 	}
 
 	@Test
+	public void testExactRef_EmptyDatabase() throws IOException {
+		Ref r;
+
+		r = refdir.exactRef(HEAD);
+		assertTrue(r.isSymbolic());
+		assertSame(LOOSE, r.getStorage());
+		assertEquals("refs/heads/master", r.getTarget().getName());
+		assertSame(NEW, r.getTarget().getStorage());
+		assertNull(r.getTarget().getObjectId());
+
+		assertNull(refdir.exactRef("refs/heads/master"));
+		assertNull(refdir.exactRef("refs/tags/v1.0"));
+		assertNull(refdir.exactRef("FETCH_HEAD"));
+		assertNull(refdir.exactRef("NOT.A.REF.NAME"));
+		assertNull(refdir.exactRef("master"));
+		assertNull(refdir.exactRef("v1.0"));
+	}
+
+	@Test
 	public void testGetRef_FetchHead() throws IOException {
 		// This is an odd special case where we need to make sure we read
 		// exactly the first 40 bytes of the file and nothing further on
@@ -992,6 +1083,23 @@ public class RefDirectoryTest extends LocalDiskRepositoryTestCase {
 				+ "\tbranch 'master' of git://egit.eclipse.org/jgit\n");
 
 		Ref r = refdir.getRef("FETCH_HEAD");
+		assertFalse(r.isSymbolic());
+		assertEquals(A, r.getObjectId());
+		assertEquals("FETCH_HEAD", r.getName());
+		assertFalse(r.isPeeled());
+		assertNull(r.getPeeledObjectId());
+	}
+
+	@Test
+	public void testExactRef_FetchHead() throws IOException {
+		// This is an odd special case where we need to make sure we read
+		// exactly the first 40 bytes of the file and nothing further on
+		// that line, or the remainder of the file.
+		write(new File(diskRepo.getDirectory(), "FETCH_HEAD"), A.name()
+				+ "\tnot-for-merge"
+				+ "\tbranch 'master' of git://egit.eclipse.org/jgit\n");
+
+		Ref r = refdir.exactRef("FETCH_HEAD");
 		assertFalse(r.isSymbolic());
 		assertEquals(A, r.getObjectId());
 		assertEquals("FETCH_HEAD", r.getName());

@@ -67,7 +67,6 @@ import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
-import org.eclipse.jgit.lib.FileTreeEntry;
 import org.eclipse.jgit.lib.ObjectDatabase;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
@@ -75,7 +74,6 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.TagBuilder;
-import org.eclipse.jgit.lib.Tree;
 import org.eclipse.jgit.lib.TreeFormatter;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTag;
@@ -304,11 +302,12 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 		// object (as it already exists in the pack).
 		//
 		final Repository newdb = createBareRepository();
-		final ObjectInserter oi = newdb.newObjectInserter();
-		final ObjectId treeId = oi.insert(new TreeFormatter());
-		oi.release();
+		try (final ObjectInserter oi = newdb.newObjectInserter()) {
+			final ObjectId treeId = oi.insert(new TreeFormatter());
+			assertEquals("4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+					treeId.name());
+		}
 
-		assertEquals("4b825dc642cb6eb9a060e54bf8d69288fbee4904", treeId.name());
 		final File o = new File(new File(new File(newdb.getDirectory(),
 				"objects"), "4b"), "825dc642cb6eb9a060e54bf8d69288fbee4904");
 		assertTrue("Exists " + o, o.isFile());
@@ -363,6 +362,7 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 		assertNotSame(db.getConfig(), db2.getConfig());
 	}
 
+	@SuppressWarnings("unused")
 	@Test
 	public void test008_FailOnWrongVersion() throws IOException {
 		final File cfg = new File(db.getDirectory(), Constants.CONFIG);
@@ -418,29 +418,6 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 	}
 
 	@Test
-	public void test012_SubtreeExternalSorting() throws IOException {
-		final ObjectId emptyBlob = insertEmptyBlob();
-		final Tree t = new Tree(db);
-		final FileTreeEntry e0 = t.addFile("a-");
-		final FileTreeEntry e1 = t.addFile("a-b");
-		final FileTreeEntry e2 = t.addFile("a/b");
-		final FileTreeEntry e3 = t.addFile("a=");
-		final FileTreeEntry e4 = t.addFile("a=b");
-
-		e0.setId(emptyBlob);
-		e1.setId(emptyBlob);
-		e2.setId(emptyBlob);
-		e3.setId(emptyBlob);
-		e4.setId(emptyBlob);
-
-		final Tree a = (Tree) t.findTreeMember("a");
-		a.setId(insertTree(a));
-		assertEquals(ObjectId
-				.fromString("b47a8f0a4190f7572e11212769090523e23eb1ea"),
-				insertTree(t));
-	}
-
-	@Test
 	public void test020_createBlobTag() throws IOException {
 		final ObjectId emptyId = insertEmptyBlob();
 		final TagBuilder t = new TagBuilder();
@@ -463,9 +440,8 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 	@Test
 	public void test021_createTreeTag() throws IOException {
 		final ObjectId emptyId = insertEmptyBlob();
-		final Tree almostEmptyTree = new Tree(db);
-		almostEmptyTree.addEntry(new FileTreeEntry(almostEmptyTree, emptyId,
-				"empty".getBytes(), false));
+		TreeFormatter almostEmptyTree = new TreeFormatter();
+		almostEmptyTree.append("empty", FileMode.REGULAR_FILE, emptyId);
 		final ObjectId almostEmptyTreeId = insertTree(almostEmptyTree);
 		final TagBuilder t = new TagBuilder();
 		t.setObjectId(almostEmptyTreeId, Constants.OBJ_TREE);
@@ -487,9 +463,8 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 	@Test
 	public void test022_createCommitTag() throws IOException {
 		final ObjectId emptyId = insertEmptyBlob();
-		final Tree almostEmptyTree = new Tree(db);
-		almostEmptyTree.addEntry(new FileTreeEntry(almostEmptyTree, emptyId,
-				"empty".getBytes(), false));
+		TreeFormatter almostEmptyTree = new TreeFormatter();
+		almostEmptyTree.append("empty", FileMode.REGULAR_FILE, emptyId);
 		final ObjectId almostEmptyTreeId = insertTree(almostEmptyTree);
 		final CommitBuilder almostEmptyCommit = new CommitBuilder();
 		almostEmptyCommit.setAuthor(new PersonIdent(author, 1154236443000L,
@@ -519,9 +494,8 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 	@Test
 	public void test023_createCommitNonAnullii() throws IOException {
 		final ObjectId emptyId = insertEmptyBlob();
-		final Tree almostEmptyTree = new Tree(db);
-		almostEmptyTree.addEntry(new FileTreeEntry(almostEmptyTree, emptyId,
-				"empty".getBytes(), false));
+		TreeFormatter almostEmptyTree = new TreeFormatter();
+		almostEmptyTree.append("empty", FileMode.REGULAR_FILE, emptyId);
 		final ObjectId almostEmptyTreeId = insertTree(almostEmptyTree);
 		CommitBuilder commit = new CommitBuilder();
 		commit.setTreeId(almostEmptyTreeId);
@@ -541,9 +515,8 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 	@Test
 	public void test024_createCommitNonAscii() throws IOException {
 		final ObjectId emptyId = insertEmptyBlob();
-		final Tree almostEmptyTree = new Tree(db);
-		almostEmptyTree.addEntry(new FileTreeEntry(almostEmptyTree, emptyId,
-				"empty".getBytes(), false));
+		TreeFormatter almostEmptyTree = new TreeFormatter();
+		almostEmptyTree.append("empty", FileMode.REGULAR_FILE, emptyId);
 		final ObjectId almostEmptyTreeId = insertTree(almostEmptyTree);
 		CommitBuilder commit = new CommitBuilder();
 		commit.setTreeId(almostEmptyTreeId);
@@ -569,8 +542,7 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 	@Test
 	public void test026_CreateCommitMultipleparents() throws IOException {
 		final ObjectId treeId;
-		final ObjectInserter oi = db.newObjectInserter();
-		try {
+		try (final ObjectInserter oi = db.newObjectInserter()) {
 			final ObjectId blobId = oi.insert(Constants.OBJ_BLOB,
 					"and this is the data in me\n".getBytes(Constants.CHARSET
 							.name()));
@@ -578,8 +550,6 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 			fmt.append("i-am-a-file", FileMode.REGULAR_FILE, blobId);
 			treeId = oi.insert(fmt);
 			oi.flush();
-		} finally {
-			oi.release();
 		}
 		assertEquals(ObjectId
 				.fromString("00b1f73724f493096d1ffa0b0f1f1482dbb8c936"), treeId);
@@ -741,80 +711,51 @@ public class T0003_BasicTest extends SampleDataRepositoryTestCase {
 
 	private ObjectId insertEmptyBlob() throws IOException {
 		final ObjectId emptyId;
-		ObjectInserter oi = db.newObjectInserter();
-		try {
+		try (ObjectInserter oi = db.newObjectInserter()) {
 			emptyId = oi.insert(Constants.OBJ_BLOB, new byte[] {});
 			oi.flush();
-		} finally {
-			oi.release();
 		}
 		return emptyId;
 	}
 
-	private ObjectId insertTree(Tree tree) throws IOException {
-		ObjectInserter oi = db.newObjectInserter();
-		try {
-			ObjectId id = oi.insert(Constants.OBJ_TREE, tree.format());
-			oi.flush();
-			return id;
-		} finally {
-			oi.release();
-		}
-	}
-
 	private ObjectId insertTree(TreeFormatter tree) throws IOException {
-		ObjectInserter oi = db.newObjectInserter();
-		try {
+		try (ObjectInserter oi = db.newObjectInserter()) {
 			ObjectId id = oi.insert(tree);
 			oi.flush();
 			return id;
-		} finally {
-			oi.release();
 		}
 	}
 
 	private ObjectId insertCommit(final CommitBuilder builder)
 			throws IOException, UnsupportedEncodingException {
-		ObjectInserter oi = db.newObjectInserter();
-		try {
+		try (ObjectInserter oi = db.newObjectInserter()) {
 			ObjectId id = oi.insert(builder);
 			oi.flush();
 			return id;
-		} finally {
-			oi.release();
 		}
 	}
 
 	private RevCommit parseCommit(AnyObjectId id)
 			throws MissingObjectException, IncorrectObjectTypeException,
 			IOException {
-		RevWalk rw = new RevWalk(db);
-		try {
+		try (RevWalk rw = new RevWalk(db)) {
 			return rw.parseCommit(id);
-		} finally {
-			rw.release();
 		}
 	}
 
 	private ObjectId insertTag(final TagBuilder tag) throws IOException,
 			UnsupportedEncodingException {
-		ObjectInserter oi = db.newObjectInserter();
-		try {
+		try (ObjectInserter oi = db.newObjectInserter()) {
 			ObjectId id = oi.insert(tag);
 			oi.flush();
 			return id;
-		} finally {
-			oi.release();
 		}
 	}
 
 	private RevTag parseTag(AnyObjectId id) throws MissingObjectException,
 			IncorrectObjectTypeException, IOException {
-		RevWalk rw = new RevWalk(db);
-		try {
+		try (RevWalk rw = new RevWalk(db)) {
 			return rw.parseTag(id);
-		} finally {
-			rw.release();
 		}
 	}
 

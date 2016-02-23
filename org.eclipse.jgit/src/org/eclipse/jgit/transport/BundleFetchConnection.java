@@ -161,16 +161,23 @@ class BundleFetchConnection extends BaseFetchConnection {
 	}
 
 	private String readLine(final byte[] hdrbuf) throws IOException {
-		bin.mark(hdrbuf.length);
-		final int cnt = bin.read(hdrbuf);
-		int lf = 0;
-		while (lf < cnt && hdrbuf[lf] != '\n')
-			lf++;
-		bin.reset();
-		IO.skipFully(bin, lf);
-		if (lf < cnt && hdrbuf[lf] == '\n')
-			IO.skipFully(bin, 1);
-		return RawParseUtils.decode(Constants.CHARSET, hdrbuf, 0, lf);
+		StringBuilder line = new StringBuilder();
+		boolean done = false;
+		while (!done) {
+			bin.mark(hdrbuf.length);
+			final int cnt = bin.read(hdrbuf);
+			int lf = 0;
+			while (lf < cnt && hdrbuf[lf] != '\n')
+				lf++;
+			bin.reset();
+			IO.skipFully(bin, lf);
+			if (lf < cnt && hdrbuf[lf] == '\n') {
+				IO.skipFully(bin, 1);
+				done = true;
+			}
+			line.append(RawParseUtils.decode(Constants.CHARSET, hdrbuf, 0, lf));
+		}
+		return line.toString();
 	}
 
 	public boolean didFetchTestConnectivity() {
@@ -183,16 +190,13 @@ class BundleFetchConnection extends BaseFetchConnection {
 			throws TransportException {
 		verifyPrerequisites();
 		try {
-			ObjectInserter ins = transport.local.newObjectInserter();
-			try {
+			try (ObjectInserter ins = transport.local.newObjectInserter()) {
 				PackParser parser = ins.newPackParser(bin);
 				parser.setAllowThin(true);
 				parser.setObjectChecker(transport.getObjectChecker());
 				parser.setLockMessage(lockMessage);
 				packLock = parser.parse(NullProgressMonitor.INSTANCE);
 				ins.flush();
-			} finally {
-				ins.release();
 			}
 		} catch (IOException err) {
 			close();
@@ -217,8 +221,7 @@ class BundleFetchConnection extends BaseFetchConnection {
 		if (prereqs.isEmpty())
 			return;
 
-		final RevWalk rw = new RevWalk(transport.local);
-		try {
+		try (final RevWalk rw = new RevWalk(transport.local)) {
 			final RevFlag PREREQ = rw.newFlag("PREREQ"); //$NON-NLS-1$
 			final RevFlag SEEN = rw.newFlag("SEEN"); //$NON-NLS-1$
 
@@ -281,8 +284,6 @@ class BundleFetchConnection extends BaseFetchConnection {
 				throw new MissingBundlePrerequisiteException(transport.uri,
 						missing);
 			}
-		} finally {
-			rw.release();
 		}
 	}
 
