@@ -3,14 +3,14 @@ Date: Thu, 6 Mar 2014 18:22:09 +0100
 Subject: unversioned-orbit-dependencies
 
 ---
- org.eclipse.jgit/META-INF/MANIFEST.MF | 3 +--
- 1 file changed, 1 insertion(+), 2 deletions(-)
+ org.eclipse.jgit/META-INF/MANIFEST.MF | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/org.eclipse.jgit/META-INF/MANIFEST.MF b/org.eclipse.jgit/META-INF/MANIFEST.MF
-index 4dc4b79..09f7b12 100644
+index 4dc4b79..98ba758 100644
 --- a/org.eclipse.jgit/META-INF/MANIFEST.MF
 +++ b/org.eclipse.jgit/META-INF/MANIFEST.MF
-@@ -144,9 +144,8 @@ Export-Package: org.eclipse.jgit.api;version="3.7.1";
+@@ -144,7 +144,7 @@ Export-Package: org.eclipse.jgit.api;version="3.7.1";
  Bundle-ActivationPolicy: lazy
  Bundle-RequiredExecutionEnvironment: J2SE-1.5
  Require-Bundle: com.jcraft.jsch;bundle-version="[0.1.37,0.2.0)"
@@ -18,6 +18,4 @@ index 4dc4b79..09f7b12 100644
 +Import-Package: com.googlecode.javaewah,
   javax.crypto,
   javax.net.ssl,
-- org.slf4j;version="[1.7.0,2.0.0)",
-  org.xml.sax,
-  org.xml.sax.helpers
+  org.slf4j;version="[1.7.0,2.0.0)",
