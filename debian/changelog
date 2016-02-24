@@ -9,11 +9,9 @@ jgit (3.7.1-2) unstable; urgency=medium
   * Declare compliance with Debian Policy 3.9.7.
   * Vcs fields: Use canonical URI and https.
   * Add maven.properties and skip the tests for now as a workaround to prevent
-    a FTBFS.
-  * Update unversioned-orbit-dependencies.patch and do not import slf4j
-    package anymore. This fixes a module error in Netbeans.
+    a FTBFS. (Closes: #812643)
 
- -- Markus Koschany <apo@debian.org>  Tue, 23 Feb 2016 23:40:50 +0100
+ -- Markus Koschany <apo@debian.org>  Wed, 24 Feb 2016 18:48:08 +0100
 
 jgit (3.7.1-1) unstable; urgency=medium
 
