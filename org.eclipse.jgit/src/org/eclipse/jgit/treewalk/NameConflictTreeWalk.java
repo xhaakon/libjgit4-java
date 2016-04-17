@@ -43,6 +43,8 @@
 
 package org.eclipse.jgit.treewalk;
 
+import java.io.IOException;
+
 import org.eclipse.jgit.dircache.DirCacheBuilder;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.lib.FileMode;
@@ -96,7 +98,20 @@ public class NameConflictTreeWalk extends TreeWalk {
 	 *            the repository the walker will obtain data from.
 	 */
 	public NameConflictTreeWalk(final Repository repo) {
-		this(repo.newObjectReader());
+		super(repo);
+	}
+
+	/**
+	 * Create a new tree walker for a given repository.
+	 *
+	 * @param repo
+	 *            the repository the walker will obtain data from.
+	 * @param or
+	 *            the reader the walker will obtain tree data from.
+	 * @since 4.3
+	 */
+	public NameConflictTreeWalk(Repository repo, final ObjectReader or) {
+		super(repo, or);
 	}
 
 	/**
@@ -336,6 +351,41 @@ public class NameConflictTreeWalk extends TreeWalk {
 
 		if (ch == dfConflict)
 			dfConflict = null;
+	}
+
+	void stopWalk() throws IOException {
+		if (!needsStopWalk()) {
+			return;
+		}
+
+		// Name conflicts make aborting early difficult. Multiple paths may
+		// exist between the file and directory versions of a name. To ensure
+		// the directory version is skipped over (as it was previously visited
+		// during the file version step) requires popping up the stack and
+		// finishing out each subtree that the walker dove into. Siblings in
+		// parents do not need to be recursed into, bounding the cost.
+		for (;;) {
+			AbstractTreeIterator t = min();
+			if (t.eof()) {
+				if (depth > 0) {
+					exitSubtree();
+					popEntriesEqual();
+					continue;
+				}
+				return;
+			}
+			currentHead = t;
+			skipEntriesEqual();
+		}
+	}
+
+	private boolean needsStopWalk() {
+		for (AbstractTreeIterator t : trees) {
+			if (t.needsStopWalk()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

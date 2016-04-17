@@ -79,7 +79,7 @@ class RefDirectoryUpdate extends RefUpdate {
 		if (deref)
 			dst = dst.getLeaf();
 		String name = dst.getName();
-		lock = new LockFile(database.fileFor(name), getRepository().getFS());
+		lock = new LockFile(database.fileFor(name));
 		if (lock.lock()) {
 			dst = database.getRef(name);
 			setOldObjectId(dst != null ? dst.getObjectId() : null);
@@ -128,11 +128,11 @@ class RefDirectoryUpdate extends RefUpdate {
 	private String toResultString(final Result status) {
 		switch (status) {
 		case FORCED:
-			return "forced-update";
+			return "forced-update"; //$NON-NLS-1$
 		case FAST_FORWARD:
-			return "fast forward";
+			return "fast forward"; //$NON-NLS-1$
 		case NEW:
-			return "created";
+			return "created"; //$NON-NLS-1$
 		default:
 			return null;
 		}

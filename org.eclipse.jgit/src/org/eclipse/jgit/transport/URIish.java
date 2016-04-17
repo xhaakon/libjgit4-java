@@ -4,6 +4,7 @@
  * Copyright (C) 2008, Shawn O. Pearce <spearce@spearce.org>
  * Copyright (C) 2010, Christian Halstrick <christian.halstrick@sap.com>
  * Copyright (C) 2013, Robin Stocker <robin@nibor.org>
+ * Copyright (C) 2015, Patrick Steinhardt <ps@pks.im>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -82,7 +83,7 @@ public class URIish implements Serializable {
 	 * capturing groups: the first containing the user and the second containing
 	 * the password
 	 */
-	private static final String OPT_USER_PWD_P = "(?:([^/:@]+)(?::([^\\\\/]+))?@)?"; //$NON-NLS-1$
+	private static final String OPT_USER_PWD_P = "(?:([^/:]+)(?::([^\\\\/]+))?@)?"; //$NON-NLS-1$
 
 	/**
 	 * Part of a pattern which matches the host part of URIs. Defines one
@@ -134,11 +135,15 @@ public class URIish implements Serializable {
 			+ OPT_USER_PWD_P //
 			+ HOST_P //
 			+ OPT_PORT_P //
-			+ "(" // open a catpuring group the the user-home-dir part //$NON-NLS-1$
-			+ (USER_HOME_P + "?") // //$NON-NLS-1$
-			+ "[\\\\/])" // //$NON-NLS-1$
+			+ "(" // open a group capturing the user-home-dir-part //$NON-NLS-1$
+			+ (USER_HOME_P + "?") //$NON-NLS-1$
+			+ "(?:" // start non capturing group for host //$NON-NLS-1$
+					// separator or end of line
+			+ "[\\\\/])|$" //$NON-NLS-1$
+			+ ")" // close non capturing group for the host//$NON-NLS-1$
+					// separator or end of line
 			+ ")?" // close the optional group containing hostname //$NON-NLS-1$
-			+ "(.+)?" // //$NON-NLS-1$
+			+ "(.+)?" //$NON-NLS-1$
 			+ "$"); //$NON-NLS-1$
 
 	/**
@@ -371,8 +376,10 @@ public class URIish implements Serializable {
 	public URIish(final URL u) {
 		scheme = u.getProtocol();
 		path = u.getPath();
+		path = cleanLeadingSlashes(path, scheme);
 		try {
 			rawPath = u.toURI().getRawPath();
+			rawPath = cleanLeadingSlashes(rawPath, scheme);
 		} catch (URISyntaxException e) {
 			throw new RuntimeException(e); // Impossible
 		}
@@ -592,6 +599,8 @@ public class URIish implements Serializable {
 	private static boolean eq(final String a, final String b) {
 		if (a == b)
 			return true;
+		if (StringUtils.isEmptyOrNull(a) && StringUtils.isEmptyOrNull(b))
+			return true;
 		if (a == null || b == null)
 			return false;
 		return a.equals(b);
@@ -637,7 +646,7 @@ public class URIish implements Serializable {
 
 		if (getPath() != null) {
 			if (getScheme() != null) {
-				if (!getPath().startsWith("/")) //$NON-NLS-1$
+				if (!getPath().startsWith("/") && !getPath().isEmpty()) //$NON-NLS-1$
 					r.append('/');
 			} else if (getHost() != null)
 				r.append(':');
@@ -690,6 +699,10 @@ public class URIish implements Serializable {
 	 * <td><code>/path/to/repo/</code></td>
 	 * </tr>
 	 * <tr>
+	 * <td><code>localhost</code></td>
+	 * <td><code>ssh://localhost/</code></td>
+	 * </tr>
+	 * <tr>
 	 * <td><code>/path//to</code></td>
 	 * <td>an empty string</td>
 	 * </tr>
@@ -703,9 +716,12 @@ public class URIish implements Serializable {
 	 * @see #getPath
 	 */
 	public String getHumanishName() throws IllegalArgumentException {
-		if ("".equals(getPath()) || getPath() == null) //$NON-NLS-1$
-			throw new IllegalArgumentException();
 		String s = getPath();
+		if ("/".equals(s) || "".equals(s)) //$NON-NLS-1$ //$NON-NLS-2$
+			s = getHost();
+		if (s == null) // $NON-NLS-1$
+			throw new IllegalArgumentException();
+
 		String[] elements;
 		if ("file".equals(scheme) || LOCAL_FILE.matcher(s).matches()) //$NON-NLS-1$
 			elements = s.split("[\\" + File.separatorChar + "/]"); //$NON-NLS-1$ //$NON-NLS-2$

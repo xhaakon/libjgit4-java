@@ -66,11 +66,12 @@ public class GitConstructionTest extends RepositoryTestCase {
 	@Before
 	public void setUp() throws Exception {
 		super.setUp();
-		Git git = new Git(db);
-		git.commit().setMessage("initial commit").call();
-		writeTrashFile("Test.txt", "Hello world");
-		git.add().addFilepattern("Test.txt").call();
-		git.commit().setMessage("Initial commit").call();
+		try (Git git = new Git(db)) {
+			git.commit().setMessage("initial commit").call();
+			writeTrashFile("Test.txt", "Hello world");
+			git.add().addFilepattern("Test.txt").call();
+			git.commit().setMessage("Initial commit").call();
+		}
 
 		bareRepo = Git.cloneRepository().setBare(true)
 				.setURI(db.getDirectory().toURI().toString())
@@ -140,7 +141,8 @@ public class GitConstructionTest extends RepositoryTestCase {
 	public void testClose() throws IOException, JGitInternalException,
 			GitAPIException {
 		File workTree = db.getWorkTree();
-		Git git = Git.wrap(db);
+		db.close();
+		Git git = Git.open(workTree);
 		git.gc().setExpire(null).call();
 		git.checkout().setName(git.getRepository().resolve("HEAD^").getName())
 				.call();

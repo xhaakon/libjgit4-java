@@ -67,9 +67,6 @@ import java.net.MalformedURLException;
 import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.URL;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -82,11 +79,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 import org.eclipse.jgit.errors.NoRemoteRepositoryException;
 import org.eclipse.jgit.errors.NotSupportedException;
@@ -133,8 +125,6 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 	private static final String SVC_UPLOAD_PACK = "git-upload-pack"; //$NON-NLS-1$
 
 	private static final String SVC_RECEIVE_PACK = "git-receive-pack"; //$NON-NLS-1$
-
-	private static final String userAgent = computeUserAgent();
 
 	static final TransportProtocol PROTO_HTTP = new TransportProtocol() {
 		private final String[] schemeNames = { "http", "https" }; //$NON-NLS-1$ //$NON-NLS-2$
@@ -204,17 +194,6 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		}
 	};
 
-	private static String computeUserAgent() {
-		String version;
-		final Package pkg = TransportHttp.class.getPackage();
-		if (pkg != null && pkg.getImplementationVersion() != null) {
-			version = pkg.getImplementationVersion();
-		} else {
-			version = "unknown"; //$NON-NLS-1$
-		}
-		return "JGit/" + version; //$NON-NLS-1$
-	}
-
 	private static final Config.SectionParser<HttpConfig> HTTP_KEY = new SectionParser<HttpConfig>() {
 		public HttpConfig parse(final Config cfg) {
 			return new HttpConfig(cfg);
@@ -231,16 +210,16 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 			sslVerify = rc.getBoolean("http", "sslVerify", true); //$NON-NLS-1$ //$NON-NLS-2$
 		}
 
-		private HttpConfig() {
+		HttpConfig() {
 			this(new Config());
 		}
 	}
 
-	private final URL baseUrl;
+	final URL baseUrl;
 
 	private final URL objectsUrl;
 
-	private final HttpConfig http;
+	final HttpConfig http;
 
 	private final ProxySelector proxySelector;
 
@@ -309,16 +288,17 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 			final HttpConnection c = connect(service);
 			final InputStream in = openInputStream(c);
 			try {
+				BaseConnection f;
 				if (isSmartHttp(c, service)) {
 					readSmartHeaders(in, service);
-					return new SmartHttpFetchConnection(in);
-
+					f = new SmartHttpFetchConnection(in);
 				} else {
 					// Assume this server doesn't support smart HTTP fetch
 					// and fall back on dumb object walking.
-					//
-					return newDumbConnection(in);
+					f = newDumbConnection(in);
 				}
+				f.setPeerUserAgent(c.getHeaderField(HttpSupport.HDR_SERVER));
+				return (FetchConnection) f;
 			} finally {
 				in.close();
 			}
@@ -331,7 +311,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		}
 	}
 
-	private FetchConnection newDumbConnection(InputStream in)
+	private WalkFetchConnection newDumbConnection(InputStream in)
 			throws IOException, PackProtocolException {
 		HttpObjectDB d = new HttpObjectDB(objectsUrl);
 		BufferedReader br = toBufferedReader(in);
@@ -400,9 +380,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 			final InputStream in = openInputStream(c);
 			try {
 				if (isSmartHttp(c, service)) {
-					readSmartHeaders(in, service);
-					return new SmartHttpPushConnection(in);
-
+					return smartPush(service, c, in);
 				} else if (!useSmartHttp) {
 					final String msg = JGitText.get().smartHTTPPushDisabled;
 					throw new NotSupportedException(msg);
@@ -421,6 +399,14 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		} catch (IOException err) {
 			throw new TransportException(uri, JGitText.get().errorReadingInfoRefs, err);
 		}
+	}
+
+	private PushConnection smartPush(String service, HttpConnection c,
+			InputStream in) throws IOException, TransportException {
+		readSmartHeaders(in, service);
+		SmartHttpPushConnection p = new SmartHttpPushConnection(in);
+		p.setPeerUserAgent(c.getHeaderField(HttpSupport.HDR_SERVER));
+		return p;
 	}
 
 	@Override
@@ -544,14 +530,16 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		HttpConnection conn = connectionFactory.create(u, proxy);
 
 		if (!http.sslVerify && "https".equals(u.getProtocol())) { //$NON-NLS-1$
-			disableSslVerify(conn);
+			HttpSupport.disableSslVerify(conn);
 		}
 
 		conn.setRequestMethod(method);
 		conn.setUseCaches(false);
 		conn.setRequestProperty(HDR_ACCEPT_ENCODING, ENCODING_GZIP);
 		conn.setRequestProperty(HDR_PRAGMA, "no-cache"); //$NON-NLS-1$
-		conn.setRequestProperty(HDR_USER_AGENT, userAgent);
+		if (UserAgent.get() != null) {
+			conn.setRequestProperty(HDR_USER_AGENT, UserAgent.get());
+		}
 		int timeOut = getTimeout();
 		if (timeOut != -1) {
 			int effTimeOut = timeOut * 1000;
@@ -564,19 +552,6 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		}
 		authMethod.configureRequest(conn);
 		return conn;
-	}
-
-	private void disableSslVerify(HttpConnection conn)
-			throws IOException {
-		final TrustManager[] trustAllCerts = new TrustManager[] { new DummyX509TrustManager() };
-		try {
-			conn.configure(null, trustAllCerts, null);
-			conn.setHostnameVerifier(new DummyHostnameVerifier());
-		} catch (KeyManagementException e) {
-			throw new IOException(e.getMessage());
-		} catch (NoSuchAlgorithmException e) {
-			throw new IOException(e.getMessage());
-		}
 	}
 
 	final InputStream openInputStream(HttpConnection conn)
@@ -1004,27 +979,6 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 				sendRequest();
 			openResponse();
 			in.add(openInputStream(conn));
-		}
-	}
-
-	private static class DummyX509TrustManager implements X509TrustManager {
-		public X509Certificate[] getAcceptedIssuers() {
-			return null;
-		}
-
-		public void checkClientTrusted(X509Certificate[] certs, String authType) {
-			// no check
-		}
-
-		public void checkServerTrusted(X509Certificate[] certs, String authType) {
-			// no check
-		}
-	}
-
-	private static class DummyHostnameVerifier implements HostnameVerifier {
-		public boolean verify(String hostname, SSLSession session) {
-			// always accept
-			return true;
 		}
 	}
 }

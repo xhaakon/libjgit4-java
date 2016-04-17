@@ -45,12 +45,35 @@ package org.eclipse.jgit.transport.resolver;
 
 import org.eclipse.jgit.internal.JGitText;
 
-/** Indicates the request service is not authorized for current user. */
+/**
+ * Indicates that the requested service requires authentication that
+ * the current user has not provided.
+ * <p>
+ * This corresponds to response code
+ * {@code HttpServletResponse.SC_UNAUTHORIZED}.
+ */
 public class ServiceNotAuthorizedException extends Exception {
 	private static final long serialVersionUID = 1L;
 
-	/** Indicates the request service is not available. */
+	/**
+	 * @param message
+	 * @param cause
+	 * @since 4.1
+	 */
+	public ServiceNotAuthorizedException(String message, Throwable cause) {
+		super(message, cause);
+	}
+
+	/**
+	 * @param message
+	 * @since 4.1
+	 */
+	public ServiceNotAuthorizedException(String message) {
+		super(message);
+	}
+
+	/** Indicates that the requested service requires authentication. */
 	public ServiceNotAuthorizedException() {
-		super(JGitText.get().serviceNotPermittedNoName);
+		super(JGitText.get().unauthorized);
 	}
 }

@@ -132,7 +132,11 @@ public abstract class ContentSource {
 
 		@Override
 		public long size(String path, ObjectId id) throws IOException {
-			return reader.getObjectSize(id, Constants.OBJ_BLOB);
+			try {
+				return reader.getObjectSize(id, Constants.OBJ_BLOB);
+			} catch (MissingObjectException ignore) {
+				return 0;
+			}
 		}
 
 		@Override
@@ -148,7 +152,7 @@ public abstract class ContentSource {
 
 		private String current;
 
-		private WorkingTreeIterator ptr;
+		WorkingTreeIterator ptr;
 
 		WorkingTreeSource(WorkingTreeIterator iterator) {
 			this.tw = new TreeWalk((ObjectReader) null);

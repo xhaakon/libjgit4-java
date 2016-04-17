@@ -136,7 +136,7 @@ class DiffAlgorithms extends TextBuiltin {
 	protected void run() throws Exception {
 		mxBean = ManagementFactory.getThreadMXBean();
 		if (!mxBean.isCurrentThreadCpuTimeSupported())
-			throw die("Current thread CPU time not supported on this JRE");
+			throw die("Current thread CPU time not supported on this JRE"); //$NON-NLS-1$
 
 		if (gitDirs.isEmpty()) {
 			RepositoryBuilder rb = new RepositoryBuilder() //
@@ -155,16 +155,16 @@ class DiffAlgorithms extends TextBuiltin {
 			else
 				rb.findGitDir(dir);
 
-			Repository db = rb.build();
+			Repository repo = rb.build();
 			try {
-				run(db);
+				run(repo);
 			} finally {
-				db.close();
+				repo.close();
 			}
 		}
 	}
 
-	private void run(Repository db) throws Exception {
+	private void run(Repository repo) throws Exception {
 		List<Test> all = init();
 
 		long files = 0;
@@ -173,15 +173,14 @@ class DiffAlgorithms extends TextBuiltin {
 		int maxN = 0;
 
 		AbbreviatedObjectId startId;
-		ObjectReader or = db.newObjectReader();
-		try {
+		try (ObjectReader or = repo.newObjectReader();
+			RevWalk rw = new RevWalk(or)) {
 			final MutableObjectId id = new MutableObjectId();
-			RevWalk rw = new RevWalk(or);
 			TreeWalk tw = new TreeWalk(or);
 			tw.setFilter(TreeFilter.ANY_DIFF);
 			tw.setRecursive(true);
 
-			ObjectId start = db.resolve(Constants.HEAD);
+			ObjectId start = repo.resolve(Constants.HEAD);
 			startId = or.abbreviate(start);
 			rw.markStart(rw.parseCommit(start));
 			for (;;) {
@@ -232,36 +231,36 @@ class DiffAlgorithms extends TextBuiltin {
 				if (count > 0 && files > count)
 					break;
 			}
-		} finally {
-			or.release();
 		}
 
 		Collections.sort(all, new Comparator<Test>() {
 			public int compare(Test a, Test b) {
-				int cmp = Long.signum(a.runningTimeNanos - b.runningTimeNanos);
-				if (cmp == 0)
-					cmp = a.algorithm.name.compareTo(b.algorithm.name);
-				return cmp;
+				int result = Long.signum(a.runningTimeNanos - b.runningTimeNanos);
+				if (result == 0) {
+					result = a.algorithm.name.compareTo(b.algorithm.name);
+				}
+				return result;
 			}
 		});
 
-		if (db.getDirectory() != null) {
-			String name = db.getDirectory().getName();
-			File parent = db.getDirectory().getParentFile();
+		File directory = repo.getDirectory();
+		if (directory != null) {
+			String name = directory.getName();
+			File parent = directory.getParentFile();
 			if (name.equals(Constants.DOT_GIT) && parent != null)
 				name = parent.getName();
-			outw.println(name + ": start at " + startId.name());
+			outw.println(name + ": start at " + startId.name()); //$NON-NLS-1$
 		}
 
-		outw.format("  %12d files,     %8d commits\n", valueOf(files),
+		outw.format("  %12d files,     %8d commits\n", valueOf(files), //$NON-NLS-1$
 				valueOf(commits));
-		outw.format("  N=%10d min lines, %8d max lines\n", valueOf(minN),
+		outw.format("  N=%10d min lines, %8d max lines\n", valueOf(minN), //$NON-NLS-1$
 				valueOf(maxN));
 
-		outw.format("%-25s %12s ( %12s  %12s )\n", //
-				"Algorithm", "Time(ns)", "Time(ns) on", "Time(ns) on");
-		outw.format("%-25s %12s ( %12s  %12s )\n", //
-				"", "", "N=" + minN, "N=" + maxN);
+		outw.format("%-25s %12s ( %12s  %12s )\n", //$NON-NLS-1$
+				"Algorithm", "Time(ns)", "Time(ns) on", "Time(ns) on"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+		outw.format("%-25s %12s ( %12s  %12s )\n", //$NON-NLS-1$
+				"", "", "N=" + minN, "N=" + maxN); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
 		outw.println("-----------------------------------------------------" //$NON-NLS-1$
 				+ "----------------"); //$NON-NLS-1$
 
@@ -337,9 +336,9 @@ class DiffAlgorithms extends TextBuiltin {
 				}
 			}
 		} catch (IllegalArgumentException e) {
-			throw die("Cannot determine names", e);
+			throw die("Cannot determine names", e); //$NON-NLS-1$
 		} catch (IllegalAccessException e) {
-			throw die("Cannot determine names", e);
+			throw die("Cannot determine names", e); //$NON-NLS-1$
 		}
 
 		return all;

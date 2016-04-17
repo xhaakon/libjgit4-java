@@ -47,6 +47,8 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -128,10 +130,10 @@ public class RepositoryCache {
 	}
 
 	/**
-	 * Remove a repository from the cache.
+	 * Close and remove a repository from the cache.
 	 * <p>
-	 * Removes a repository from the cache, if it is still registered here,
-	 * permitting it to close.
+	 * Removes a repository from the cache, if it is still registered here, and
+	 * close it.
 	 *
 	 * @param db
 	 *            repository to unregister.
@@ -139,8 +141,50 @@ public class RepositoryCache {
 	public static void close(final Repository db) {
 		if (db.getDirectory() != null) {
 			FileKey key = FileKey.exact(db.getDirectory(), db.getFS());
-			cache.unregisterRepository(key);
+			cache.unregisterAndCloseRepository(key);
 		}
+	}
+
+	/**
+	 * Remove a repository from the cache.
+	 * <p>
+	 * Removes a repository from the cache, if it is still registered here. This
+	 * method will not close the repository, only remove it from the cache. See
+	 * {@link RepositoryCache#close(Repository)} to remove and close the
+	 * repository.
+	 *
+	 * @param db
+	 *            repository to unregister.
+	 * @since 4.3
+	 */
+	public static void unregister(final Repository db) {
+		if (db.getDirectory() != null) {
+			unregister(FileKey.exact(db.getDirectory(), db.getFS()));
+		}
+	}
+
+	/**
+	 * Remove a repository from the cache.
+	 * <p>
+	 * Removes a repository from the cache, if it is still registered here. This
+	 * method will not close the repository, only remove it from the cache. See
+	 * {@link RepositoryCache#close(Repository)} to remove and close the
+	 * repository.
+	 *
+	 * @param location
+	 *            location of the repository to remove.
+	 * @since 4.1
+	 */
+	public static void unregister(Key location) {
+		cache.unregisterRepository(location);
+	}
+
+	/**
+	 * @return the locations of all repositories registered in the cache.
+	 * @since 4.1
+	 */
+	public static Collection<Key> getRegisteredKeys() {
+		return cache.getKeys();
 	}
 
 	/** Unregister all repositories from the cache. */
@@ -159,6 +203,7 @@ public class RepositoryCache {
 			openLocks[i] = new Lock();
 	}
 
+	@SuppressWarnings("resource")
 	private Repository openRepository(final Key location,
 			final boolean mustExist) throws IOException {
 		Reference<Repository> ref = cacheMap.get(location);
@@ -171,15 +216,17 @@ public class RepositoryCache {
 					db = location.open(mustExist);
 					ref = new SoftReference<Repository>(db);
 					cacheMap.put(location, ref);
+				} else {
+					db.incrementOpen();
 				}
 			}
+		} else {
+			db.incrementOpen();
 		}
-		db.incrementOpen();
 		return db;
 	}
 
 	private void registerRepository(final Key location, final Repository db) {
-		db.incrementOpen();
 		SoftReference<Repository> newRef = new SoftReference<Repository>(db);
 		Reference<Repository> oldRef = cacheMap.put(location, newRef);
 		Repository oldDb = oldRef != null ? oldRef.get() : null;
@@ -187,11 +234,20 @@ public class RepositoryCache {
 			oldDb.close();
 	}
 
-	private void unregisterRepository(final Key location) {
+	private Repository unregisterRepository(final Key location) {
 		Reference<Repository> oldRef = cacheMap.remove(location);
-		Repository oldDb = oldRef != null ? oldRef.get() : null;
-		if (oldDb != null)
+		return oldRef != null ? oldRef.get() : null;
+	}
+
+	private void unregisterAndCloseRepository(final Key location) {
+		Repository oldDb = unregisterRepository(location);
+		if (oldDb != null) {
 			oldDb.close();
+		}
+	}
+
+	private Collection<Key> getKeys() {
+		return new ArrayList<Key>(cacheMap.keySet());
 	}
 
 	private void clearAll() {

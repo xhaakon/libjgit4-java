@@ -54,11 +54,13 @@ import org.eclipse.jgit.api.errors.WrongRepositoryStateException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheBuilder;
 import org.eclipse.jgit.dircache.DirCacheCheckout;
+import org.eclipse.jgit.dircache.DirCacheCheckout.CheckoutMetadata;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.CheckoutConflictException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.CoreConfig.EolStreamType;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
@@ -166,9 +168,8 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 					JGitText.get().stashApplyOnUnsafeRepository,
 					repo.getRepositoryState()));
 
-		ObjectReader reader = repo.newObjectReader();
-		try {
-			RevWalk revWalk = new RevWalk(reader);
+		try (ObjectReader reader = repo.newObjectReader();
+				RevWalk revWalk = new RevWalk(reader)) {
 
 			ObjectId headCommit = repo.resolve(Constants.HEAD);
 			if (headCommit == null)
@@ -192,8 +193,8 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 				untrackedCommit = revWalk.parseCommit(stashCommit.getParent(2));
 
 			ResolveMerger merger = (ResolveMerger) strategy.newMerger(repo);
-			merger.setCommitNames(new String[] { "stashed HEAD", "HEAD",
-					"stash" });
+			merger.setCommitNames(new String[] { "stashed HEAD", "HEAD", //$NON-NLS-1$ //$NON-NLS-2$
+					"stash" }); //$NON-NLS-1$
 			merger.setBase(stashHeadCommit);
 			merger.setWorkingTreeIterator(new FileTreeIterator(repo));
 			if (merger.merge(headCommit, stashCommit)) {
@@ -205,8 +206,8 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 				if (applyIndex) {
 					ResolveMerger ixMerger = (ResolveMerger) strategy
 							.newMerger(repo, true);
-					ixMerger.setCommitNames(new String[] { "stashed HEAD",
-							"HEAD", "stashed index" });
+					ixMerger.setCommitNames(new String[] { "stashed HEAD", //$NON-NLS-1$
+							"HEAD", "stashed index" }); //$NON-NLS-1$//$NON-NLS-2$
 					ixMerger.setBase(stashHeadCommit);
 					boolean ok = ixMerger.merge(headCommit, stashIndexCommit);
 					if (ok) {
@@ -250,8 +251,6 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 			throw e;
 		} catch (IOException e) {
 			throw new JGitInternalException(JGitText.get().stashApplyFailed, e);
-		} finally {
-			reader.release();
 		}
 	}
 
@@ -286,11 +285,9 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 
 	private void resetIndex(RevTree tree) throws IOException {
 		DirCache dc = repo.lockDirCache();
-		TreeWalk walk = null;
-		try {
+		try (TreeWalk walk = new TreeWalk(repo)) {
 			DirCacheBuilder builder = dc.builder();
 
-			walk = new TreeWalk(repo);
 			walk.addTree(tree);
 			walk.addTree(new DirCacheIterator(dc));
 			walk.setRecursive(true);
@@ -321,15 +318,13 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 			builder.commit();
 		} finally {
 			dc.unlock();
-			if (walk != null)
-				walk.release();
 		}
 	}
 
 	private void resetUntracked(RevTree tree) throws CheckoutConflictException,
 			IOException {
-		TreeWalk walk = new TreeWalk(repo); // maybe NameConflictTreeWalk;
-		try {
+		// TODO maybe NameConflictTreeWalk ?
+		try (TreeWalk walk = new TreeWalk(repo)) {
 			walk.addTree(tree);
 			walk.addTree(new FileTreeIterator(repo));
 			walk.setRecursive(true);
@@ -343,6 +338,7 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 					// Not in commit, don't create untracked
 					continue;
 
+				final EolStreamType eolStreamType = walk.getEolStreamType();
 				final DirCacheEntry entry = new DirCacheEntry(walk.getRawPath());
 				entry.setFileMode(cIter.getEntryFileMode());
 				entry.setObjectIdFromRaw(cIter.idBuffer(), cIter.idOffset());
@@ -357,16 +353,17 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 					}
 				}
 
-				checkoutPath(entry, reader);
+				checkoutPath(entry, reader,
+						new CheckoutMetadata(eolStreamType, null));
 			}
-		} finally {
-			walk.release();
 		}
 	}
 
-	private void checkoutPath(DirCacheEntry entry, ObjectReader reader) {
+	private void checkoutPath(DirCacheEntry entry, ObjectReader reader,
+			CheckoutMetadata checkoutMetadata) {
 		try {
-			DirCacheCheckout.checkoutEntry(repo, entry, reader);
+			DirCacheCheckout.checkoutEntry(repo, entry, reader, true,
+					checkoutMetadata);
 		} catch (IOException e) {
 			throw new JGitInternalException(MessageFormat.format(
 					JGitText.get().checkoutConflictWithFile,

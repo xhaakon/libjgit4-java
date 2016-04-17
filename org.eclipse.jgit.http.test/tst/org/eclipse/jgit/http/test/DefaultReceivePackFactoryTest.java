@@ -79,6 +79,7 @@ public class DefaultReceivePackFactoryTest extends LocalDiskRepositoryTestCase {
 		factory = new DefaultReceivePackFactory();
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testDisabledSingleton() throws ServiceNotAuthorizedException {
 		factory = (ReceivePackFactory<HttpServletRequest>) ReceivePackFactory.DISABLED;
@@ -204,7 +205,7 @@ public class DefaultReceivePackFactoryTest extends LocalDiskRepositoryTestCase {
 		private final String host;
 
 		R(final String user, final String host) {
-			super(new Request() /* can't pass null, sigh */);
+			super(new Request(null, null) /* can't pass null, sigh */);
 			this.user = user;
 			this.host = host;
 		}

@@ -69,23 +69,24 @@ public class ApplyCommandTest extends RepositoryTestCase {
 
 	private ApplyResult init(final String name, final boolean preExists,
 			final boolean postExists) throws Exception {
-		Git git = new Git(db);
+		try (Git git = new Git(db)) {
+			if (preExists) {
+				a = new RawText(readFile(name + "_PreImage"));
+				write(new File(db.getDirectory().getParent(), name),
+						a.getString(0, a.size(), false));
 
-		if (preExists) {
-			a = new RawText(readFile(name + "_PreImage"));
-			write(new File(db.getDirectory().getParent(), name),
-					a.getString(0, a.size(), false));
+				git.add().addFilepattern(name).call();
+				git.commit().setMessage("PreImage").call();
+			}
 
-			git.add().addFilepattern(name).call();
-			git.commit().setMessage("PreImage").call();
+			if (postExists) {
+				b = new RawText(readFile(name + "_PostImage"));
+			}
+
+			return git
+					.apply()
+					.setPatch(getTestResource(name + ".patch")).call();
 		}
-
-		if (postExists)
-			b = new RawText(readFile(name + "_PostImage"));
-
-		return git
-				.apply()
-				.setPatch(getTestResource(name + ".patch")).call();
 	}
 
 	@Test
@@ -183,6 +184,55 @@ public class ApplyCommandTest extends RepositoryTestCase {
 				.getUpdatedFiles().get(0));
 		checkFile(new File(db.getWorkTree(), "NL1"),
 				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCII() throws Exception {
+		ApplyResult result = init("NonASCII");
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCII"),
+				result.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "NonASCII"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCII2() throws Exception {
+		ApplyResult result = init("NonASCII2");
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCII2"),
+				result.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "NonASCII2"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCIIAdd() throws Exception {
+		ApplyResult result = init("NonASCIIAdd");
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCIIAdd"),
+				result.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "NonASCIIAdd"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCIIAdd2() throws Exception {
+		ApplyResult result = init("NonASCIIAdd2", false, true);
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCIIAdd2"),
+				result.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "NonASCIIAdd2"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCIIDel() throws Exception {
+		ApplyResult result = init("NonASCIIDel", true, false);
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCIIDel"),
+				result.getUpdatedFiles().get(0));
+		assertFalse(new File(db.getWorkTree(), "NonASCIIDel").exists());
 	}
 
 	private static byte[] readFile(final String patchFile) throws IOException {

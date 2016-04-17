@@ -46,12 +46,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
 
+import org.eclipse.jgit.api.errors.EmtpyCommitException;
 import org.eclipse.jgit.api.errors.WrongRepositoryStateException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.dircache.DirCache;
@@ -108,7 +111,7 @@ public class CommitCommandTest extends RepositoryTestCase {
 				return this;
 			}
 
-			protected File discoverGitPrefix() {
+			protected File discoverGitExe() {
 				return null;
 			}
 
@@ -153,7 +156,7 @@ public class CommitCommandTest extends RepositoryTestCase {
 				return this;
 			}
 
-			protected File discoverGitPrefix() {
+			protected File discoverGitExe() {
 				return null;
 			}
 
@@ -183,295 +186,330 @@ public class CommitCommandTest extends RepositoryTestCase {
 
 	@Test
 	public void commitNewSubmodule() throws Exception {
-		Git git = new Git(db);
-		writeTrashFile("file.txt", "content");
-		git.add().addFilepattern("file.txt").call();
-		RevCommit commit = git.commit().setMessage("create file").call();
+		try (Git git = new Git(db)) {
+			writeTrashFile("file.txt", "content");
+			git.add().addFilepattern("file.txt").call();
+			RevCommit commit = git.commit().setMessage("create file").call();
 
-		SubmoduleAddCommand command = new SubmoduleAddCommand(db);
-		String path = "sub";
-		command.setPath(path);
-		String uri = db.getDirectory().toURI().toString();
-		command.setURI(uri);
-		Repository repo = command.call();
-		assertNotNull(repo);
-		addRepoToClose(repo);
+			SubmoduleAddCommand command = new SubmoduleAddCommand(db);
+			String path = "sub";
+			command.setPath(path);
+			String uri = db.getDirectory().toURI().toString();
+			command.setURI(uri);
+			Repository repo = command.call();
+			assertNotNull(repo);
+			addRepoToClose(repo);
 
-		SubmoduleWalk generator = SubmoduleWalk.forIndex(db);
-		assertTrue(generator.next());
-		assertEquals(path, generator.getPath());
-		assertEquals(commit, generator.getObjectId());
-		assertEquals(uri, generator.getModulesUrl());
-		assertEquals(path, generator.getModulesPath());
-		assertEquals(uri, generator.getConfigUrl());
-		Repository subModRepo = generator.getRepository();
-		assertNotNull(subModRepo);
-		subModRepo.close();
-		assertEquals(commit, repo.resolve(Constants.HEAD));
+			SubmoduleWalk generator = SubmoduleWalk.forIndex(db);
+			assertTrue(generator.next());
+			assertEquals(path, generator.getPath());
+			assertEquals(commit, generator.getObjectId());
+			assertEquals(uri, generator.getModulesUrl());
+			assertEquals(path, generator.getModulesPath());
+			assertEquals(uri, generator.getConfigUrl());
+			Repository subModRepo = generator.getRepository();
+			assertNotNull(subModRepo);
+			subModRepo.close();
+			assertEquals(commit, repo.resolve(Constants.HEAD));
 
-		RevCommit submoduleCommit = git.commit().setMessage("submodule add")
-				.setOnly(path).call();
-		assertNotNull(submoduleCommit);
-		TreeWalk walk = new TreeWalk(db);
-		walk.addTree(commit.getTree());
-		walk.addTree(submoduleCommit.getTree());
-		walk.setFilter(TreeFilter.ANY_DIFF);
-		List<DiffEntry> diffs = DiffEntry.scan(walk);
-		assertEquals(1, diffs.size());
-		DiffEntry subDiff = diffs.get(0);
-		assertEquals(FileMode.MISSING, subDiff.getOldMode());
-		assertEquals(FileMode.GITLINK, subDiff.getNewMode());
-		assertEquals(ObjectId.zeroId(), subDiff.getOldId().toObjectId());
-		assertEquals(commit, subDiff.getNewId().toObjectId());
-		assertEquals(path, subDiff.getNewPath());
+			RevCommit submoduleCommit = git.commit().setMessage("submodule add")
+					.setOnly(path).call();
+			assertNotNull(submoduleCommit);
+			try (TreeWalk walk = new TreeWalk(db)) {
+				walk.addTree(commit.getTree());
+				walk.addTree(submoduleCommit.getTree());
+				walk.setFilter(TreeFilter.ANY_DIFF);
+				List<DiffEntry> diffs = DiffEntry.scan(walk);
+				assertEquals(1, diffs.size());
+				DiffEntry subDiff = diffs.get(0);
+				assertEquals(FileMode.MISSING, subDiff.getOldMode());
+				assertEquals(FileMode.GITLINK, subDiff.getNewMode());
+				assertEquals(ObjectId.zeroId(), subDiff.getOldId().toObjectId());
+				assertEquals(commit, subDiff.getNewId().toObjectId());
+				assertEquals(path, subDiff.getNewPath());
+			}
+		}
 	}
 
 	@Test
 	public void commitSubmoduleUpdate() throws Exception {
-		Git git = new Git(db);
-		writeTrashFile("file.txt", "content");
-		git.add().addFilepattern("file.txt").call();
-		RevCommit commit = git.commit().setMessage("create file").call();
-		writeTrashFile("file.txt", "content2");
-		git.add().addFilepattern("file.txt").call();
-		RevCommit commit2 = git.commit().setMessage("edit file").call();
+		try (Git git = new Git(db)) {
+			writeTrashFile("file.txt", "content");
+			git.add().addFilepattern("file.txt").call();
+			RevCommit commit = git.commit().setMessage("create file").call();
+			writeTrashFile("file.txt", "content2");
+			git.add().addFilepattern("file.txt").call();
+			RevCommit commit2 = git.commit().setMessage("edit file").call();
 
-		SubmoduleAddCommand command = new SubmoduleAddCommand(db);
-		String path = "sub";
-		command.setPath(path);
-		String uri = db.getDirectory().toURI().toString();
-		command.setURI(uri);
-		Repository repo = command.call();
-		assertNotNull(repo);
-		addRepoToClose(repo);
+			SubmoduleAddCommand command = new SubmoduleAddCommand(db);
+			String path = "sub";
+			command.setPath(path);
+			String uri = db.getDirectory().toURI().toString();
+			command.setURI(uri);
+			Repository repo = command.call();
+			assertNotNull(repo);
+			addRepoToClose(repo);
 
-		SubmoduleWalk generator = SubmoduleWalk.forIndex(db);
-		assertTrue(generator.next());
-		assertEquals(path, generator.getPath());
-		assertEquals(commit2, generator.getObjectId());
-		assertEquals(uri, generator.getModulesUrl());
-		assertEquals(path, generator.getModulesPath());
-		assertEquals(uri, generator.getConfigUrl());
-		Repository subModRepo = generator.getRepository();
-		assertNotNull(subModRepo);
-		subModRepo.close();
-		assertEquals(commit2, repo.resolve(Constants.HEAD));
+			SubmoduleWalk generator = SubmoduleWalk.forIndex(db);
+			assertTrue(generator.next());
+			assertEquals(path, generator.getPath());
+			assertEquals(commit2, generator.getObjectId());
+			assertEquals(uri, generator.getModulesUrl());
+			assertEquals(path, generator.getModulesPath());
+			assertEquals(uri, generator.getConfigUrl());
+			Repository subModRepo = generator.getRepository();
+			assertNotNull(subModRepo);
+			subModRepo.close();
+			assertEquals(commit2, repo.resolve(Constants.HEAD));
 
-		RevCommit submoduleAddCommit = git.commit().setMessage("submodule add")
-				.setOnly(path).call();
-		assertNotNull(submoduleAddCommit);
+			RevCommit submoduleAddCommit = git.commit().setMessage("submodule add")
+					.setOnly(path).call();
+			assertNotNull(submoduleAddCommit);
 
-		RefUpdate update = repo.updateRef(Constants.HEAD);
-		update.setNewObjectId(commit);
-		assertEquals(Result.FORCED, update.forceUpdate());
+			RefUpdate update = repo.updateRef(Constants.HEAD);
+			update.setNewObjectId(commit);
+			assertEquals(Result.FORCED, update.forceUpdate());
 
-		RevCommit submoduleEditCommit = git.commit()
-				.setMessage("submodule add").setOnly(path).call();
-		assertNotNull(submoduleEditCommit);
-		TreeWalk walk = new TreeWalk(db);
-		walk.addTree(submoduleAddCommit.getTree());
-		walk.addTree(submoduleEditCommit.getTree());
-		walk.setFilter(TreeFilter.ANY_DIFF);
-		List<DiffEntry> diffs = DiffEntry.scan(walk);
-		assertEquals(1, diffs.size());
-		DiffEntry subDiff = diffs.get(0);
-		assertEquals(FileMode.GITLINK, subDiff.getOldMode());
-		assertEquals(FileMode.GITLINK, subDiff.getNewMode());
-		assertEquals(commit2, subDiff.getOldId().toObjectId());
-		assertEquals(commit, subDiff.getNewId().toObjectId());
-		assertEquals(path, subDiff.getNewPath());
-		assertEquals(path, subDiff.getOldPath());
+			RevCommit submoduleEditCommit = git.commit()
+					.setMessage("submodule add").setOnly(path).call();
+			assertNotNull(submoduleEditCommit);
+			try (TreeWalk walk = new TreeWalk(db)) {
+				walk.addTree(submoduleAddCommit.getTree());
+				walk.addTree(submoduleEditCommit.getTree());
+				walk.setFilter(TreeFilter.ANY_DIFF);
+				List<DiffEntry> diffs = DiffEntry.scan(walk);
+				assertEquals(1, diffs.size());
+				DiffEntry subDiff = diffs.get(0);
+				assertEquals(FileMode.GITLINK, subDiff.getOldMode());
+				assertEquals(FileMode.GITLINK, subDiff.getNewMode());
+				assertEquals(commit2, subDiff.getOldId().toObjectId());
+				assertEquals(commit, subDiff.getNewId().toObjectId());
+				assertEquals(path, subDiff.getNewPath());
+				assertEquals(path, subDiff.getOldPath());
+			}
+		}
 	}
 
 	@Test
 	public void commitUpdatesSmudgedEntries() throws Exception {
-		Git git = new Git(db);
+		try (Git git = new Git(db)) {
+			File file1 = writeTrashFile("file1.txt", "content1");
+			assertTrue(file1.setLastModified(file1.lastModified() - 5000));
+			File file2 = writeTrashFile("file2.txt", "content2");
+			assertTrue(file2.setLastModified(file2.lastModified() - 5000));
+			File file3 = writeTrashFile("file3.txt", "content3");
+			assertTrue(file3.setLastModified(file3.lastModified() - 5000));
 
-		File file1 = writeTrashFile("file1.txt", "content1");
-		assertTrue(file1.setLastModified(file1.lastModified() - 5000));
-		File file2 = writeTrashFile("file2.txt", "content2");
-		assertTrue(file2.setLastModified(file2.lastModified() - 5000));
-		File file3 = writeTrashFile("file3.txt", "content3");
-		assertTrue(file3.setLastModified(file3.lastModified() - 5000));
+			assertNotNull(git.add().addFilepattern("file1.txt")
+					.addFilepattern("file2.txt").addFilepattern("file3.txt").call());
+			RevCommit commit = git.commit().setMessage("add files").call();
+			assertNotNull(commit);
 
-		assertNotNull(git.add().addFilepattern("file1.txt")
-				.addFilepattern("file2.txt").addFilepattern("file3.txt").call());
-		RevCommit commit = git.commit().setMessage("add files").call();
-		assertNotNull(commit);
+			DirCache cache = DirCache.read(db.getIndexFile(), db.getFS());
+			int file1Size = cache.getEntry("file1.txt").getLength();
+			int file2Size = cache.getEntry("file2.txt").getLength();
+			int file3Size = cache.getEntry("file3.txt").getLength();
+			ObjectId file2Id = cache.getEntry("file2.txt").getObjectId();
+			ObjectId file3Id = cache.getEntry("file3.txt").getObjectId();
+			assertTrue(file1Size > 0);
+			assertTrue(file2Size > 0);
+			assertTrue(file3Size > 0);
 
-		DirCache cache = DirCache.read(db.getIndexFile(), db.getFS());
-		int file1Size = cache.getEntry("file1.txt").getLength();
-		int file2Size = cache.getEntry("file2.txt").getLength();
-		int file3Size = cache.getEntry("file3.txt").getLength();
-		ObjectId file2Id = cache.getEntry("file2.txt").getObjectId();
-		ObjectId file3Id = cache.getEntry("file3.txt").getObjectId();
-		assertTrue(file1Size > 0);
-		assertTrue(file2Size > 0);
-		assertTrue(file3Size > 0);
+			// Smudge entries
+			cache = DirCache.lock(db.getIndexFile(), db.getFS());
+			cache.getEntry("file1.txt").setLength(0);
+			cache.getEntry("file2.txt").setLength(0);
+			cache.getEntry("file3.txt").setLength(0);
+			cache.write();
+			assertTrue(cache.commit());
 
-		// Smudge entries
-		cache = DirCache.lock(db.getIndexFile(), db.getFS());
-		cache.getEntry("file1.txt").setLength(0);
-		cache.getEntry("file2.txt").setLength(0);
-		cache.getEntry("file3.txt").setLength(0);
-		cache.write();
-		assertTrue(cache.commit());
+			// Verify entries smudged
+			cache = DirCache.read(db.getIndexFile(), db.getFS());
+			assertEquals(0, cache.getEntry("file1.txt").getLength());
+			assertEquals(0, cache.getEntry("file2.txt").getLength());
+			assertEquals(0, cache.getEntry("file3.txt").getLength());
 
-		// Verify entries smudged
-		cache = DirCache.read(db.getIndexFile(), db.getFS());
-		assertEquals(0, cache.getEntry("file1.txt").getLength());
-		assertEquals(0, cache.getEntry("file2.txt").getLength());
-		assertEquals(0, cache.getEntry("file3.txt").getLength());
+			long indexTime = db.getIndexFile().lastModified();
+			db.getIndexFile().setLastModified(indexTime - 5000);
 
-		long indexTime = db.getIndexFile().lastModified();
-		db.getIndexFile().setLastModified(indexTime - 5000);
+			write(file1, "content4");
+			assertTrue(file1.setLastModified(file1.lastModified() + 2500));
+			assertNotNull(git.commit().setMessage("edit file").setOnly("file1.txt")
+					.call());
 
-		write(file1, "content4");
-		assertTrue(file1.setLastModified(file1.lastModified() + 2500));
-		assertNotNull(git.commit().setMessage("edit file").setOnly("file1.txt")
-				.call());
-
-		cache = db.readDirCache();
-		assertEquals(file1Size, cache.getEntry("file1.txt").getLength());
-		assertEquals(file2Size, cache.getEntry("file2.txt").getLength());
-		assertEquals(file3Size, cache.getEntry("file3.txt").getLength());
-		assertEquals(file2Id, cache.getEntry("file2.txt").getObjectId());
-		assertEquals(file3Id, cache.getEntry("file3.txt").getObjectId());
+			cache = db.readDirCache();
+			assertEquals(file1Size, cache.getEntry("file1.txt").getLength());
+			assertEquals(file2Size, cache.getEntry("file2.txt").getLength());
+			assertEquals(file3Size, cache.getEntry("file3.txt").getLength());
+			assertEquals(file2Id, cache.getEntry("file2.txt").getObjectId());
+			assertEquals(file3Id, cache.getEntry("file3.txt").getObjectId());
+		}
 	}
 
 	@Test
 	public void commitIgnoresSmudgedEntryWithDifferentId() throws Exception {
-		Git git = new Git(db);
+		try (Git git = new Git(db)) {
+			File file1 = writeTrashFile("file1.txt", "content1");
+			assertTrue(file1.setLastModified(file1.lastModified() - 5000));
+			File file2 = writeTrashFile("file2.txt", "content2");
+			assertTrue(file2.setLastModified(file2.lastModified() - 5000));
 
-		File file1 = writeTrashFile("file1.txt", "content1");
-		assertTrue(file1.setLastModified(file1.lastModified() - 5000));
-		File file2 = writeTrashFile("file2.txt", "content2");
-		assertTrue(file2.setLastModified(file2.lastModified() - 5000));
+			assertNotNull(git.add().addFilepattern("file1.txt")
+					.addFilepattern("file2.txt").call());
+			RevCommit commit = git.commit().setMessage("add files").call();
+			assertNotNull(commit);
 
-		assertNotNull(git.add().addFilepattern("file1.txt")
-				.addFilepattern("file2.txt").call());
-		RevCommit commit = git.commit().setMessage("add files").call();
-		assertNotNull(commit);
+			DirCache cache = DirCache.read(db.getIndexFile(), db.getFS());
+			int file1Size = cache.getEntry("file1.txt").getLength();
+			int file2Size = cache.getEntry("file2.txt").getLength();
+			assertTrue(file1Size > 0);
+			assertTrue(file2Size > 0);
 
-		DirCache cache = DirCache.read(db.getIndexFile(), db.getFS());
-		int file1Size = cache.getEntry("file1.txt").getLength();
-		int file2Size = cache.getEntry("file2.txt").getLength();
-		assertTrue(file1Size > 0);
-		assertTrue(file2Size > 0);
+			writeTrashFile("file2.txt", "content3");
+			assertNotNull(git.add().addFilepattern("file2.txt").call());
+			writeTrashFile("file2.txt", "content4");
 
-		writeTrashFile("file2.txt", "content3");
-		assertNotNull(git.add().addFilepattern("file2.txt").call());
-		writeTrashFile("file2.txt", "content4");
+			// Smudge entries
+			cache = DirCache.lock(db.getIndexFile(), db.getFS());
+			cache.getEntry("file1.txt").setLength(0);
+			cache.getEntry("file2.txt").setLength(0);
+			cache.write();
+			assertTrue(cache.commit());
 
-		// Smudge entries
-		cache = DirCache.lock(db.getIndexFile(), db.getFS());
-		cache.getEntry("file1.txt").setLength(0);
-		cache.getEntry("file2.txt").setLength(0);
-		cache.write();
-		assertTrue(cache.commit());
+			// Verify entries smudged
+			cache = db.readDirCache();
+			assertEquals(0, cache.getEntry("file1.txt").getLength());
+			assertEquals(0, cache.getEntry("file2.txt").getLength());
 
-		// Verify entries smudged
-		cache = db.readDirCache();
-		assertEquals(0, cache.getEntry("file1.txt").getLength());
-		assertEquals(0, cache.getEntry("file2.txt").getLength());
+			long indexTime = db.getIndexFile().lastModified();
+			db.getIndexFile().setLastModified(indexTime - 5000);
 
-		long indexTime = db.getIndexFile().lastModified();
-		db.getIndexFile().setLastModified(indexTime - 5000);
+			write(file1, "content5");
+			assertTrue(file1.setLastModified(file1.lastModified() + 1000));
 
-		write(file1, "content5");
-		assertTrue(file1.setLastModified(file1.lastModified() + 1000));
+			assertNotNull(git.commit().setMessage("edit file").setOnly("file1.txt")
+					.call());
 
-		assertNotNull(git.commit().setMessage("edit file").setOnly("file1.txt")
-				.call());
-
-		cache = db.readDirCache();
-		assertEquals(file1Size, cache.getEntry("file1.txt").getLength());
-		assertEquals(0, cache.getEntry("file2.txt").getLength());
+			cache = db.readDirCache();
+			assertEquals(file1Size, cache.getEntry("file1.txt").getLength());
+			assertEquals(0, cache.getEntry("file2.txt").getLength());
+		}
 	}
 
 	@Test
 	public void commitAfterSquashMerge() throws Exception {
-		Git git = new Git(db);
+		try (Git git = new Git(db)) {
+			writeTrashFile("file1", "file1");
+			git.add().addFilepattern("file1").call();
+			RevCommit first = git.commit().setMessage("initial commit").call();
 
-		writeTrashFile("file1", "file1");
-		git.add().addFilepattern("file1").call();
-		RevCommit first = git.commit().setMessage("initial commit").call();
+			assertTrue(new File(db.getWorkTree(), "file1").exists());
+			createBranch(first, "refs/heads/branch1");
+			checkoutBranch("refs/heads/branch1");
 
-		assertTrue(new File(db.getWorkTree(), "file1").exists());
-		createBranch(first, "refs/heads/branch1");
-		checkoutBranch("refs/heads/branch1");
+			writeTrashFile("file2", "file2");
+			git.add().addFilepattern("file2").call();
+			git.commit().setMessage("second commit").call();
+			assertTrue(new File(db.getWorkTree(), "file2").exists());
 
-		writeTrashFile("file2", "file2");
-		git.add().addFilepattern("file2").call();
-		git.commit().setMessage("second commit").call();
-		assertTrue(new File(db.getWorkTree(), "file2").exists());
+			checkoutBranch("refs/heads/master");
 
-		checkoutBranch("refs/heads/master");
+			MergeResult result = git.merge()
+					.include(db.exactRef("refs/heads/branch1"))
+					.setSquash(true)
+					.call();
 
-		MergeResult result = git.merge().include(db.getRef("branch1"))
-				.setSquash(true).call();
+			assertTrue(new File(db.getWorkTree(), "file1").exists());
+			assertTrue(new File(db.getWorkTree(), "file2").exists());
+			assertEquals(MergeResult.MergeStatus.FAST_FORWARD_SQUASHED,
+					result.getMergeStatus());
 
-		assertTrue(new File(db.getWorkTree(), "file1").exists());
-		assertTrue(new File(db.getWorkTree(), "file2").exists());
-		assertEquals(MergeResult.MergeStatus.FAST_FORWARD_SQUASHED,
-				result.getMergeStatus());
+			// comment not set, should be inferred from SQUASH_MSG
+			RevCommit squashedCommit = git.commit().call();
 
-		// comment not set, should be inferred from SQUASH_MSG
-		RevCommit squashedCommit = git.commit().call();
-
-		assertEquals(1, squashedCommit.getParentCount());
-		assertNull(db.readSquashCommitMsg());
-		assertEquals("commit: Squashed commit of the following:", db
-				.getReflogReader(Constants.HEAD).getLastEntry().getComment());
-		assertEquals("commit: Squashed commit of the following:", db
-				.getReflogReader(db.getBranch()).getLastEntry().getComment());
+			assertEquals(1, squashedCommit.getParentCount());
+			assertNull(db.readSquashCommitMsg());
+			assertEquals("commit: Squashed commit of the following:", db
+					.getReflogReader(Constants.HEAD).getLastEntry().getComment());
+			assertEquals("commit: Squashed commit of the following:", db
+					.getReflogReader(db.getBranch()).getLastEntry().getComment());
+		}
 	}
 
 	@Test(expected = WrongRepositoryStateException.class)
 	public void commitAmendOnInitialShouldFail() throws Exception {
-		Git git = new Git(db);
-		git.commit().setAmend(true).setMessage("initial commit").call();
+		try (Git git = new Git(db)) {
+			git.commit().setAmend(true).setMessage("initial commit").call();
+		}
 	}
 
 	@Test
 	public void commitAmendWithoutAuthorShouldSetOriginalAuthorAndAuthorTime()
 			throws Exception {
-		Git git = new Git(db);
+		try (Git git = new Git(db)) {
+			writeTrashFile("file1", "file1");
+			git.add().addFilepattern("file1").call();
 
-		writeTrashFile("file1", "file1");
-		git.add().addFilepattern("file1").call();
+			final String authorName = "First Author";
+			final String authorEmail = "author@example.org";
+			final Date authorDate = new Date(1349621117000L);
+			PersonIdent firstAuthor = new PersonIdent(authorName, authorEmail,
+					authorDate, TimeZone.getTimeZone("UTC"));
+			git.commit().setMessage("initial commit").setAuthor(firstAuthor).call();
 
-		final String authorName = "First Author";
-		final String authorEmail = "author@example.org";
-		final Date authorDate = new Date(1349621117000L);
-		PersonIdent firstAuthor = new PersonIdent(authorName, authorEmail,
-				authorDate, TimeZone.getTimeZone("UTC"));
-		git.commit().setMessage("initial commit").setAuthor(firstAuthor).call();
+			RevCommit amended = git.commit().setAmend(true)
+					.setMessage("amend commit").call();
 
-		RevCommit amended = git.commit().setAmend(true)
-				.setMessage("amend commit").call();
-
-		PersonIdent amendedAuthor = amended.getAuthorIdent();
-		assertEquals(authorName, amendedAuthor.getName());
-		assertEquals(authorEmail, amendedAuthor.getEmailAddress());
-		assertEquals(authorDate.getTime(), amendedAuthor.getWhen().getTime());
+			PersonIdent amendedAuthor = amended.getAuthorIdent();
+			assertEquals(authorName, amendedAuthor.getName());
+			assertEquals(authorEmail, amendedAuthor.getEmailAddress());
+			assertEquals(authorDate.getTime(), amendedAuthor.getWhen().getTime());
+		}
 	}
 
 	@Test
 	public void commitAmendWithAuthorShouldUseIt() throws Exception {
-		Git git = new Git(db);
+		try (Git git = new Git(db)) {
+			writeTrashFile("file1", "file1");
+			git.add().addFilepattern("file1").call();
+			git.commit().setMessage("initial commit").call();
 
-		writeTrashFile("file1", "file1");
-		git.add().addFilepattern("file1").call();
-		git.commit().setMessage("initial commit").call();
+			RevCommit amended = git.commit().setAmend(true)
+					.setAuthor("New Author", "newauthor@example.org")
+					.setMessage("amend commit").call();
 
-		RevCommit amended = git.commit().setAmend(true)
-				.setAuthor("New Author", "newauthor@example.org")
-				.setMessage("amend commit").call();
+			PersonIdent amendedAuthor = amended.getAuthorIdent();
+			assertEquals("New Author", amendedAuthor.getName());
+			assertEquals("newauthor@example.org", amendedAuthor.getEmailAddress());
+		}
+	}
 
-		PersonIdent amendedAuthor = amended.getAuthorIdent();
-		assertEquals("New Author", amendedAuthor.getName());
-		assertEquals("newauthor@example.org", amendedAuthor.getEmailAddress());
+	@Test
+	public void commitEmptyCommits() throws Exception {
+		try (Git git = new Git(db)) {
+
+			writeTrashFile("file1", "file1");
+			git.add().addFilepattern("file1").call();
+			RevCommit initial = git.commit().setMessage("initial commit")
+					.call();
+
+			RevCommit emptyFollowUp = git.commit()
+					.setAuthor("New Author", "newauthor@example.org")
+					.setMessage("no change").call();
+
+			assertNotEquals(initial.getId(), emptyFollowUp.getId());
+			assertEquals(initial.getTree().getId(),
+					emptyFollowUp.getTree().getId());
+
+			try {
+				git.commit().setAuthor("New Author", "newauthor@example.org")
+						.setMessage("again no change").setAllowEmpty(false)
+						.call();
+				fail("Didn't get the expected EmtpyCommitException");
+			} catch (EmtpyCommitException e) {
+				// expect this exception
+			}
+		}
 	}
 
 	@Test
@@ -499,19 +537,31 @@ public class CommitCommandTest extends RepositoryTestCase {
 				+ "[unmerged2, mode:100644, stage:3]",
 				indexState(0));
 
-		Git git = new Git(db);
-		RevCommit commit = git.commit().setOnly("unmerged1")
-				.setMessage("Only one file").call();
+		try (Git git = new Git(db)) {
+			RevCommit commit = git.commit().setOnly("unmerged1")
+					.setMessage("Only one file").call();
 
-		assertEquals("[other, mode:100644]" + "[unmerged1, mode:100644]"
-				+ "[unmerged2, mode:100644, stage:1]"
-				+ "[unmerged2, mode:100644, stage:2]"
-				+ "[unmerged2, mode:100644, stage:3]",
-				indexState(0));
+			assertEquals("[other, mode:100644]" + "[unmerged1, mode:100644]"
+					+ "[unmerged2, mode:100644, stage:1]"
+					+ "[unmerged2, mode:100644, stage:2]"
+					+ "[unmerged2, mode:100644, stage:3]",
+					indexState(0));
 
-		TreeWalk walk = TreeWalk.forPath(db, "unmerged1", commit.getTree());
-		assertEquals(FileMode.REGULAR_FILE, walk.getFileMode(0));
-		walk.release();
+			try (TreeWalk walk = TreeWalk.forPath(db, "unmerged1", commit.getTree())) {
+				assertEquals(FileMode.REGULAR_FILE, walk.getFileMode(0));
+			}
+		}
+	}
+
+	@Test
+	public void commitOnlyShouldHandleIgnored() throws Exception {
+		try (Git git = new Git(db)) {
+			writeTrashFile("subdir/foo", "Hello World");
+			writeTrashFile("subdir/bar", "Hello World");
+			writeTrashFile(".gitignore", "bar");
+			git.add().addFilepattern("subdir").call();
+			git.commit().setOnly("subdir").setMessage("first commit").call();
+		}
 	}
 
 	private static void addUnmergedEntry(String file, DirCacheBuilder builder) {

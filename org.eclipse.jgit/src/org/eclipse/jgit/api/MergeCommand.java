@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010, Christian Halstrick <christian.halstrick@sap.com>
  * Copyright (C) 2010-2014, Stefan Lay <stefan.lay@sap.com>
+ * Copyright (C) 2016, Laurent Delaigue <laurent.delaigue@obeo.fr>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -65,8 +66,10 @@ import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Config.ConfigEnum;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectIdRef;
+import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Ref.Storage;
 import org.eclipse.jgit.lib.RefUpdate;
@@ -105,6 +108,8 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	private FastForwardMode fastForwardMode;
 
 	private String message;
+
+	private ProgressMonitor monitor = NullProgressMonitor.INSTANCE;
 
 	/**
 	 * The modes available for fast forward merges corresponding to the
@@ -330,6 +335,7 @@ public class MergeCommand extends GitCommand<MergeResult> {
 					repo.writeSquashCommitMsg(squashMessage);
 				}
 				Merger merger = mergeStrategy.newMerger(repo);
+				merger.setProgressMonitor(monitor);
 				boolean noProblems;
 				Map<String, org.eclipse.jgit.merge.MergeResult<?>> lowLevelResults = null;
 				Map<String, MergeFailureReason> failingPaths = null;
@@ -369,9 +375,11 @@ public class MergeCommand extends GitCommand<MergeResult> {
 						mergeStatus = MergeStatus.MERGED_NOT_COMMITTED;
 					}
 					if (commit && !squash) {
-						newHeadId = new Git(getRepository()).commit()
-								.setReflogComment(refLogMessage.toString())
-								.call().getId();
+						try (Git git = new Git(getRepository())) {
+							newHeadId = git.commit()
+									.setReflogComment(refLogMessage.toString())
+									.call().getId();
+						}
 						mergeStatus = MergeStatus.MERGED;
 					}
 					if (commit && squash) {
@@ -416,7 +424,7 @@ public class MergeCommand extends GitCommand<MergeResult> {
 							e), e);
 		} finally {
 			if (revWalk != null)
-				revWalk.release();
+				revWalk.close();
 		}
 	}
 
@@ -582,6 +590,25 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	 */
 	public MergeCommand setMessage(String message) {
 		this.message = message;
+		return this;
+	}
+
+	/**
+	 * The progress monitor associated with the diff operation. By default, this
+	 * is set to <code>NullProgressMonitor</code>
+	 *
+	 * @see NullProgressMonitor
+	 *
+	 * @param monitor
+	 *            A progress monitor
+	 * @return this instance
+	 * @since 4.2
+	 */
+	public MergeCommand setProgressMonitor(ProgressMonitor monitor) {
+		if (monitor == null) {
+			monitor = NullProgressMonitor.INSTANCE;
+		}
+		this.monitor = monitor;
 		return this;
 	}
 }

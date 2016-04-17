@@ -43,29 +43,31 @@
  */
 package org.eclipse.jgit.api;
 
+import static org.eclipse.jgit.util.FileUtils.RECURSIVE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Set;
 
+import org.eclipse.jgit.api.errors.FilterFailedException;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheBuilder;
 import org.eclipse.jgit.dircache.DirCacheEntry;
+import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.junit.RepositoryTestCase;
-import org.eclipse.jgit.lib.ConfigConstants;
-import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.FileMode;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectInserter;
-import org.eclipse.jgit.lib.StoredConfig;
+import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.treewalk.WorkingTreeOptions;
 import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FileUtils;
 import org.junit.Test;
@@ -74,9 +76,7 @@ public class AddCommandTest extends RepositoryTestCase {
 
 	@Test
 	public void testAddNothing() throws GitAPIException {
-		Git git = new Git(db);
-
-		try {
+		try (Git git = new Git(db)) {
 			git.add().call();
 			fail("Expected IllegalArgumentException");
 		} catch (NoFilepatternException e) {
@@ -87,11 +87,10 @@ public class AddCommandTest extends RepositoryTestCase {
 
 	@Test
 	public void testAddNonExistingSingleFile() throws GitAPIException {
-		Git git = new Git(db);
-
-		DirCache dc = git.add().addFilepattern("a.txt").call();
-		assertEquals(0, dc.getEntryCount());
-
+		try (Git git = new Git(db)) {
+			DirCache dc = git.add().addFilepattern("a.txt").call();
+			assertEquals(0, dc.getEntryCount());
+		}
 	}
 
 	@Test
@@ -102,13 +101,207 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content");
 		writer.close();
 
-		Git git = new Git(db);
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("a.txt").call();
 
-		git.add().addFilepattern("a.txt").call();
+			assertEquals(
+					"[a.txt, mode:100644, content:content]",
+					indexState(CONTENT));
+		}
+	}
 
-		assertEquals(
-				"[a.txt, mode:100644, content:content]",
-				indexState(CONTENT));
+	@Test
+	public void testCleanFilter() throws IOException,
+			GitAPIException {
+		writeTrashFile(".gitattributes", "*.txt filter=tstFilter");
+		writeTrashFile("src/a.tmp", "foo");
+		// Caution: we need a trailing '\n' since sed on mac always appends
+		// linefeeds if missing
+		writeTrashFile("src/a.txt", "foo\n");
+		File script = writeTempFile("sed s/o/e/g");
+
+		try (Git git = new Git(db)) {
+			StoredConfig config = git.getRepository().getConfig();
+			config.setString("filter", "tstFilter", "clean",
+					"sh " + slashify(script.getPath()));
+			config.save();
+
+			git.add().addFilepattern("src/a.txt").addFilepattern("src/a.tmp")
+					.call();
+
+			assertEquals(
+					"[src/a.tmp, mode:100644, content:foo][src/a.txt, mode:100644, content:fee\n]",
+					indexState(CONTENT));
+		}
+	}
+
+	@Test
+	public void testCleanFilterEnvironment()
+			throws IOException, GitAPIException {
+		writeTrashFile(".gitattributes", "*.txt filter=tstFilter");
+		writeTrashFile("src/a.txt", "foo");
+		File script = writeTempFile("echo $GIT_DIR; echo 1 >xyz");
+
+		try (Git git = new Git(db)) {
+			StoredConfig config = git.getRepository().getConfig();
+			config.setString("filter", "tstFilter", "clean",
+					"sh " + slashify(script.getPath()));
+			config.save();
+			git.add().addFilepattern("src/a.txt").call();
+
+			String gitDir = db.getDirectory().getAbsolutePath();
+			assertEquals("[src/a.txt, mode:100644, content:" + gitDir
+					+ "\n]", indexState(CONTENT));
+			assertTrue(new File(db.getWorkTree(), "xyz").exists());
+		}
+	}
+
+	@Test
+	public void testMultipleCleanFilter() throws IOException, GitAPIException {
+		writeTrashFile(".gitattributes",
+				"*.txt filter=tstFilter\n*.tmp filter=tstFilter2");
+		// Caution: we need a trailing '\n' since sed on mac always appends
+		// linefeeds if missing
+		writeTrashFile("src/a.tmp", "foo\n");
+		writeTrashFile("src/a.txt", "foo\n");
+		File script = writeTempFile("sed s/o/e/g");
+		File script2 = writeTempFile("sed s/f/x/g");
+
+		try (Git git = new Git(db)) {
+			StoredConfig config = git.getRepository().getConfig();
+			config.setString("filter", "tstFilter", "clean",
+					"sh " + slashify(script.getPath()));
+			config.setString("filter", "tstFilter2", "clean",
+					"sh " + slashify(script2.getPath()));
+			config.save();
+
+			git.add().addFilepattern("src/a.txt").addFilepattern("src/a.tmp")
+					.call();
+
+			assertEquals(
+					"[src/a.tmp, mode:100644, content:xoo\n][src/a.txt, mode:100644, content:fee\n]",
+					indexState(CONTENT));
+
+			// TODO: multiple clean filters for one file???
+		}
+	}
+
+	/**
+	 * The path of an added file name contains ';' and afterwards malicious
+	 * commands. Make sure when calling filter commands to properly escape the
+	 * filenames
+	 *
+	 * @throws IOException
+	 * @throws GitAPIException
+	 */
+	@Test
+	public void testCommandInjection() throws IOException, GitAPIException {
+		// Caution: we need a trailing '\n' since sed on mac always appends
+		// linefeeds if missing
+		writeTrashFile("; echo virus", "foo\n");
+		File script = writeTempFile("sed s/o/e/g");
+
+		try (Git git = new Git(db)) {
+			StoredConfig config = git.getRepository().getConfig();
+			config.setString("filter", "tstFilter", "clean",
+					"sh " + slashify(script.getPath()) + " %f");
+			writeTrashFile(".gitattributes", "* filter=tstFilter");
+
+			git.add().addFilepattern("; echo virus").call();
+			// Without proper escaping the content would be "feovirus". The sed
+			// command and the "echo virus" would contribute to the content
+			assertEquals("[; echo virus, mode:100644, content:fee\n]",
+					indexState(CONTENT));
+		}
+	}
+
+	@Test
+	public void testBadCleanFilter() throws IOException, GitAPIException {
+		writeTrashFile("a.txt", "foo");
+		File script = writeTempFile("sedfoo s/o/e/g");
+
+		try (Git git = new Git(db)) {
+			StoredConfig config = git.getRepository().getConfig();
+			config.setString("filter", "tstFilter", "clean",
+					"sh " + script.getPath());
+			config.save();
+			writeTrashFile(".gitattributes", "*.txt filter=tstFilter");
+
+			try {
+				git.add().addFilepattern("a.txt").call();
+				fail("Didn't received the expected exception");
+			} catch (FilterFailedException e) {
+				assertEquals(127, e.getReturnCode());
+			}
+		}
+	}
+
+	@Test
+	public void testBadCleanFilter2() throws IOException, GitAPIException {
+		writeTrashFile("a.txt", "foo");
+		File script = writeTempFile("sed s/o/e/g");
+
+		try (Git git = new Git(db)) {
+			StoredConfig config = git.getRepository().getConfig();
+			config.setString("filter", "tstFilter", "clean",
+					"shfoo " + script.getPath());
+			config.save();
+			writeTrashFile(".gitattributes", "*.txt filter=tstFilter");
+
+			try {
+				git.add().addFilepattern("a.txt").call();
+				fail("Didn't received the expected exception");
+			} catch (FilterFailedException e) {
+				assertEquals(127, e.getReturnCode());
+			}
+		}
+	}
+
+	@Test
+	public void testCleanFilterReturning12() throws IOException,
+			GitAPIException {
+		writeTrashFile("a.txt", "foo");
+		File script = writeTempFile("exit 12");
+
+		try (Git git = new Git(db)) {
+			StoredConfig config = git.getRepository().getConfig();
+			config.setString("filter", "tstFilter", "clean",
+					"sh " + slashify(script.getPath()));
+			config.save();
+			writeTrashFile(".gitattributes", "*.txt filter=tstFilter");
+
+			try {
+				git.add().addFilepattern("a.txt").call();
+				fail("Didn't received the expected exception");
+			} catch (FilterFailedException e) {
+				assertEquals(12, e.getReturnCode());
+			}
+		}
+	}
+
+	@Test
+	public void testNotApplicableFilter() throws IOException, GitAPIException {
+		writeTrashFile("a.txt", "foo");
+		File script = writeTempFile("sed s/o/e/g");
+
+		try (Git git = new Git(db)) {
+			StoredConfig config = git.getRepository().getConfig();
+			config.setString("filter", "tstFilter", "something",
+					"sh " + script.getPath());
+			config.save();
+			writeTrashFile(".gitattributes", "*.txt filter=tstFilter");
+
+			git.add().addFilepattern("a.txt").call();
+
+			assertEquals("[a.txt, mode:100644, content:foo]",
+					indexState(CONTENT));
+		}
+	}
+
+	private File writeTempFile(String body) throws IOException {
+		File f = File.createTempFile("AddCommandTest_", "");
+		JGitTestUtil.write(f, body);
+		return f;
 	}
 
 	@Test
@@ -120,19 +313,20 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("row1\r\nrow2");
 		writer.close();
 
-		Git git = new Git(db);
-		db.getConfig().setString("core", null, "autocrlf", "false");
-		git.add().addFilepattern("a.txt").call();
-		assertEquals("[a.txt, mode:100644, content:row1\r\nrow2]",
-				indexState(CONTENT));
-		db.getConfig().setString("core", null, "autocrlf", "true");
-		git.add().addFilepattern("a.txt").call();
-		assertEquals("[a.txt, mode:100644, content:row1\nrow2]",
-				indexState(CONTENT));
-		db.getConfig().setString("core", null, "autocrlf", "input");
-		git.add().addFilepattern("a.txt").call();
-		assertEquals("[a.txt, mode:100644, content:row1\nrow2]",
-				indexState(CONTENT));
+		try (Git git = new Git(db)) {
+			db.getConfig().setString("core", null, "autocrlf", "false");
+			git.add().addFilepattern("a.txt").call();
+			assertEquals("[a.txt, mode:100644, content:row1\r\nrow2]",
+					indexState(CONTENT));
+			db.getConfig().setString("core", null, "autocrlf", "true");
+			git.add().addFilepattern("a.txt").call();
+			assertEquals("[a.txt, mode:100644, content:row1\nrow2]",
+					indexState(CONTENT));
+			db.getConfig().setString("core", null, "autocrlf", "input");
+			git.add().addFilepattern("a.txt").call();
+			assertEquals("[a.txt, mode:100644, content:row1\nrow2]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -149,19 +343,20 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print(crData);
 		writer.close();
 		String lfData = data.toString().replaceAll("\r", "");
-		Git git = new Git(db);
-		db.getConfig().setString("core", null, "autocrlf", "false");
-		git.add().addFilepattern("a.txt").call();
-		assertEquals("[a.txt, mode:100644, content:" + data + "]",
-				indexState(CONTENT));
-		db.getConfig().setString("core", null, "autocrlf", "true");
-		git.add().addFilepattern("a.txt").call();
-		assertEquals("[a.txt, mode:100644, content:" + lfData + "]",
-				indexState(CONTENT));
-		db.getConfig().setString("core", null, "autocrlf", "input");
-		git.add().addFilepattern("a.txt").call();
-		assertEquals("[a.txt, mode:100644, content:" + lfData + "]",
-				indexState(CONTENT));
+		try (Git git = new Git(db)) {
+			db.getConfig().setString("core", null, "autocrlf", "false");
+			git.add().addFilepattern("a.txt").call();
+			assertEquals("[a.txt, mode:100644, content:" + data + "]",
+					indexState(CONTENT));
+			db.getConfig().setString("core", null, "autocrlf", "true");
+			git.add().addFilepattern("a.txt").call();
+			assertEquals("[a.txt, mode:100644, content:" + lfData + "]",
+					indexState(CONTENT));
+			db.getConfig().setString("core", null, "autocrlf", "input");
+			git.add().addFilepattern("a.txt").call();
+			assertEquals("[a.txt, mode:100644, content:" + lfData + "]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -173,19 +368,20 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("row1\r\nrow2\u0000");
 		writer.close();
 
-		Git git = new Git(db);
-		db.getConfig().setString("core", null, "autocrlf", "false");
-		git.add().addFilepattern("a.txt").call();
-		assertEquals("[a.txt, mode:100644, content:row1\r\nrow2\u0000]",
-				indexState(CONTENT));
-		db.getConfig().setString("core", null, "autocrlf", "true");
-		git.add().addFilepattern("a.txt").call();
-		assertEquals("[a.txt, mode:100644, content:row1\r\nrow2\u0000]",
-				indexState(CONTENT));
-		db.getConfig().setString("core", null, "autocrlf", "input");
-		git.add().addFilepattern("a.txt").call();
-		assertEquals("[a.txt, mode:100644, content:row1\r\nrow2\u0000]",
-				indexState(CONTENT));
+		try (Git git = new Git(db)) {
+			db.getConfig().setString("core", null, "autocrlf", "false");
+			git.add().addFilepattern("a.txt").call();
+			assertEquals("[a.txt, mode:100644, content:row1\r\nrow2\u0000]",
+					indexState(CONTENT));
+			db.getConfig().setString("core", null, "autocrlf", "true");
+			git.add().addFilepattern("a.txt").call();
+			assertEquals("[a.txt, mode:100644, content:row1\r\nrow2\u0000]",
+					indexState(CONTENT));
+			db.getConfig().setString("core", null, "autocrlf", "input");
+			git.add().addFilepattern("a.txt").call();
+			assertEquals("[a.txt, mode:100644, content:row1\r\nrow2\u0000]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -198,13 +394,13 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content");
 		writer.close();
 
-		Git git = new Git(db);
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("sub/a.txt").call();
 
-		git.add().addFilepattern("sub/a.txt").call();
-
-		assertEquals(
-				"[sub/a.txt, mode:100644, content:content]",
-				indexState(CONTENT));
+			assertEquals(
+					"[sub/a.txt, mode:100644, content:content]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -216,20 +412,21 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content");
 		writer.close();
 
-		Git git = new Git(db);
-		DirCache dc = git.add().addFilepattern("a.txt").call();
+		try (Git git = new Git(db)) {
+			DirCache dc = git.add().addFilepattern("a.txt").call();
 
-		dc.getEntry(0).getObjectId();
+			dc.getEntry(0).getObjectId();
 
-		writer = new PrintWriter(file);
-		writer.print("other content");
-		writer.close();
+			writer = new PrintWriter(file);
+			writer.print("other content");
+			writer.close();
 
-		dc = git.add().addFilepattern("a.txt").call();
+			dc = git.add().addFilepattern("a.txt").call();
 
-		assertEquals(
-				"[a.txt, mode:100644, content:other content]",
-				indexState(CONTENT));
+			assertEquals(
+					"[a.txt, mode:100644, content:other content]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -240,22 +437,23 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content");
 		writer.close();
 
-		Git git = new Git(db);
-		DirCache dc = git.add().addFilepattern("a.txt").call();
+		try (Git git = new Git(db)) {
+			DirCache dc = git.add().addFilepattern("a.txt").call();
 
-		dc.getEntry(0).getObjectId();
+			dc.getEntry(0).getObjectId();
 
-		git.commit().setMessage("commit a.txt").call();
+			git.commit().setMessage("commit a.txt").call();
 
-		writer = new PrintWriter(file);
-		writer.print("other content");
-		writer.close();
+			writer = new PrintWriter(file);
+			writer.print("other content");
+			writer.close();
 
-		dc = git.add().addFilepattern("a.txt").call();
+			dc = git.add().addFilepattern("a.txt").call();
 
-		assertEquals(
-				"[a.txt, mode:100644, content:other content]",
-				indexState(CONTENT));
+			assertEquals(
+					"[a.txt, mode:100644, content:other content]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -266,18 +464,19 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content");
 		writer.close();
 
-		Git git = new Git(db);
-		DirCache dc = git.add().addFilepattern("a.txt").call();
+		try (Git git = new Git(db)) {
+			DirCache dc = git.add().addFilepattern("a.txt").call();
 
-		dc.getEntry(0).getObjectId();
-		FileUtils.delete(file);
+			dc.getEntry(0).getObjectId();
+			FileUtils.delete(file);
 
-		// is supposed to do nothing
-		dc = git.add().addFilepattern("a.txt").call();
+			// is supposed to do nothing
+			dc = git.add().addFilepattern("a.txt").call();
 
-		assertEquals(
-				"[a.txt, mode:100644, content:content]",
-				indexState(CONTENT));
+			assertEquals(
+					"[a.txt, mode:100644, content:content]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -288,20 +487,21 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content");
 		writer.close();
 
-		Git git = new Git(db);
-		DirCache dc = git.add().addFilepattern("a.txt").call();
+		try (Git git = new Git(db)) {
+			DirCache dc = git.add().addFilepattern("a.txt").call();
 
-		git.commit().setMessage("commit a.txt").call();
+			git.commit().setMessage("commit a.txt").call();
 
-		dc.getEntry(0).getObjectId();
-		FileUtils.delete(file);
+			dc.getEntry(0).getObjectId();
+			FileUtils.delete(file);
 
-		// is supposed to do nothing
-		dc = git.add().addFilepattern("a.txt").call();
+			// is supposed to do nothing
+			dc = git.add().addFilepattern("a.txt").call();
 
-		assertEquals(
-				"[a.txt, mode:100644, content:content]",
-				indexState(CONTENT));
+			assertEquals(
+					"[a.txt, mode:100644, content:content]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -349,13 +549,14 @@ public class AddCommandTest extends RepositoryTestCase {
 
 		// now the test begins
 
-		Git git = new Git(db);
-		dc = git.add().addFilepattern("a.txt").call();
+		try (Git git = new Git(db)) {
+			dc = git.add().addFilepattern("a.txt").call();
 
-		assertEquals(
-				"[a.txt, mode:100644, content:our content]" +
-				"[b.txt, mode:100644, content:content b]",
-				indexState(CONTENT));
+			assertEquals(
+					"[a.txt, mode:100644, content:our content]" +
+					"[b.txt, mode:100644, content:content b]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -372,12 +573,13 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content b");
 		writer.close();
 
-		Git git = new Git(db);
-		git.add().addFilepattern("a.txt").addFilepattern("b.txt").call();
-		assertEquals(
-				"[a.txt, mode:100644, content:content]" +
-				"[b.txt, mode:100644, content:content b]",
-				indexState(CONTENT));
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("a.txt").addFilepattern("b.txt").call();
+			assertEquals(
+					"[a.txt, mode:100644, content:content]" +
+					"[b.txt, mode:100644, content:content b]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -395,12 +597,13 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content b");
 		writer.close();
 
-		Git git = new Git(db);
-		git.add().addFilepattern("sub").call();
-		assertEquals(
-				"[sub/a.txt, mode:100644, content:content]" +
-				"[sub/b.txt, mode:100644, content:content b]",
-				indexState(CONTENT));
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("sub").call();
+			assertEquals(
+					"[sub/a.txt, mode:100644, content:content]" +
+					"[sub/b.txt, mode:100644, content:content b]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -424,12 +627,13 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content b");
 		writer.close();
 
-		Git git = new Git(db);
-		git.add().addFilepattern("sub").call();
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("sub").call();
 
-		assertEquals(
-				"[sub/a.txt, mode:100644, content:content]",
-				indexState(CONTENT));
+			assertEquals(
+					"[sub/a.txt, mode:100644, content:content]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -447,12 +651,13 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content b");
 		writer.close();
 
-		Git git = new Git(db);
-		git.add().addFilepattern(".").call();
-		assertEquals(
-				"[sub/a.txt, mode:100644, content:content]" +
-				"[sub/b.txt, mode:100644, content:content b]",
-				indexState(CONTENT));
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern(".").call();
+			assertEquals(
+					"[sub/a.txt, mode:100644, content:content]" +
+					"[sub/b.txt, mode:100644, content:content b]",
+					indexState(CONTENT));
+		}
 	}
 
 	// the same three cases as in testAddWithParameterUpdate
@@ -474,40 +679,41 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content b");
 		writer.close();
 
-		Git git = new Git(db);
-		git.add().addFilepattern("sub").call();
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("sub").call();
 
-		assertEquals(
-				"[sub/a.txt, mode:100644, content:content]" +
-				"[sub/b.txt, mode:100644, content:content b]",
-				indexState(CONTENT));
+			assertEquals(
+					"[sub/a.txt, mode:100644, content:content]" +
+					"[sub/b.txt, mode:100644, content:content b]",
+					indexState(CONTENT));
 
-		git.commit().setMessage("commit").call();
+			git.commit().setMessage("commit").call();
 
-		// new unstaged file sub/c.txt
-		File file3 = new File(db.getWorkTree(), "sub/c.txt");
-		FileUtils.createNewFile(file3);
-		writer = new PrintWriter(file3);
-		writer.print("content c");
-		writer.close();
+			// new unstaged file sub/c.txt
+			File file3 = new File(db.getWorkTree(), "sub/c.txt");
+			FileUtils.createNewFile(file3);
+			writer = new PrintWriter(file3);
+			writer.print("content c");
+			writer.close();
 
-		// file sub/a.txt is modified
-		writer = new PrintWriter(file);
-		writer.print("modified content");
-		writer.close();
+			// file sub/a.txt is modified
+			writer = new PrintWriter(file);
+			writer.print("modified content");
+			writer.close();
 
-		// file sub/b.txt is deleted
-		FileUtils.delete(file2);
+			// file sub/b.txt is deleted
+			FileUtils.delete(file2);
 
-		git.add().addFilepattern("sub").call();
-		// change in sub/a.txt is staged
-		// deletion of sub/b.txt is not staged
-		// sub/c.txt is staged
-		assertEquals(
-				"[sub/a.txt, mode:100644, content:modified content]" +
-				"[sub/b.txt, mode:100644, content:content b]" +
-				"[sub/c.txt, mode:100644, content:content c]",
-				indexState(CONTENT));
+			git.add().addFilepattern("sub").call();
+			// change in sub/a.txt is staged
+			// deletion of sub/b.txt is not staged
+			// sub/c.txt is staged
+			assertEquals(
+					"[sub/a.txt, mode:100644, content:modified content]" +
+					"[sub/b.txt, mode:100644, content:content b]" +
+					"[sub/c.txt, mode:100644, content:content c]",
+					indexState(CONTENT));
+		}
 	}
 
 	// file a exists in workdir and in index -> added
@@ -528,71 +734,168 @@ public class AddCommandTest extends RepositoryTestCase {
 		writer.print("content b");
 		writer.close();
 
-		Git git = new Git(db);
-		git.add().addFilepattern("sub").call();
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("sub").call();
 
-		assertEquals(
-				"[sub/a.txt, mode:100644, content:content]" +
-				"[sub/b.txt, mode:100644, content:content b]",
-				indexState(CONTENT));
+			assertEquals(
+					"[sub/a.txt, mode:100644, content:content]" +
+					"[sub/b.txt, mode:100644, content:content b]",
+					indexState(CONTENT));
 
-		git.commit().setMessage("commit").call();
+			git.commit().setMessage("commit").call();
 
-		// new unstaged file sub/c.txt
-		File file3 = new File(db.getWorkTree(), "sub/c.txt");
-		FileUtils.createNewFile(file3);
-		writer = new PrintWriter(file3);
-		writer.print("content c");
-		writer.close();
+			// new unstaged file sub/c.txt
+			File file3 = new File(db.getWorkTree(), "sub/c.txt");
+			FileUtils.createNewFile(file3);
+			writer = new PrintWriter(file3);
+			writer.print("content c");
+			writer.close();
 
-		// file sub/a.txt is modified
-		writer = new PrintWriter(file);
-		writer.print("modified content");
-		writer.close();
+			// file sub/a.txt is modified
+			writer = new PrintWriter(file);
+			writer.print("modified content");
+			writer.close();
 
-		FileUtils.delete(file2);
+			FileUtils.delete(file2);
 
-		// change in sub/a.txt is staged
-		// deletion of sub/b.txt is staged
-		// sub/c.txt is not staged
-		git.add().addFilepattern("sub").setUpdate(true).call();
-		// change in sub/a.txt is staged
-		assertEquals(
-				"[sub/a.txt, mode:100644, content:modified content]",
-				indexState(CONTENT));
+			// change in sub/a.txt is staged
+			// deletion of sub/b.txt is staged
+			// sub/c.txt is not staged
+			git.add().addFilepattern("sub").setUpdate(true).call();
+			// change in sub/a.txt is staged
+			assertEquals(
+					"[sub/a.txt, mode:100644, content:modified content]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
 	public void testAssumeUnchanged() throws Exception {
-		Git git = new Git(db);
-		String path = "a.txt";
-		writeTrashFile(path, "content");
-		git.add().addFilepattern(path).call();
-		String path2 = "b.txt";
-		writeTrashFile(path2, "content");
-		git.add().addFilepattern(path2).call();
-		git.commit().setMessage("commit").call();
-		assertEquals("[a.txt, mode:100644, content:"
-				+ "content, assume-unchanged:false]"
-				+ "[b.txt, mode:100644, content:content, "
-				+ "assume-unchanged:false]", indexState(CONTENT
-				| ASSUME_UNCHANGED));
-		assumeUnchanged(path2);
-		assertEquals("[a.txt, mode:100644, content:content, "
-				+ "assume-unchanged:false][b.txt, mode:100644, "
-				+ "content:content, assume-unchanged:true]", indexState(CONTENT
-				| ASSUME_UNCHANGED));
-		writeTrashFile(path, "more content");
-		writeTrashFile(path2, "more content");
+		try (Git git = new Git(db)) {
+			String path = "a.txt";
+			writeTrashFile(path, "content");
+			git.add().addFilepattern(path).call();
+			String path2 = "b.txt";
+			writeTrashFile(path2, "content");
+			git.add().addFilepattern(path2).call();
+			git.commit().setMessage("commit").call();
+			assertEquals("[a.txt, mode:100644, content:"
+					+ "content, assume-unchanged:false]"
+					+ "[b.txt, mode:100644, content:content, "
+					+ "assume-unchanged:false]", indexState(CONTENT
+					| ASSUME_UNCHANGED));
+			assumeUnchanged(path2);
+			assertEquals("[a.txt, mode:100644, content:content, "
+					+ "assume-unchanged:false][b.txt, mode:100644, "
+					+ "content:content, assume-unchanged:true]", indexState(CONTENT
+					| ASSUME_UNCHANGED));
+			writeTrashFile(path, "more content");
+			writeTrashFile(path2, "more content");
 
-		git.add().addFilepattern(".").call();
+			git.add().addFilepattern(".").call();
 
-		assertEquals("[a.txt, mode:100644, content:more content,"
-				+ " assume-unchanged:false][b.txt, mode:100644,"
- + "" + ""
-				+ " content:content, assume-unchanged:true]",
-				indexState(CONTENT
-				| ASSUME_UNCHANGED));
+			assertEquals("[a.txt, mode:100644, content:more content,"
+					+ " assume-unchanged:false][b.txt, mode:100644,"
+					+ " content:content, assume-unchanged:true]",
+					indexState(CONTENT
+					| ASSUME_UNCHANGED));
+		}
+	}
+
+	@Test
+	public void testReplaceFileWithDirectory()
+			throws IOException, NoFilepatternException, GitAPIException {
+		try (Git git = new Git(db)) {
+			writeTrashFile("df", "before replacement");
+			git.add().addFilepattern("df").call();
+			assertEquals("[df, mode:100644, content:before replacement]",
+					indexState(CONTENT));
+			FileUtils.delete(new File(db.getWorkTree(), "df"));
+			writeTrashFile("df/f", "after replacement");
+			git.add().addFilepattern("df").call();
+			assertEquals("[df/f, mode:100644, content:after replacement]",
+					indexState(CONTENT));
+		}
+	}
+
+	@Test
+	public void testReplaceDirectoryWithFile()
+			throws IOException, NoFilepatternException, GitAPIException {
+		try (Git git = new Git(db)) {
+			writeTrashFile("df/f", "before replacement");
+			git.add().addFilepattern("df").call();
+			assertEquals("[df/f, mode:100644, content:before replacement]",
+					indexState(CONTENT));
+			FileUtils.delete(new File(db.getWorkTree(), "df"), RECURSIVE);
+			writeTrashFile("df", "after replacement");
+			git.add().addFilepattern("df").call();
+			assertEquals("[df, mode:100644, content:after replacement]",
+					indexState(CONTENT));
+		}
+	}
+
+	@Test
+	public void testReplaceFileByPartOfDirectory()
+			throws IOException, NoFilepatternException, GitAPIException {
+		try (Git git = new Git(db)) {
+			writeTrashFile("src/main", "df", "before replacement");
+			writeTrashFile("src/main", "z", "z");
+			writeTrashFile("z", "z2");
+			git.add().addFilepattern("src/main/df")
+				.addFilepattern("src/main/z")
+				.addFilepattern("z")
+				.call();
+			assertEquals(
+					"[src/main/df, mode:100644, content:before replacement]" +
+					"[src/main/z, mode:100644, content:z]" +
+					"[z, mode:100644, content:z2]",
+					indexState(CONTENT));
+			FileUtils.delete(new File(db.getWorkTree(), "src/main/df"));
+			writeTrashFile("src/main/df", "a", "after replacement");
+			writeTrashFile("src/main/df", "b", "unrelated file");
+			git.add().addFilepattern("src/main/df/a").call();
+			assertEquals(
+					"[src/main/df/a, mode:100644, content:after replacement]" +
+					"[src/main/z, mode:100644, content:z]" +
+					"[z, mode:100644, content:z2]",
+					indexState(CONTENT));
+		}
+	}
+
+	@Test
+	public void testReplaceDirectoryConflictsWithFile()
+			throws IOException, NoFilepatternException, GitAPIException {
+		DirCache dc = db.lockDirCache();
+		try (ObjectInserter oi = db.newObjectInserter()) {
+			DirCacheBuilder builder = dc.builder();
+			File f = writeTrashFile("a", "df", "content");
+			addEntryToBuilder("a", f, oi, builder, 1);
+
+			f = writeTrashFile("a", "df", "other content");
+			addEntryToBuilder("a/df", f, oi, builder, 3);
+
+			f = writeTrashFile("a", "df", "our content");
+			addEntryToBuilder("a/df", f, oi, builder, 2);
+
+			f = writeTrashFile("z", "z");
+			addEntryToBuilder("z", f, oi, builder, 0);
+			builder.commit();
+		}
+		assertEquals(
+				"[a, mode:100644, stage:1, content:content]" +
+				"[a/df, mode:100644, stage:2, content:our content]" +
+				"[a/df, mode:100644, stage:3, content:other content]" +
+				"[z, mode:100644, content:z]",
+				indexState(CONTENT));
+
+		try (Git git = new Git(db)) {
+			FileUtils.delete(new File(db.getWorkTree(), "a"), RECURSIVE);
+			writeTrashFile("a", "merged");
+			git.add().addFilepattern("a").call();
+			assertEquals("[a, mode:100644, content:merged]" +
+					"[z, mode:100644, content:z]",
+					indexState(CONTENT));
+		}
 	}
 
 	@Test
@@ -624,7 +927,7 @@ public class AddCommandTest extends RepositoryTestCase {
 				return this;
 			}
 
-			protected File discoverGitPrefix() {
+			protected File discoverGitExe() {
 				return null;
 			}
 
@@ -669,7 +972,7 @@ public class AddCommandTest extends RepositoryTestCase {
 				return this;
 			}
 
-			protected File discoverGitPrefix() {
+			protected File discoverGitExe() {
 				return null;
 			}
 
@@ -695,6 +998,91 @@ public class AddCommandTest extends RepositoryTestCase {
 		walk = TreeWalk.forPath(db, path, commit2.getTree());
 		assertNotNull(walk);
 		assertEquals(FileMode.EXECUTABLE_FILE, walk.getFileMode(0));
+	}
+
+	@Test
+	public void testAddGitlink() throws Exception {
+		createNestedRepo("git-link-dir");
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("git-link-dir").call();
+
+			assertEquals(
+					"[git-link-dir, mode:160000]",
+					indexState(0));
+			Set<String> untrackedFiles = git.status().call().getUntracked();
+			assert (untrackedFiles.isEmpty());
+		}
+
+	}
+
+	@Test
+	public void testAddSubrepoWithDirNoGitlinks() throws Exception {
+		createNestedRepo("nested-repo");
+
+		// Set DIR_NO_GITLINKS
+		StoredConfig config = db.getConfig();
+		config.setBoolean(ConfigConstants.CONFIG_CORE_SECTION, null,
+				ConfigConstants.CONFIG_KEY_DIRNOGITLINKS, true);
+		config.save();
+
+		assert (db.getConfig().get(WorkingTreeOptions.KEY).isDirNoGitLinks());
+
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("nested-repo").call();
+
+			assertEquals(
+					"[nested-repo/README1.md, mode:100644]" +
+							"[nested-repo/README2.md, mode:100644]",
+					indexState(0));
+		}
+
+		// Turn off DIR_NO_GITLINKS, ensure nested-repo is still treated as
+		// a normal directory
+		// Set DIR_NO_GITLINKS
+		config.setBoolean(ConfigConstants.CONFIG_CORE_SECTION, null,
+				ConfigConstants.CONFIG_KEY_DIRNOGITLINKS, false);
+		config.save();
+
+		writeTrashFile("nested-repo", "README3.md", "content");
+
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("nested-repo").call();
+
+			assertEquals(
+					"[nested-repo/README1.md, mode:100644]" +
+							"[nested-repo/README2.md, mode:100644]" +
+							"[nested-repo/README3.md, mode:100644]",
+					indexState(0));
+		}
+	}
+
+	@Test
+	public void testAddGitlinkDoesNotChange() throws Exception {
+		createNestedRepo("nested-repo");
+
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("nested-repo").call();
+
+			assertEquals(
+					"[nested-repo, mode:160000]",
+					indexState(0));
+		}
+
+		// Set DIR_NO_GITLINKS
+		StoredConfig config = db.getConfig();
+		config.setBoolean(ConfigConstants.CONFIG_CORE_SECTION, null,
+				ConfigConstants.CONFIG_KEY_DIRNOGITLINKS, true);
+		config.save();
+
+		assert (db.getConfig().get(WorkingTreeOptions.KEY).isDirNoGitLinks());
+
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern("nested-repo").call();
+
+			assertEquals(
+					"[nested-repo, mode:160000]",
+					indexState(0));
+		}
 	}
 
 	private static DirCacheEntry addEntryToBuilder(String path, File file,
@@ -724,4 +1112,25 @@ public class AddCommandTest extends RepositoryTestCase {
 			throw new IOException("could not commit");
 	}
 
+	private void createNestedRepo(String path) throws IOException {
+		File gitLinkDir = new File(db.getWorkTree(), path);
+		FileUtils.mkdir(gitLinkDir);
+
+		FileRepositoryBuilder nestedBuilder = new FileRepositoryBuilder();
+		nestedBuilder.setWorkTree(gitLinkDir);
+
+		Repository nestedRepo = nestedBuilder.build();
+		nestedRepo.create();
+
+		writeTrashFile(path, "README1.md", "content");
+		writeTrashFile(path, "README2.md", "content");
+
+		// Commit these changes in the subrepo
+		try (Git git = new Git(nestedRepo)) {
+			git.add().addFilepattern(".").call();
+			git.commit().setMessage("subrepo commit").call();
+		} catch (GitAPIException e) {
+			throw new RuntimeException(e);
+		}
+	}
 }

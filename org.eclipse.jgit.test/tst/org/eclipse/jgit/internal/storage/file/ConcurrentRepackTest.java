@@ -81,15 +81,14 @@ public class ConcurrentRepackTest extends RepositoryTestCase {
 	public void setUp() throws Exception {
 		WindowCacheConfig windowCacheConfig = new WindowCacheConfig();
 		windowCacheConfig.setPackedGitOpenFiles(1);
-		WindowCache.reconfigure(windowCacheConfig);
+		windowCacheConfig.install();
 		super.setUp();
 	}
 
 	@After
 	public void tearDown() throws Exception {
 		super.tearDown();
-		WindowCacheConfig windowCacheConfig = new WindowCacheConfig();
-		WindowCache.reconfigure(windowCacheConfig);
+		new WindowCacheConfig().install();
 	}
 
 	@Test
@@ -150,11 +149,11 @@ public class ConcurrentRepackTest extends RepositoryTestCase {
 		// within the pack has been modified.
 		//
 		final RevObject o2 = writeBlob(eden, "o2");
-		final PackWriter pw = new PackWriter(eden);
-		pw.addObject(o2);
-		pw.addObject(o1);
-		write(out1, pw);
-		pw.release();
+		try (PackWriter pw = new PackWriter(eden)) {
+			pw.addObject(o2);
+			pw.addObject(o1);
+			write(out1, pw);
+		}
 
 		// Try the old name, then the new name. The old name should cause the
 		// pack to reload when it opens and the index and pack mismatch.
@@ -206,28 +205,30 @@ public class ConcurrentRepackTest extends RepositoryTestCase {
 	private static void whackCache() {
 		final WindowCacheConfig config = new WindowCacheConfig();
 		config.setPackedGitOpenFiles(1);
-		WindowCache.reconfigure(config);
+		config.install();
 	}
 
 	private RevObject parse(final AnyObjectId id)
 			throws MissingObjectException, IOException {
-		return new RevWalk(db).parseAny(id);
+		try (RevWalk rw = new RevWalk(db)) {
+			return rw.parseAny(id);
+		}
 	}
 
 	private File[] pack(final Repository src, final RevObject... list)
 			throws IOException {
-		final PackWriter pw = new PackWriter(src);
-		for (final RevObject o : list) {
-			pw.addObject(o);
-		}
+		try (PackWriter pw = new PackWriter(src)) {
+			for (final RevObject o : list) {
+				pw.addObject(o);
+			}
 
-		final ObjectId name = pw.computeName();
-		final File packFile = fullPackFileName(name, ".pack");
-		final File idxFile = fullPackFileName(name, ".idx");
-		final File[] files = new File[] { packFile, idxFile };
-		write(files, pw);
-		pw.release();
-		return files;
+			final ObjectId name = pw.computeName();
+			final File packFile = fullPackFileName(name, ".pack");
+			final File idxFile = fullPackFileName(name, ".idx");
+			final File[] files = new File[] { packFile, idxFile };
+			write(files, pw);
+			return files;
+		}
 	}
 
 	private static void write(final File[] files, final PackWriter pw)
@@ -280,15 +281,11 @@ public class ConcurrentRepackTest extends RepositoryTestCase {
 
 	private RevObject writeBlob(final Repository repo, final String data)
 			throws IOException {
-		final RevWalk revWalk = new RevWalk(repo);
 		final byte[] bytes = Constants.encode(data);
-		final ObjectInserter inserter = repo.newObjectInserter();
 		final ObjectId id;
-		try {
+		try (ObjectInserter inserter = repo.newObjectInserter()) {
 			id = inserter.insert(Constants.OBJ_BLOB, bytes);
 			inserter.flush();
-		} finally {
-			inserter.release();
 		}
 		try {
 			parse(id);
@@ -296,6 +293,8 @@ public class ConcurrentRepackTest extends RepositoryTestCase {
 		} catch (MissingObjectException e) {
 			// Ok
 		}
-		return revWalk.lookupBlob(id);
+		try (RevWalk revWalk = new RevWalk(repo)) {
+			return revWalk.lookupBlob(id);
+		}
 	}
 }

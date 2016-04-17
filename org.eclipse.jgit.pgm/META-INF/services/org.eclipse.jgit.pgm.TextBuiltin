@@ -24,6 +24,7 @@ org.eclipse.jgit.pgm.MergeBase
 org.eclipse.jgit.pgm.Push
 org.eclipse.jgit.pgm.ReceivePack
 org.eclipse.jgit.pgm.Reflog
+org.eclipse.jgit.pgm.Remote
 org.eclipse.jgit.pgm.Repo
 org.eclipse.jgit.pgm.Reset
 org.eclipse.jgit.pgm.RevList
@@ -37,9 +38,11 @@ org.eclipse.jgit.pgm.UploadPack
 org.eclipse.jgit.pgm.Version
 
 org.eclipse.jgit.pgm.debug.DiffAlgorithms
+org.eclipse.jgit.pgm.debug.LfsStore
 org.eclipse.jgit.pgm.debug.MakeCacheTree
 org.eclipse.jgit.pgm.debug.ReadDirCache
 org.eclipse.jgit.pgm.debug.RebuildCommitGraph
+org.eclipse.jgit.pgm.debug.RebuildRefTree
 org.eclipse.jgit.pgm.debug.ShowCacheTree
 org.eclipse.jgit.pgm.debug.ShowCommands
 org.eclipse.jgit.pgm.debug.ShowDirCache

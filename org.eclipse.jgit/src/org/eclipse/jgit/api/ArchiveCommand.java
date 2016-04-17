@@ -48,7 +48,9 @@ import java.io.OutputStream;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -134,6 +136,25 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 		 *             thrown by the underlying output stream for I/O errors
 		 */
 		T createArchiveOutputStream(OutputStream s) throws IOException;
+
+		/**
+		 * Start a new archive. Entries can be included in the archive using the
+		 * putEntry method, and then the archive should be closed using its
+		 * close method. In addition options can be applied to the underlying
+		 * stream. E.g. compression level.
+		 *
+		 * @param s
+		 *            underlying output stream to which to write the archive.
+		 * @param o
+		 *            options to apply to the underlying output stream. Keys are
+		 *            option names and values are option values.
+		 * @return new archive object for use in putEntry
+		 * @throws IOException
+		 *             thrown by the underlying output stream for I/O errors
+		 * @since 4.0
+		 */
+		T createArchiveOutputStream(OutputStream s, Map<String, Object> o)
+				throws IOException;
 
 		/**
 		 * Write an entry to an archive.
@@ -328,6 +349,7 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 	private ObjectId tree;
 	private String prefix;
 	private String format;
+	private Map<String, Object> formatOptions = new HashMap<>();
 	private List<String> paths = new ArrayList<String>();
 
 	/** Filename suffix, for automatically choosing a format. */
@@ -342,21 +364,20 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 	}
 
 	private <T extends Closeable> OutputStream writeArchive(Format<T> fmt) {
-		final String pfx = prefix == null ? "" : prefix; //$NON-NLS-1$
-		final TreeWalk walk = new TreeWalk(repo);
 		try {
-			final T outa = fmt.createArchiveOutputStream(out);
-			try {
-				final MutableObjectId idBuf = new MutableObjectId();
-				final ObjectReader reader = walk.getObjectReader();
-				final RevWalk rw = new RevWalk(walk.getObjectReader());
+			try (TreeWalk walk = new TreeWalk(repo);
+					RevWalk rw = new RevWalk(walk.getObjectReader())) {
+				String pfx = prefix == null ? "" : prefix; //$NON-NLS-1$
+				T outa = fmt.createArchiveOutputStream(out, formatOptions);
+				MutableObjectId idBuf = new MutableObjectId();
+				ObjectReader reader = walk.getObjectReader();
 
 				walk.reset(rw.parseTree(tree));
 				if (!paths.isEmpty())
 					walk.setFilter(PathFilterGroup.createFromStrings(paths));
 
 				while (walk.next()) {
-					final String name = pfx + walk.getPathString();
+					String name = pfx + walk.getPathString();
 					FileMode mode = walk.getFileMode(0);
 
 					if (walk.isSubtree())
@@ -375,16 +396,14 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 					fmt.putEntry(outa, name, mode, reader.open(idBuf));
 				}
 				outa.close();
+				return out;
 			} finally {
 				out.close();
 			}
-			return out;
 		} catch (IOException e) {
 			// TODO(jrn): Throw finer-grained errors.
 			throw new JGitInternalException(
 					JGitText.get().exceptionCaughtDuringExecutionOfArchiveCommand, e);
-		} finally {
-			walk.release();
 		}
 	}
 
@@ -395,7 +414,7 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 	public OutputStream call() throws GitAPIException {
 		checkCallable();
 
-		final Format<?> fmt;
+		Format<?> fmt;
 		if (format == null)
 			fmt = formatBySuffix(suffix);
 		else
@@ -468,6 +487,17 @@ public class ArchiveCommand extends GitCommand<OutputStream> {
 	 */
 	public ArchiveCommand setFormat(String fmt) {
 		this.format = fmt;
+		return this;
+	}
+
+	/**
+	 * @param options
+	 *            archive format options (e.g., level=9 for zip compression).
+	 * @return this
+	 * @since 4.0
+	 */
+	public ArchiveCommand setFormatOptions(Map<String, Object> options) {
+		this.formatOptions = options;
 		return this;
 	}
 

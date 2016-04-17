@@ -52,6 +52,9 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -433,16 +436,14 @@ public class ObjectDirectory extends FileObjectDatabase {
 
 	ObjectLoader openLooseObject(WindowCursor curs, AnyObjectId id)
 			throws IOException {
-		try {
-			File path = fileFor(id);
-			FileInputStream in = new FileInputStream(path);
-			try {
-				unpackedObjectCache.add(id);
-				return UnpackedObject.open(in, path, id, curs);
-			} finally {
-				in.close();
-			}
+		File path = fileFor(id);
+		try (FileInputStream in = new FileInputStream(path)) {
+			unpackedObjectCache.add(id);
+			return UnpackedObject.open(in, path, id, curs);
 		} catch (FileNotFoundException noFile) {
+			if (path.exists()) {
+				throw noFile;
+			}
 			unpackedObjectCache.remove(id);
 			return null;
 		}
@@ -513,15 +514,14 @@ public class ObjectDirectory extends FileObjectDatabase {
 
 	private long getLooseObjectSize(WindowCursor curs, AnyObjectId id)
 			throws IOException {
-		try {
-			FileInputStream in = new FileInputStream(fileFor(id));
-			try {
-				unpackedObjectCache.add(id);
-				return UnpackedObject.getSize(in, id, curs);
-			} finally {
-				in.close();
-			}
+		File f = fileFor(id);
+		try (FileInputStream in = new FileInputStream(f)) {
+			unpackedObjectCache.add(id);
+			return UnpackedObject.getSize(in, id, curs);
 		} catch (FileNotFoundException noFile) {
+			if (f.exists()) {
+				throw noFile;
+			}
 			unpackedObjectCache.remove(id);
 			return -1;
 		}
@@ -554,22 +554,38 @@ public class ObjectDirectory extends FileObjectDatabase {
 	}
 
 	private void handlePackError(IOException e, PackFile p) {
-		String tmpl;
+		String warnTmpl = null;
 		if ((e instanceof CorruptObjectException)
 				|| (e instanceof PackInvalidException)) {
-			tmpl = JGitText.get().corruptPack;
+			warnTmpl = JGitText.get().corruptPack;
 			// Assume the pack is corrupted, and remove it from the list.
 			removePack(p);
 		} else if (e instanceof FileNotFoundException) {
-			tmpl = JGitText.get().packWasDeleted;
+			if (p.getPackFile().exists()) {
+				warnTmpl = JGitText.get().packInaccessible;
+			} else {
+				warnTmpl = JGitText.get().packWasDeleted;
+			}
 			removePack(p);
+		} else if (FileUtils.isStaleFileHandle(e)) {
+			warnTmpl = JGitText.get().packHandleIsStale;
+			removePack(p);
+		}
+		if (warnTmpl != null) {
+			if (LOG.isDebugEnabled()) {
+				LOG.debug(MessageFormat.format(warnTmpl,
+						p.getPackFile().getAbsolutePath()), e);
+			} else {
+				LOG.warn(MessageFormat.format(warnTmpl,
+						p.getPackFile().getAbsolutePath()));
+			}
 		} else {
-			tmpl = JGitText.get().exceptionWhileReadingPack;
 			// Don't remove the pack from the list, as the error may be
 			// transient.
+			LOG.error(MessageFormat.format(
+					JGitText.get().exceptionWhileReadingPack, p.getPackFile()
+							.getAbsolutePath()), e);
 		}
-		LOG.error(MessageFormat.format(tmpl,
-				p.getPackFile().getAbsolutePath()), e);
 	}
 
 	@Override
@@ -587,7 +603,7 @@ public class ObjectDirectory extends FileObjectDatabase {
 		}
 
 		final File dst = fileFor(id);
-		if (fs.exists(dst)) {
+		if (dst.exists()) {
 			// We want to be extra careful and avoid replacing an object
 			// that already exists. We can't be sure renameTo() would
 			// fail on all platforms if dst exists, so we check first.
@@ -595,10 +611,16 @@ public class ObjectDirectory extends FileObjectDatabase {
 			FileUtils.delete(tmp, FileUtils.RETRY);
 			return InsertLooseObjectResult.EXISTS_LOOSE;
 		}
-		if (tmp.renameTo(dst)) {
+		try {
+			Files.move(tmp.toPath(), dst.toPath(),
+					StandardCopyOption.ATOMIC_MOVE);
 			dst.setReadOnly();
 			unpackedObjectCache.add(id);
 			return InsertLooseObjectResult.INSERTED;
+		} catch (AtomicMoveNotSupportedException e) {
+			LOG.error(e.getMessage(), e);
+		} catch (IOException e) {
+			// ignore
 		}
 
 		// Maybe the directory doesn't exist yet as the object
@@ -606,10 +628,16 @@ public class ObjectDirectory extends FileObjectDatabase {
 		// try the rename first as the directory likely does exist.
 		//
 		FileUtils.mkdir(dst.getParentFile(), true);
-		if (tmp.renameTo(dst)) {
+		try {
+			Files.move(tmp.toPath(), dst.toPath(),
+					StandardCopyOption.ATOMIC_MOVE);
 			dst.setReadOnly();
 			unpackedObjectCache.add(id);
 			return InsertLooseObjectResult.INSERTED;
+		} catch (AtomicMoveNotSupportedException e) {
+			LOG.error(e.getMessage(), e);
+		} catch (IOException e) {
+			LOG.debug(e.getMessage(), e);
 		}
 
 		if (!createDuplicate && has(id)) {

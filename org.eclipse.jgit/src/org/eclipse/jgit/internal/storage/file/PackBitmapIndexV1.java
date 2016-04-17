@@ -60,8 +60,7 @@ import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.NB;
 
 /**
- * Support for the pack bitmap index v1 format, which contains experimental
- * support for bitmaps.
+ * Support for the pack bitmap index v1 format.
  *
  * @see PackBitmapIndex
  */
@@ -211,6 +210,11 @@ class PackBitmapIndexV1 extends BasePackBitmapIndex {
 			return tags.and(bitmap);
 		}
 		throw new IllegalArgumentException();
+	}
+
+	@Override
+	public int getBitmapCount() {
+		return bitmaps.size();
 	}
 
 	@Override

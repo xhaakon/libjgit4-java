@@ -202,6 +202,66 @@ public class CloneCommandTest extends RepositoryTestCase {
 				fetchRefSpec(git2.getRepository()));
 	}
 
+	@Test
+	public void testCloneRepositoryCustomRemote() throws Exception {
+		File directory = createTempDirectory("testCloneRemoteUpstream");
+		CloneCommand command = Git.cloneRepository();
+		command.setDirectory(directory);
+		command.setRemote("upstream");
+		command.setURI(fileUri());
+		Git git2 = command.call();
+		addRepoToClose(git2.getRepository());
+		assertEquals("+refs/heads/*:refs/remotes/upstream/*",
+				git2.getRepository()
+					.getConfig()
+					.getStringList("remote", "upstream",
+							"fetch")[0]);
+		assertEquals("upstream",
+				git2.getRepository()
+					.getConfig()
+					.getString("branch", "test", "remote"));
+		assertEquals(db.resolve("test"),
+				git2.getRepository().resolve("upstream/test"));
+	}
+
+	@Test
+	public void testBareCloneRepositoryCustomRemote() throws Exception {
+		File directory = createTempDirectory("testCloneRemoteUpstream_bare");
+		CloneCommand command = Git.cloneRepository();
+		command.setBare(true);
+		command.setDirectory(directory);
+		command.setRemote("upstream");
+		command.setURI(fileUri());
+		Git git2 = command.call();
+		addRepoToClose(git2.getRepository());
+		assertEquals("+refs/heads/*:refs/heads/*",
+				git2.getRepository()
+					.getConfig()
+					.getStringList("remote", "upstream",
+							"fetch")[0]);
+		assertEquals("upstream",
+				git2.getRepository()
+					.getConfig()
+					.getString("branch", "test", "remote"));
+		assertNull(git2.getRepository().resolve("upstream/test"));
+	}
+
+	@Test
+	public void testBareCloneRepositoryNullRemote() throws Exception {
+		File directory = createTempDirectory("testCloneRemoteNull_bare");
+		CloneCommand command = Git.cloneRepository();
+		command.setBare(true);
+		command.setDirectory(directory);
+		command.setRemote(null);
+		command.setURI(fileUri());
+		Git git2 = command.call();
+		addRepoToClose(git2.getRepository());
+		assertEquals("+refs/heads/*:refs/heads/*", git2.getRepository()
+				.getConfig().getStringList("remote", "origin", "fetch")[0]);
+		assertEquals("origin", git2.getRepository().getConfig()
+				.getString("branch", "test", "remote"));
+	}
+
 	public static RefSpec fetchRefSpec(Repository r) throws URISyntaxException {
 		RemoteConfig remoteConfig =
 				new RemoteConfig(r.getConfig(), Constants.DEFAULT_REMOTE_NAME);
@@ -391,6 +451,17 @@ public class CloneCommandTest extends RepositoryTestCase {
 		git.add().addFilepattern(path)
 				.addFilepattern(Constants.DOT_GIT_MODULES).call();
 		git.commit().setMessage("adding submodule").call();
+		try (SubmoduleWalk walk = SubmoduleWalk.forIndex(git.getRepository())) {
+			assertTrue(walk.next());
+			Repository subRepo = walk.getRepository();
+			addRepoToClose(subRepo);
+			assertNotNull(subRepo);
+			assertEquals(
+					new File(git.getRepository().getWorkTree(), walk.getPath()),
+					subRepo.getWorkTree());
+			assertEquals(new File(new File(git.getRepository().getDirectory(),
+					"modules"), walk.getPath()), subRepo.getDirectory());
+		}
 
 		File directory = createTempDirectory("testCloneRepositoryWithSubmodules");
 		CloneCommand clone = Git.cloneRepository();
@@ -414,17 +485,19 @@ public class CloneCommandTest extends RepositoryTestCase {
 		assertEquals(commit, pathStatus.getHeadId());
 		assertEquals(commit, pathStatus.getIndexId());
 
-		SubmoduleWalk walk = SubmoduleWalk.forIndex(git2.getRepository());
-		assertTrue(walk.next());
-		Repository clonedSub1 = walk.getRepository();
-		addRepoToClose(clonedSub1);
-		assertNotNull(clonedSub1);
-		assertEquals(
-				new File(git2.getRepository().getWorkTree(), walk.getPath()),
-				clonedSub1.getWorkTree());
-		assertEquals(new File(new File(git2.getRepository().getDirectory(),
-				"modules"), walk.getPath()), clonedSub1.getDirectory());
-		walk.release();
+		try (SubmoduleWalk walk = SubmoduleWalk
+				.forIndex(git2.getRepository())) {
+			assertTrue(walk.next());
+			Repository clonedSub1 = walk.getRepository();
+			addRepoToClose(clonedSub1);
+			assertNotNull(clonedSub1);
+			assertEquals(new File(git2.getRepository().getWorkTree(),
+					walk.getPath()), clonedSub1.getWorkTree());
+			assertEquals(
+					new File(new File(git2.getRepository().getDirectory(),
+							"modules"), walk.getPath()),
+					clonedSub1.getDirectory());
+		}
 	}
 
 	@Test

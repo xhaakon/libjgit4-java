@@ -104,7 +104,7 @@ import org.eclipse.jgit.util.io.DisabledOutputStream;
 /**
  * Format a Git style patch script.
  */
-public class DiffFormatter {
+public class DiffFormatter implements AutoCloseable {
 	private static final int DEFAULT_BINARY_FILE_THRESHOLD = PackConfig.DEFAULT_BIG_FILE_THRESHOLD;
 
 	private static final byte[] noNewLine = encodeASCII("\\ No newline at end of file\n"); //$NON-NLS-1$
@@ -173,7 +173,7 @@ public class DiffFormatter {
 	 */
 	public void setRepository(Repository repository) {
 		if (reader != null)
-			reader.release();
+			reader.close();
 
 		db = repository;
 		reader = db.newObjectReader();
@@ -380,10 +380,15 @@ public class DiffFormatter {
 		out.flush();
 	}
 
-	/** Release the internal ObjectReader state. */
-	public void release() {
+	/**
+	 * Release the internal ObjectReader state.
+	 *
+	 * @since 4.0
+	 */
+	@Override
+	public void close() {
 		if (reader != null)
-			reader.release();
+			reader.close();
 	}
 
 	/**
@@ -409,10 +414,11 @@ public class DiffFormatter {
 			throws IOException {
 		assertHaveRepository();
 
-		RevWalk rw = new RevWalk(reader);
-		RevTree aTree = a != null ? rw.parseTree(a) : null;
-		RevTree bTree = b != null ? rw.parseTree(b) : null;
-		return scan(aTree, bTree);
+		try (RevWalk rw = new RevWalk(reader)) {
+			RevTree aTree = a != null ? rw.parseTree(a) : null;
+			RevTree bTree = b != null ? rw.parseTree(b) : null;
+			return scan(aTree, bTree);
+		}
 	}
 
 	/**
@@ -659,16 +665,12 @@ public class DiffFormatter {
 		format(res.header, res.a, res.b);
 	}
 
-	private static void writeGitLinkDiffText(OutputStream o, DiffEntry ent)
-			throws IOException {
-		if (ent.getOldMode() == GITLINK) {
-			o.write(encodeASCII("-Subproject commit " + ent.getOldId().name() //$NON-NLS-1$
-					+ "\n")); //$NON-NLS-1$
+	private static byte[] writeGitLinkText(AbbreviatedObjectId id) {
+		if (id.toObjectId().equals(ObjectId.zeroId())) {
+			return EMPTY;
 		}
-		if (ent.getNewMode() == GITLINK) {
-			o.write(encodeASCII("+Subproject commit " + ent.getNewId().name() //$NON-NLS-1$
-					+ "\n")); //$NON-NLS-1$
-		}
+		return encodeASCII("Subproject commit " + id.name() //$NON-NLS-1$
+				+ "\n"); //$NON-NLS-1$
 	}
 
 	private String format(AbbreviatedObjectId id) {
@@ -932,13 +934,7 @@ public class DiffFormatter {
 
 		formatHeader(buf, ent);
 
-		if (ent.getOldMode() == GITLINK || ent.getNewMode() == GITLINK) {
-			formatOldNewPaths(buf, ent);
-			writeGitLinkDiffText(buf, ent);
-			editList = new EditList();
-			type = PatchType.UNIFIED;
-
-		} else if (ent.getOldId() == null || ent.getNewId() == null) {
+		if (ent.getOldId() == null || ent.getNewId() == null) {
 			// Content not changed (e.g. only mode, pure rename)
 			editList = new EditList();
 			type = PatchType.UNIFIED;
@@ -946,8 +942,15 @@ public class DiffFormatter {
 		} else {
 			assertHaveRepository();
 
-			byte[] aRaw = open(OLD, ent);
-			byte[] bRaw = open(NEW, ent);
+			byte[] aRaw, bRaw;
+
+			if (ent.getOldMode() == GITLINK || ent.getNewMode() == GITLINK) {
+				aRaw = writeGitLinkText(ent.getOldId());
+				bRaw = writeGitLinkText(ent.getNewId());
+			} else {
+				aRaw = open(OLD, ent);
+				bRaw = open(NEW, ent);
+			}
 
 			if (aRaw == BINARY || bRaw == BINARY //
 					|| RawText.isBinary(aRaw) || RawText.isBinary(bRaw)) {

@@ -94,11 +94,11 @@ import org.eclipse.jgit.util.FileUtils;
  */
 public class StashCreateCommand extends GitCommand<RevCommit> {
 
-	private static final String MSG_INDEX = "index on {0}: {1} {2}";
+	private static final String MSG_INDEX = "index on {0}: {1} {2}"; //$NON-NLS-1$
 
-	private static final String MSG_UNTRACKED = "untracked files on {0}: {1} {2}";
+	private static final String MSG_UNTRACKED = "untracked files on {0}: {1} {2}"; //$NON-NLS-1$
 
-	private static final String MSG_WORKING_DIR = "WIP on {0}: {1} {2}";
+	private static final String MSG_WORKING_DIR = "WIP on {0}: {1} {2}"; //$NON-NLS-1$
 
 	private String indexMessage = MSG_INDEX;
 
@@ -187,9 +187,9 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 
 	private RevCommit parseCommit(final ObjectReader reader,
 			final ObjectId headId) throws IOException {
-		final RevWalk walk = new RevWalk(reader);
-		walk.setRetainBody(true);
-		return walk.parseCommit(headId);
+		try (final RevWalk walk = new RevWalk(reader)) {
+			return walk.parseCommit(headId);
+		}
 	}
 
 	private CommitBuilder createBuilder() {
@@ -240,18 +240,19 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 		checkCallable();
 
 		Ref head = getHead();
-		ObjectReader reader = repo.newObjectReader();
-		try {
+		try (ObjectReader reader = repo.newObjectReader()) {
 			RevCommit headCommit = parseCommit(reader, head.getObjectId());
 			DirCache cache = repo.lockDirCache();
-			ObjectInserter inserter = repo.newObjectInserter();
 			ObjectId commitId;
-			try {
-				TreeWalk treeWalk = new TreeWalk(reader);
+			try (ObjectInserter inserter = repo.newObjectInserter();
+					TreeWalk treeWalk = new TreeWalk(repo, reader)) {
+
 				treeWalk.setRecursive(true);
 				treeWalk.addTree(headCommit.getTree());
 				treeWalk.addTree(new DirCacheIterator(cache));
 				treeWalk.addTree(new FileTreeIterator(repo));
+				treeWalk.getTree(2, FileTreeIterator.class)
+						.setDirCacheIterator(treeWalk, 1);
 				treeWalk.setFilter(AndTreeFilter.create(new SkipWorkTreeFilter(
 						1), new IndexDiffFilter(1, 2)));
 
@@ -381,7 +382,6 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 				}
 
 			} finally {
-				inserter.release();
 				cache.unlock();
 			}
 
@@ -392,8 +392,6 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 			return parseCommit(reader, commitId);
 		} catch (IOException e) {
 			throw new JGitInternalException(JGitText.get().stashFailed, e);
-		} finally {
-			reader.release();
 		}
 	}
 }

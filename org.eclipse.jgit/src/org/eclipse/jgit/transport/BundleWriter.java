@@ -92,6 +92,8 @@ public class BundleWriter {
 
 	private PackConfig packConfig;
 
+	private ObjectCountCallback callback;
+
 	/**
 	 * Create a writer for a bundle.
 	 *
@@ -188,14 +190,18 @@ public class BundleWriter {
 	 *             an error occurred reading a local object's data to include in
 	 *             the bundle, or writing compressed object data to the output
 	 *             stream.
+	 * @throws WriteAbortedException
+	 *             the write operation is aborted by
+	 *             {@link ObjectCountCallback}.
 	 */
 	public void writeBundle(ProgressMonitor monitor, OutputStream os)
 			throws IOException {
 		PackConfig pc = packConfig;
 		if (pc == null)
 			pc = new PackConfig(db);
-		PackWriter packWriter = new PackWriter(pc, db.newObjectReader());
-		try {
+		try (PackWriter packWriter = new PackWriter(pc, db.newObjectReader())) {
+			packWriter.setObjectCountCallback(callback);
+
 			final HashSet<ObjectId> inc = new HashSet<ObjectId>();
 			final HashSet<ObjectId> exc = new HashSet<ObjectId>();
 			inc.addAll(include.values());
@@ -233,8 +239,26 @@ public class BundleWriter {
 			w.write('\n');
 			w.flush();
 			packWriter.writePack(monitor, monitor, os);
-		} finally {
-			packWriter.release();
 		}
+	}
+
+	/**
+	 * Set the {@link ObjectCountCallback}.
+	 * <p>
+	 * It should be set before calling
+	 * {@link #writeBundle(ProgressMonitor, OutputStream)}.
+	 * <p>
+	 * This callback will be passed on to
+	 * {@link PackWriter#setObjectCountCallback}.
+	 *
+	 * @param callback
+	 *            the callback to set
+	 *
+	 * @return this object for chaining.
+	 * @since 4.1
+	 */
+	public BundleWriter setObjectCountCallback(ObjectCountCallback callback) {
+		this.callback = callback;
+		return this;
 	}
 }

@@ -114,13 +114,14 @@ public class RebaseCommandTest extends RepositoryTestCase {
 
 	private void checkoutCommit(RevCommit commit) throws IllegalStateException,
 			IOException {
-		RevWalk walk = new RevWalk(db);
-		RevCommit head = walk.parseCommit(db.resolve(Constants.HEAD));
-		DirCacheCheckout dco = new DirCacheCheckout(db, head.getTree(), db
-				.lockDirCache(), commit.getTree());
-		dco.setFailOnConflict(true);
-		dco.checkout();
-		walk.release();
+		RevCommit head;
+		try (RevWalk walk = new RevWalk(db)) {
+			head = walk.parseCommit(db.resolve(Constants.HEAD));
+			DirCacheCheckout dco = new DirCacheCheckout(db, head.getTree(),
+					db.lockDirCache(), commit.getTree());
+			dco.setFailOnConflict(true);
+			dco.checkout();
+		}
 		// update the HEAD
 		RefUpdate refUpdate = db.updateRef(Constants.HEAD, true);
 		refUpdate.setNewObjectId(commit);
@@ -287,13 +288,14 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		RebaseResult res = git.rebase().setUpstream("refs/heads/master").call();
 		assertEquals(Status.OK, res.getStatus());
 
-		RevWalk rw = new RevWalk(db);
-		rw.markStart(rw.parseCommit(db.resolve("refs/heads/topic")));
-		assertDerivedFrom(rw.next(), e);
-		assertDerivedFrom(rw.next(), d);
-		assertDerivedFrom(rw.next(), c);
-		assertEquals(b, rw.next());
-		assertEquals(a, rw.next());
+		try (RevWalk rw = new RevWalk(db)) {
+			rw.markStart(rw.parseCommit(db.resolve("refs/heads/topic")));
+			assertDerivedFrom(rw.next(), e);
+			assertDerivedFrom(rw.next(), d);
+			assertDerivedFrom(rw.next(), c);
+			assertEquals(b, rw.next());
+			assertEquals(a, rw.next());
+		}
 
 		List<ReflogEntry> headLog = db.getReflogReader(Constants.HEAD)
 				.getReverseEntries();
@@ -353,8 +355,6 @@ public class RebaseCommandTest extends RepositoryTestCase {
 	 */
 	private void doTestRebasePreservingMerges(boolean testConflict)
 			throws Exception {
-		RevWalk rw = new RevWalk(db);
-
 		// create file1 on master
 		writeTrashFile(FILE1, FILE1);
 		git.add().addFilepattern(FILE1).call();
@@ -408,7 +408,9 @@ public class RebaseCommandTest extends RepositoryTestCase {
 			f = git.commit().setMessage("commit f").call();
 		} else {
 			assertEquals(MergeStatus.MERGED, result.getMergeStatus());
-			f = rw.parseCommit(result.getNewHead());
+			try (RevWalk rw = new RevWalk(db)) {
+				f = rw.parseCommit(result.getNewHead());
+			}
 		}
 
 		RebaseResult res = git.rebase().setUpstream("refs/heads/master")
@@ -452,31 +454,34 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals("file2", read("file2"));
 		assertEquals("more change", read("file3"));
 
-		rw.markStart(rw.parseCommit(db.resolve("refs/heads/topic")));
-		RevCommit newF = rw.next();
-		assertDerivedFrom(newF, f);
-		assertEquals(2, newF.getParentCount());
-		RevCommit newD = rw.next();
-		assertDerivedFrom(newD, d);
-		if (testConflict)
-			assertEquals("d new", readFile("conflict", newD));
-		RevCommit newE = rw.next();
-		assertDerivedFrom(newE, e);
-		if (testConflict)
-			assertEquals("e new", readFile("conflict", newE));
-		assertEquals(newD, newF.getParent(0));
-		assertEquals(newE, newF.getParent(1));
-		assertDerivedFrom(rw.next(), c);
-		assertEquals(b, rw.next());
-		assertEquals(a, rw.next());
+		try (RevWalk rw = new RevWalk(db)) {
+			rw.markStart(rw.parseCommit(db.resolve("refs/heads/topic")));
+			RevCommit newF = rw.next();
+			assertDerivedFrom(newF, f);
+			assertEquals(2, newF.getParentCount());
+			RevCommit newD = rw.next();
+			assertDerivedFrom(newD, d);
+			if (testConflict)
+				assertEquals("d new", readFile("conflict", newD));
+			RevCommit newE = rw.next();
+			assertDerivedFrom(newE, e);
+			if (testConflict)
+				assertEquals("e new", readFile("conflict", newE));
+			assertEquals(newD, newF.getParent(0));
+			assertEquals(newE, newF.getParent(1));
+			assertDerivedFrom(rw.next(), c);
+			assertEquals(b, rw.next());
+			assertEquals(a, rw.next());
+		}
 	}
 
 	private String readFile(String path, RevCommit commit) throws IOException {
-		TreeWalk walk = TreeWalk.forPath(db, path, commit.getTree());
-		ObjectLoader loader = db.open(walk.getObjectId(0), Constants.OBJ_BLOB);
-		String result = RawParseUtils.decode(loader.getCachedBytes());
-		walk.release();
-		return result;
+		try (TreeWalk walk = TreeWalk.forPath(db, path, commit.getTree())) {
+			ObjectLoader loader = db.open(walk.getObjectId(0),
+					Constants.OBJ_BLOB);
+			String result = RawParseUtils.decode(loader.getCachedBytes());
+			return result;
+		}
 	}
 
 	@Test
@@ -515,88 +520,89 @@ public class RebaseCommandTest extends RepositoryTestCase {
 	 */
 	private void doTestRebasePreservingMergesWithUnrelatedSide(
 			boolean testConflict) throws Exception {
-		RevWalk rw = new RevWalk(db);
-		rw.sort(RevSort.TOPO);
+		try (RevWalk rw = new RevWalk(db)) {
+			rw.sort(RevSort.TOPO);
 
-		writeTrashFile(FILE1, FILE1);
-		git.add().addFilepattern(FILE1).call();
-		RevCommit a = git.commit().setMessage("commit a").call();
+			writeTrashFile(FILE1, FILE1);
+			git.add().addFilepattern(FILE1).call();
+			RevCommit a = git.commit().setMessage("commit a").call();
 
-		writeTrashFile("file2", "blah");
-		git.add().addFilepattern("file2").call();
-		RevCommit b = git.commit().setMessage("commit b").call();
+			writeTrashFile("file2", "blah");
+			git.add().addFilepattern("file2").call();
+			RevCommit b = git.commit().setMessage("commit b").call();
 
-		// create a topic branch
-		createBranch(b, "refs/heads/topic");
-		checkoutBranch("refs/heads/topic");
+			// create a topic branch
+			createBranch(b, "refs/heads/topic");
+			checkoutBranch("refs/heads/topic");
 
-		writeTrashFile("file3", "more changess");
-		writeTrashFile(FILE1, "preparing conflict");
-		git.add().addFilepattern("file3").addFilepattern(FILE1).call();
-		RevCommit c = git.commit().setMessage("commit c").call();
+			writeTrashFile("file3", "more changess");
+			writeTrashFile(FILE1, "preparing conflict");
+			git.add().addFilepattern("file3").addFilepattern(FILE1).call();
+			RevCommit c = git.commit().setMessage("commit c").call();
 
-		createBranch(a, "refs/heads/side");
-		checkoutBranch("refs/heads/side");
-		writeTrashFile("conflict", "e");
-		writeTrashFile(FILE1, FILE1 + "\n" + "line 2");
-		git.add().addFilepattern(".").call();
-		RevCommit e = git.commit().setMessage("commit e").call();
-
-		// switch back to topic and merge in side, creating d
-		checkoutBranch("refs/heads/topic");
-		MergeResult result = git.merge().include(e)
-				.setStrategy(MergeStrategy.RESOLVE).call();
-
-		assertEquals(MergeStatus.CONFLICTING, result.getMergeStatus());
-		assertEquals(result.getConflicts().keySet(),
-				Collections.singleton(FILE1));
-		writeTrashFile(FILE1, "merge resolution");
-		git.add().addFilepattern(FILE1).call();
-		RevCommit d = git.commit().setMessage("commit d").call();
-
-		RevCommit f = commitFile("file2", "new content two", "topic");
-
-		checkoutBranch("refs/heads/master");
-		writeTrashFile("fileg", "fileg");
-		if (testConflict)
-			writeTrashFile("conflict", "g");
-		git.add().addFilepattern(".").call();
-		RevCommit g = git.commit().setMessage("commit g").call();
-
-		checkoutBranch("refs/heads/topic");
-		RebaseResult res = git.rebase().setUpstream("refs/heads/master")
-				.setPreserveMerges(true).call();
-		if (testConflict) {
-			assertEquals(Status.STOPPED, res.getStatus());
-			assertEquals(Collections.singleton("conflict"), git.status().call()
-					.getConflicting());
-			// resolve
+			createBranch(a, "refs/heads/side");
+			checkoutBranch("refs/heads/side");
 			writeTrashFile("conflict", "e");
-			git.add().addFilepattern("conflict").call();
-			res = git.rebase().setOperation(Operation.CONTINUE).call();
+			writeTrashFile(FILE1, FILE1 + "\n" + "line 2");
+			git.add().addFilepattern(".").call();
+			RevCommit e = git.commit().setMessage("commit e").call();
+
+			// switch back to topic and merge in side, creating d
+			checkoutBranch("refs/heads/topic");
+			MergeResult result = git.merge().include(e)
+					.setStrategy(MergeStrategy.RESOLVE).call();
+
+			assertEquals(MergeStatus.CONFLICTING, result.getMergeStatus());
+			assertEquals(result.getConflicts().keySet(),
+					Collections.singleton(FILE1));
+			writeTrashFile(FILE1, "merge resolution");
+			git.add().addFilepattern(FILE1).call();
+			RevCommit d = git.commit().setMessage("commit d").call();
+
+			RevCommit f = commitFile("file2", "new content two", "topic");
+
+			checkoutBranch("refs/heads/master");
+			writeTrashFile("fileg", "fileg");
+			if (testConflict)
+				writeTrashFile("conflict", "g");
+			git.add().addFilepattern(".").call();
+			RevCommit g = git.commit().setMessage("commit g").call();
+
+			checkoutBranch("refs/heads/topic");
+			RebaseResult res = git.rebase().setUpstream("refs/heads/master")
+					.setPreserveMerges(true).call();
+			if (testConflict) {
+				assertEquals(Status.STOPPED, res.getStatus());
+				assertEquals(Collections.singleton("conflict"), git.status().call()
+						.getConflicting());
+				// resolve
+				writeTrashFile("conflict", "e");
+				git.add().addFilepattern("conflict").call();
+				res = git.rebase().setOperation(Operation.CONTINUE).call();
+			}
+			assertEquals(Status.OK, res.getStatus());
+
+			assertEquals("merge resolution", read(FILE1));
+			assertEquals("new content two", read("file2"));
+			assertEquals("more changess", read("file3"));
+			assertEquals("fileg", read("fileg"));
+
+			rw.markStart(rw.parseCommit(db.resolve("refs/heads/topic")));
+			RevCommit newF = rw.next();
+			assertDerivedFrom(newF, f);
+			RevCommit newD = rw.next();
+			assertDerivedFrom(newD, d);
+			assertEquals(2, newD.getParentCount());
+			RevCommit newC = rw.next();
+			assertDerivedFrom(newC, c);
+			RevCommit newE = rw.next();
+			assertEquals(e, newE);
+			assertEquals(newC, newD.getParent(0));
+			assertEquals(e, newD.getParent(1));
+			assertEquals(g, rw.next());
+			assertEquals(b, rw.next());
+			assertEquals(a, rw.next());
 		}
-		assertEquals(Status.OK, res.getStatus());
-
-		assertEquals("merge resolution", read(FILE1));
-		assertEquals("new content two", read("file2"));
-		assertEquals("more changess", read("file3"));
-		assertEquals("fileg", read("fileg"));
-
-		rw.markStart(rw.parseCommit(db.resolve("refs/heads/topic")));
-		RevCommit newF = rw.next();
-		assertDerivedFrom(newF, f);
-		RevCommit newD = rw.next();
-		assertDerivedFrom(newD, d);
-		assertEquals(2, newD.getParentCount());
-		RevCommit newC = rw.next();
-		assertDerivedFrom(newC, c);
-		RevCommit newE = rw.next();
-		assertEquals(e, newE);
-		assertEquals(newC, newD.getParent(0));
-		assertEquals(e, newD.getParent(1));
-		assertEquals(g, rw.next());
-		assertEquals(b, rw.next());
-		assertEquals(a, rw.next());
 	}
 
 	@Test
@@ -685,8 +691,10 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		checkFile(theFile, "1master\n2\n3\ntopic\n");
 		// our old branch should be checked out again
 		assertEquals("refs/heads/topic", db.getFullBranch());
-		assertEquals(lastMasterChange, new RevWalk(db).parseCommit(
-				db.resolve(Constants.HEAD)).getParent(0));
+		try (RevWalk rw = new RevWalk(db)) {
+			assertEquals(lastMasterChange, rw.parseCommit(
+					db.resolve(Constants.HEAD)).getParent(0));
+		}
 		assertEquals(origHead, db.readOrigHead());
 		List<ReflogEntry> headLog = db.getReflogReader(Constants.HEAD)
 				.getReverseEntries();
@@ -735,8 +743,10 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		RebaseResult res = git.rebase().setUpstream("refs/heads/master").call();
 		assertEquals(Status.OK, res.getStatus());
 		checkFile(theFile, "1master\n2\n3\ntopic\n");
-		assertEquals(lastMasterChange, new RevWalk(db).parseCommit(
-				db.resolve(Constants.HEAD)).getParent(0));
+		try (RevWalk rw = new RevWalk(db)) {
+			assertEquals(lastMasterChange, rw.parseCommit(
+					db.resolve(Constants.HEAD)).getParent(0));
+		}
 
 		List<ReflogEntry> headLog = db.getReflogReader(Constants.HEAD)
 				.getReverseEntries();
@@ -783,8 +793,10 @@ public class RebaseCommandTest extends RepositoryTestCase {
 
 		// our old branch should be checked out again
 		assertEquals("refs/heads/file3", db.getFullBranch());
-		assertEquals(addFile2, new RevWalk(db).parseCommit(
-				db.resolve(Constants.HEAD)).getParent(0));
+		try (RevWalk rw = new RevWalk(db)) {
+			assertEquals(addFile2, rw.parseCommit(
+					db.resolve(Constants.HEAD)).getParent(0));
+		}
 
 		checkoutBranch("refs/heads/file2");
 		assertTrue(new File(db.getWorkTree(), FILE1).exists());
@@ -824,7 +836,7 @@ public class RebaseCommandTest extends RepositoryTestCase {
 				"<<<<<<< Upstream, based on master\n1master\n=======\n1topic",
 				">>>>>>> e0d1dea change file1 in topic\n2\n3\ntopic4");
 
-		assertEquals(RepositoryState.REBASING_INTERACTIVE, db
+		assertEquals(RepositoryState.REBASING_MERGE, db
 				.getRepositoryState());
 		assertTrue(new File(db.getDirectory(), "rebase-merge").exists());
 		// the first one should be included, so we should have left two picks in
@@ -844,9 +856,10 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals(res.getStatus(), Status.ABORTED);
 		assertEquals("refs/heads/topic", db.getFullBranch());
 		checkFile(FILE1, "1topic", "2", "3", "topic4");
-		RevWalk rw = new RevWalk(db);
-		assertEquals(lastTopicCommit, rw
-				.parseCommit(db.resolve(Constants.HEAD)));
+		try (RevWalk rw = new RevWalk(db)) {
+			assertEquals(lastTopicCommit,
+					rw.parseCommit(db.resolve(Constants.HEAD)));
+		}
 		assertEquals(RepositoryState.SAFE, db.getRepositoryState());
 
 		// rebase- dir in .git must be deleted
@@ -887,7 +900,7 @@ public class RebaseCommandTest extends RepositoryTestCase {
 				"<<<<<<< Upstream, based on master\n1master\n=======\n1topic",
 				">>>>>>> e0d1dea change file1 in topic\n2\n3\ntopic4");
 
-		assertEquals(RepositoryState.REBASING_INTERACTIVE,
+		assertEquals(RepositoryState.REBASING_MERGE,
 				db.getRepositoryState());
 		assertTrue(new File(db.getDirectory(), "rebase-merge").exists());
 		// the first one should be included, so we should have left two picks in
@@ -907,9 +920,10 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals(res.getStatus(), Status.ABORTED);
 		assertEquals(lastTopicCommit.getName(), db.getFullBranch());
 		checkFile(FILE1, "1topic", "2", "3", "topic4");
-		RevWalk rw = new RevWalk(db);
-		assertEquals(lastTopicCommit,
-				rw.parseCommit(db.resolve(Constants.HEAD)));
+		try (RevWalk rw = new RevWalk(db)) {
+			assertEquals(lastTopicCommit,
+					rw.parseCommit(db.resolve(Constants.HEAD)));
+		}
 		assertEquals(RepositoryState.SAFE, db.getRepositoryState());
 
 		// rebase- dir in .git must be deleted
@@ -964,11 +978,12 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals(RepositoryState.SAFE, db.getRepositoryState());
 
 		ObjectId headId = db.resolve(Constants.HEAD);
-		RevWalk rw = new RevWalk(db);
-		RevCommit rc = rw.parseCommit(headId);
-		RevCommit parent = rw.parseCommit(rc.getParent(0));
-		assertEquals("change file1 in topic\n\nThis is conflicting", parent
-				.getFullMessage());
+		try (RevWalk rw = new RevWalk(db)) {
+			RevCommit rc = rw.parseCommit(headId);
+			RevCommit parent = rw.parseCommit(rc.getParent(0));
+			assertEquals("change file1 in topic\n\nThis is conflicting", parent
+					.getFullMessage());
+		}
 	}
 
 	@Test
@@ -1009,15 +1024,16 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		res = git.rebase().setOperation(Operation.CONTINUE).call();
 		assertNotNull(res);
 		assertEquals(Status.NOTHING_TO_COMMIT, res.getStatus());
-		assertEquals(RepositoryState.REBASING_INTERACTIVE,
+		assertEquals(RepositoryState.REBASING_MERGE,
 				db.getRepositoryState());
 
 		git.rebase().setOperation(Operation.SKIP).call();
 
 		ObjectId headId = db.resolve(Constants.HEAD);
-		RevWalk rw = new RevWalk(db);
-		RevCommit rc = rw.parseCommit(headId);
-		assertEquals("change file1 in master", rc.getFullMessage());
+		try (RevWalk rw = new RevWalk(db)) {
+			RevCommit rc = rw.parseCommit(headId);
+			assertEquals("change file1 in master", rc.getFullMessage());
+		}
 	}
 
 	@Test
@@ -1300,16 +1316,17 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		// user can decide what to do. if he accidentally committed, reset soft,
 		// and continue, if he really has nothing to commit, skip.
 		assertEquals(Status.NOTHING_TO_COMMIT, res.getStatus());
-		assertEquals(RepositoryState.REBASING_INTERACTIVE,
+		assertEquals(RepositoryState.REBASING_MERGE,
 				db.getRepositoryState());
 
 		git.rebase().setOperation(Operation.SKIP).call();
 
 		ObjectId headId = db.resolve(Constants.HEAD);
-		RevWalk rw = new RevWalk(db);
-		RevCommit rc = rw.parseCommit(headId);
-		RevCommit parent = rw.parseCommit(rc.getParent(0));
-		assertEquals("A different commit message", parent.getFullMessage());
+		try (RevWalk rw = new RevWalk(db)) {
+			RevCommit rc = rw.parseCommit(headId);
+			RevCommit parent = rw.parseCommit(rc.getParent(0));
+			assertEquals("A different commit message", parent.getFullMessage());
+		}
 	}
 
 	private RevCommit writeFileAndCommit(String fileName, String commitMessage,
@@ -1401,7 +1418,7 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals(Status.STOPPED, res.getStatus());
 		assertEquals(conflicting, res.getCurrentCommit());
 
-		assertEquals(RepositoryState.REBASING_INTERACTIVE, db
+		assertEquals(RepositoryState.REBASING_MERGE, db
 				.getRepositoryState());
 		assertTrue(new File(db.getDirectory(), "rebase-merge").exists());
 		// the first one should be included, so we should have left two picks in
@@ -1418,9 +1435,10 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		res = git.rebase().setOperation(Operation.ABORT).call();
 		assertEquals(res.getStatus(), Status.ABORTED);
 		assertEquals("refs/heads/topic", db.getFullBranch());
-		RevWalk rw = new RevWalk(db);
-		assertEquals(conflicting, rw.parseCommit(db.resolve(Constants.HEAD)));
-		assertEquals(RepositoryState.SAFE, db.getRepositoryState());
+		try (RevWalk rw = new RevWalk(db)) {
+			assertEquals(conflicting, rw.parseCommit(db.resolve(Constants.HEAD)));
+			assertEquals(RepositoryState.SAFE, db.getRepositoryState());
+		}
 
 		// rebase- dir in .git must be deleted
 		assertFalse(new File(db.getDirectory(), "rebase-merge").exists());
@@ -2073,14 +2091,11 @@ public class RebaseCommandTest extends RepositoryTestCase {
 	private List<DiffEntry> diffWorkingAgainstHead(final RevCommit commit,
 			RevWalk revWalk)
 			throws IOException {
-		TreeWalk walk = createTreeWalk();
 		RevCommit parentCommit = revWalk.parseCommit(commit.getParent(0));
-		try {
+		try (TreeWalk walk = createTreeWalk()) {
 			walk.addTree(parentCommit.getTree());
 			walk.addTree(commit.getTree());
 			return DiffEntry.scan(walk);
-		} finally {
-			walk.release();
 		}
 	}
 
@@ -2287,14 +2302,15 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals(RebaseResult.Status.OK, res2.getStatus());
 
 		ObjectId headId = db.resolve(Constants.HEAD);
-		RevWalk rw = new RevWalk(db);
-		RevCommit rc = rw.parseCommit(headId);
+		try (RevWalk rw = new RevWalk(db)) {
+			RevCommit rc = rw.parseCommit(headId);
 
-		ObjectId head1Id = db.resolve(Constants.HEAD + "~1");
-		RevCommit rc1 = rw.parseCommit(head1Id);
+			ObjectId head1Id = db.resolve(Constants.HEAD + "~1");
+			RevCommit rc1 = rw.parseCommit(head1Id);
 
-		assertEquals(rc.getFullMessage(), c4.getFullMessage());
-		assertEquals(rc1.getFullMessage(), c2.getFullMessage());
+			assertEquals(rc.getFullMessage(), c4.getFullMessage());
+			assertEquals(rc1.getFullMessage(), c2.getFullMessage());
+		}
 	}
 
 	@Test
@@ -2644,15 +2660,16 @@ public class RebaseCommandTest extends RepositoryTestCase {
 					}
 				}).call();
 
-		RevWalk walk = new RevWalk(db);
-		ObjectId headId = db.resolve(Constants.HEAD);
-		RevCommit headCommit = walk.parseCommit(headId);
-		assertEquals(headCommit.getFullMessage(),
-				"update file2 on master\nnew line");
+		try (RevWalk walk = new RevWalk(db)) {
+			ObjectId headId = db.resolve(Constants.HEAD);
+			RevCommit headCommit = walk.parseCommit(headId);
+			assertEquals(headCommit.getFullMessage(),
+					"update file2 on master\nnew line");
 
-		ObjectId head2Id = db.resolve(Constants.HEAD + "^1");
-		RevCommit head1Commit = walk.parseCommit(head2Id);
-		assertEquals("changed", head1Commit.getFullMessage());
+			ObjectId head2Id = db.resolve(Constants.HEAD + "^1");
+			RevCommit head1Commit = walk.parseCommit(head2Id);
+			assertEquals("changed", head1Commit.getFullMessage());
+		}
 	}
 
 	@Test
@@ -2723,17 +2740,18 @@ public class RebaseCommandTest extends RepositoryTestCase {
 					}
 				}).call();
 
-		RevWalk walk = new RevWalk(db);
-		ObjectId headId = db.resolve(Constants.HEAD);
-		RevCommit headCommit = walk.parseCommit(headId);
-		assertEquals(headCommit.getFullMessage(),
-				"update file2 on master\nnew line");
+		try (RevWalk walk = new RevWalk(db)) {
+			ObjectId headId = db.resolve(Constants.HEAD);
+			RevCommit headCommit = walk.parseCommit(headId);
+			assertEquals(headCommit.getFullMessage(),
+					"update file2 on master\nnew line");
 
-		ObjectId head2Id = db.resolve(Constants.HEAD + "^1");
-		RevCommit head1Commit = walk.parseCommit(head2Id);
-		assertEquals(
-				"Add file1\nnew line\nAdd file2\nnew line\nupdated file1 on master\nnew line",
-				head1Commit.getFullMessage());
+			ObjectId head2Id = db.resolve(Constants.HEAD + "^1");
+			RevCommit head1Commit = walk.parseCommit(head2Id);
+			assertEquals(
+					"Add file1\nnew line\nAdd file2\nnew line\nupdated file1 on master\nnew line",
+					head1Commit.getFullMessage());
+		}
 	}
 
 	@Test
@@ -2805,15 +2823,16 @@ public class RebaseCommandTest extends RepositoryTestCase {
 					}
 				}).call();
 
-		RevWalk walk = new RevWalk(db);
-		ObjectId headId = db.resolve(Constants.HEAD);
-		RevCommit headCommit = walk.parseCommit(headId);
-		assertEquals(headCommit.getFullMessage(),
-				"update file2 on master\nnew line");
+		try (RevWalk walk = new RevWalk(db)) {
+			ObjectId headId = db.resolve(Constants.HEAD);
+			RevCommit headCommit = walk.parseCommit(headId);
+			assertEquals(headCommit.getFullMessage(),
+					"update file2 on master\nnew line");
 
-		ObjectId head2Id = db.resolve(Constants.HEAD + "^1");
-		RevCommit head1Commit = walk.parseCommit(head2Id);
-		assertEquals("changed", head1Commit.getFullMessage());
+			ObjectId head2Id = db.resolve(Constants.HEAD + "^1");
+			RevCommit head1Commit = walk.parseCommit(head2Id);
+			assertEquals("changed", head1Commit.getFullMessage());
+		}
 	}
 
 	@Test
@@ -2856,16 +2875,17 @@ public class RebaseCommandTest extends RepositoryTestCase {
 					}
 				}).call();
 
-		RevWalk walk = new RevWalk(db);
-		ObjectId headId = db.resolve(Constants.HEAD);
-		RevCommit headCommit = walk.parseCommit(headId);
-		assertEquals("update file2 on master\nnew line",
-				headCommit.getFullMessage());
+		try (RevWalk walk = new RevWalk(db)) {
+			ObjectId headId = db.resolve(Constants.HEAD);
+			RevCommit headCommit = walk.parseCommit(headId);
+			assertEquals("update file2 on master\nnew line",
+					headCommit.getFullMessage());
 
-		ObjectId head1Id = db.resolve(Constants.HEAD + "^1");
-		RevCommit head1Commit = walk.parseCommit(head1Id);
-		assertEquals("Add file2\nnew line",
-				head1Commit.getFullMessage());
+			ObjectId head1Id = db.resolve(Constants.HEAD + "^1");
+			RevCommit head1Commit = walk.parseCommit(head1Id);
+			assertEquals("Add file2\nnew line",
+					head1Commit.getFullMessage());
+		}
 	}
 
 	@Test
@@ -2904,11 +2924,12 @@ public class RebaseCommandTest extends RepositoryTestCase {
 					}
 				}).call();
 
-		RevWalk walk = new RevWalk(db);
-		ObjectId headId = db.resolve(Constants.HEAD);
-		RevCommit headCommit = walk.parseCommit(headId);
-		assertEquals("Add file2",
-				headCommit.getFullMessage());
+		try (RevWalk walk = new RevWalk(db)) {
+			ObjectId headId = db.resolve(Constants.HEAD);
+			RevCommit headCommit = walk.parseCommit(headId);
+			assertEquals("Add file2",
+					headCommit.getFullMessage());
+		}
 	}
 
 	@Test(expected = InvalidRebaseStepException.class)

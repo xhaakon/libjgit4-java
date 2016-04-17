@@ -82,6 +82,9 @@ class Push extends TextBuiltin {
 	@Option(name = "--all")
 	private boolean all;
 
+	@Option(name = "--atomic")
+	private boolean atomic;
+
 	@Option(name = "--tags")
 	private boolean tags;
 
@@ -109,27 +112,26 @@ class Push extends TextBuiltin {
 
 	@Override
 	protected void run() throws Exception {
-		Git git = new Git(db);
-		PushCommand push = git.push();
-		push.setDryRun(dryRun);
-		push.setForce(force);
-		push.setProgressMonitor(new TextProgressMonitor(errw));
-		push.setReceivePack(receivePack);
-		push.setRefSpecs(refSpecs);
-		if (all)
-			push.setPushAll();
-		if (tags)
-			push.setPushTags();
-		push.setRemote(remote);
-		push.setThin(thin);
-		push.setTimeout(timeout);
-		Iterable<PushResult> results = push.call();
-		for (PushResult result : results) {
-			ObjectReader reader = db.newObjectReader();
-			try {
-				printPushResult(reader, result.getURI(), result);
-			} finally {
-				reader.release();
+		try (Git git = new Git(db)) {
+			PushCommand push = git.push();
+			push.setDryRun(dryRun);
+			push.setForce(force);
+			push.setProgressMonitor(new TextProgressMonitor(errw));
+			push.setReceivePack(receivePack);
+			push.setRefSpecs(refSpecs);
+			if (all)
+				push.setPushAll();
+			if (tags)
+				push.setPushTags();
+			push.setRemote(remote);
+			push.setThin(thin);
+			push.setAtomic(atomic);
+			push.setTimeout(timeout);
+			Iterable<PushResult> results = push.call();
+			for (PushResult result : results) {
+				try (ObjectReader reader = db.newObjectReader()) {
+					printPushResult(reader, result.getURI(), result);
+				}
 			}
 		}
 	}
@@ -180,15 +182,15 @@ class Push extends TextBuiltin {
 		switch (rru.getStatus()) {
 		case OK:
 			if (rru.isDelete())
-				printUpdateLine('-', "[deleted]", null, remoteName, null);
+				printUpdateLine('-', "[deleted]", null, remoteName, null); //$NON-NLS-1$
 			else {
 				final Ref oldRef = result.getAdvertisedRef(remoteName);
 				if (oldRef == null) {
 					final String summary;
 					if (remoteName.startsWith(Constants.R_TAGS))
-						summary = "[new tag]";
+						summary = "[new tag]"; //$NON-NLS-1$
 					else
-						summary = "[new branch]";
+						summary = "[new branch]"; //$NON-NLS-1$
 					printUpdateLine('*', summary, srcRef, remoteName, null);
 				} else {
 					boolean fastForward = rru.isFastForward();
@@ -204,16 +206,16 @@ class Push extends TextBuiltin {
 			break;
 
 		case NON_EXISTING:
-			printUpdateLine('X', "[no match]", null, remoteName, null);
+			printUpdateLine('X', "[no match]", null, remoteName, null); //$NON-NLS-1$
 			break;
 
 		case REJECTED_NODELETE:
-			printUpdateLine('!', "[rejected]", null, remoteName,
+			printUpdateLine('!', "[rejected]", null, remoteName, //$NON-NLS-1$
 					CLIText.get().remoteSideDoesNotSupportDeletingRefs);
 			break;
 
 		case REJECTED_NONFASTFORWARD:
-			printUpdateLine('!', "[rejected]", srcRef, remoteName,
+			printUpdateLine('!', "[rejected]", srcRef, remoteName, //$NON-NLS-1$
 					CLIText.get().nonFastForward);
 			break;
 
@@ -221,22 +223,22 @@ class Push extends TextBuiltin {
 			final String message = MessageFormat.format(
 					CLIText.get().remoteRefObjectChangedIsNotExpectedOne,
 					safeAbbreviate(reader, rru.getExpectedOldObjectId()));
-			printUpdateLine('!', "[rejected]", srcRef, remoteName, message);
+			printUpdateLine('!', "[rejected]", srcRef, remoteName, message); //$NON-NLS-1$
 			break;
 
 		case REJECTED_OTHER_REASON:
-			printUpdateLine('!', "[remote rejected]", srcRef, remoteName, rru
+			printUpdateLine('!', "[remote rejected]", srcRef, remoteName, rru //$NON-NLS-1$
 					.getMessage());
 			break;
 
 		case UP_TO_DATE:
 			if (verbose)
-				printUpdateLine('=', "[up to date]", srcRef, remoteName, null);
+				printUpdateLine('=', "[up to date]", srcRef, remoteName, null); //$NON-NLS-1$
 			break;
 
 		case NOT_ATTEMPTED:
 		case AWAITING_REPORT:
-			printUpdateLine('?', "[unexpected push-process behavior]", srcRef,
+			printUpdateLine('?', "[unexpected push-process behavior]", srcRef, //$NON-NLS-1$
 					remoteName, rru.getMessage());
 			break;
 		}

@@ -79,7 +79,7 @@ public class Daemon {
 
 	private boolean run;
 
-	private Thread acceptThread;
+	Thread acceptThread;
 
 	private int timeout;
 
@@ -87,9 +87,9 @@ public class Daemon {
 
 	private volatile RepositoryResolver<DaemonClient> repositoryResolver;
 
-	private volatile UploadPackFactory<DaemonClient> uploadPackFactory;
+	volatile UploadPackFactory<DaemonClient> uploadPackFactory;
 
-	private volatile ReceivePackFactory<DaemonClient> receivePackFactory;
+	volatile ReceivePackFactory<DaemonClient> receivePackFactory;
 
 	/** Configure a daemon to listen on any available network port. */
 	public Daemon() {
@@ -256,6 +256,16 @@ public class Daemon {
 	}
 
 	/**
+	 * Get the factory used to construct per-request ReceivePack.
+	 *
+	 * @return the factory.
+	 * @since 4.3
+	 */
+	public ReceivePackFactory<DaemonClient> getReceivePackFactory() {
+		return receivePackFactory;
+	}
+
+	/**
 	 * Set the factory to construct and configure per-request ReceivePack.
 	 *
 	 * @param factory
@@ -326,7 +336,7 @@ public class Daemon {
 		}
 	}
 
-	private void startClient(final Socket s) {
+	void startClient(final Socket s) {
 		final DaemonClient dc = new DaemonClient(this);
 
 		final SocketAddress peer = s.getRemoteSocketAddress();

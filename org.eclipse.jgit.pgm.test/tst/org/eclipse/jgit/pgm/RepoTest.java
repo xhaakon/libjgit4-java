@@ -44,8 +44,11 @@ package org.eclipse.jgit.pgm;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.File;
+import java.util.Arrays;
+
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.lib.CLIRepositoryTestCase;
@@ -71,30 +74,59 @@ public class RepoTest extends CLIRepositoryTestCase {
 		super.setUp();
 
 		defaultDb = createWorkRepository();
-		Git git = new Git(defaultDb);
-		JGitTestUtil.writeTrashFile(defaultDb, "hello.txt", "world");
-		git.add().addFilepattern("hello.txt").call();
-		git.commit().setMessage("Initial commit").call();
+		try (Git git = new Git(defaultDb)) {
+			JGitTestUtil.writeTrashFile(defaultDb, "hello.txt", "world");
+			git.add().addFilepattern("hello.txt").call();
+			git.commit().setMessage("Initial commit").call();
+		}
 
 		notDefaultDb = createWorkRepository();
-		git = new Git(notDefaultDb);
-		JGitTestUtil.writeTrashFile(notDefaultDb, "world.txt", "hello");
-		git.add().addFilepattern("world.txt").call();
-		git.commit().setMessage("Initial commit").call();
+		try (Git git = new Git(notDefaultDb)) {
+			JGitTestUtil.writeTrashFile(notDefaultDb, "world.txt", "hello");
+			git.add().addFilepattern("world.txt").call();
+			git.commit().setMessage("Initial commit").call();
+		}
 
 		groupADb = createWorkRepository();
-		git = new Git(groupADb);
-		JGitTestUtil.writeTrashFile(groupADb, "a.txt", "world");
-		git.add().addFilepattern("a.txt").call();
-		git.commit().setMessage("Initial commit").call();
+		try (Git git = new Git(groupADb)) {
+			JGitTestUtil.writeTrashFile(groupADb, "a.txt", "world");
+			git.add().addFilepattern("a.txt").call();
+			git.commit().setMessage("Initial commit").call();
+		}
 
 		groupBDb = createWorkRepository();
-		git = new Git(groupBDb);
-		JGitTestUtil.writeTrashFile(groupBDb, "b.txt", "world");
-		git.add().addFilepattern("b.txt").call();
-		git.commit().setMessage("Initial commit").call();
+		try (Git git = new Git(groupBDb)) {
+			JGitTestUtil.writeTrashFile(groupBDb, "b.txt", "world");
+			git.add().addFilepattern("b.txt").call();
+			git.commit().setMessage("Initial commit").call();
+		}
 
 		resolveRelativeUris();
+	}
+
+	@Test
+	public void testMissingPath() throws Exception {
+		try {
+			execute("git repo");
+			fail("Must die");
+		} catch (Die e) {
+			// expected, requires argument
+		}
+	}
+
+	/**
+	 * See bug 484951: "git repo -h" should not print unexpected values
+	 *
+	 * @throws Exception
+	 */
+	@Test
+	public void testZombieHelpArgument() throws Exception {
+		String[] output = execute("git repo -h");
+		String all = Arrays.toString(output);
+		assertTrue("Unexpected help output: " + all,
+				all.contains("jgit repo"));
+		assertFalse("Unexpected help output: " + all,
+				all.contains("jgit repo VAL"));
 	}
 
 	@Test

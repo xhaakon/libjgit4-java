@@ -44,8 +44,13 @@
 package org.eclipse.jgit.internal.storage.dfs;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.text.MessageFormat;
+import java.util.Collections;
 
+import org.eclipse.jgit.attributes.AttributesNode;
+import org.eclipse.jgit.attributes.AttributesNodeProvider;
+import org.eclipse.jgit.attributes.AttributesRule;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.RefUpdate;
@@ -74,9 +79,6 @@ public abstract class DfsRepository extends Repository {
 	@Override
 	public abstract DfsObjDatabase getObjectDatabase();
 
-	@Override
-	public abstract DfsRefDatabase getRefDatabase();
-
 	/** @return a description of this repository. */
 	public DfsRepositoryDescription getDescription() {
 		return description;
@@ -90,7 +92,10 @@ public abstract class DfsRepository extends Repository {
 	 *             the repository cannot be checked.
 	 */
 	public boolean exists() throws IOException {
-		return getRefDatabase().exists();
+		if (getRefDatabase() instanceof DfsRefDatabase) {
+			return ((DfsRefDatabase) getRefDatabase()).exists();
+		}
+		return true;
 	}
 
 	@Override
@@ -112,7 +117,7 @@ public abstract class DfsRepository extends Repository {
 
 	@Override
 	public void scanForRepoChanges() throws IOException {
-		getRefDatabase().clearCache();
+		getRefDatabase().refresh();
 		getObjectDatabase().clearCache();
 	}
 
@@ -125,5 +130,37 @@ public abstract class DfsRepository extends Repository {
 	@Override
 	public ReflogReader getReflogReader(String refName) throws IOException {
 		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public AttributesNodeProvider createAttributesNodeProvider() {
+		// TODO Check if the implementation used in FileRepository can be used
+		// for this kind of repository
+		return new EmptyAttributesNodeProvider();
+	}
+
+	private static class EmptyAttributesNodeProvider implements
+			AttributesNodeProvider {
+		private EmptyAttributesNode emptyAttributesNode = new EmptyAttributesNode();
+
+		public AttributesNode getInfoAttributesNode() throws IOException {
+			return emptyAttributesNode;
+		}
+
+		public AttributesNode getGlobalAttributesNode() throws IOException {
+			return emptyAttributesNode;
+		}
+
+		private static class EmptyAttributesNode extends AttributesNode {
+
+			public EmptyAttributesNode() {
+				super(Collections.<AttributesRule> emptyList());
+			}
+
+			@Override
+			public void parse(InputStream in) throws IOException {
+				// Do nothing
+			}
+		}
 	}
 }

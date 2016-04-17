@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.util.ChangeIdUtil;
@@ -76,48 +77,48 @@ public class MergeMessageFormatter {
 		List<String> commits = new ArrayList<String>();
 		List<String> others = new ArrayList<String>();
 		for (Ref ref : refsToMerge) {
-			if (ref.getName().startsWith(Constants.R_HEADS))
+			if (ref.getName().startsWith(Constants.R_HEADS)) {
 				branches.add("'" + Repository.shortenRefName(ref.getName()) //$NON-NLS-1$
 						+ "'"); //$NON-NLS-1$
-
-			else if (ref.getName().startsWith(Constants.R_REMOTES))
+			} else if (ref.getName().startsWith(Constants.R_REMOTES)) {
 				remoteBranches.add("'" //$NON-NLS-1$
 						+ Repository.shortenRefName(ref.getName()) + "'"); //$NON-NLS-1$
-
-			else if (ref.getName().startsWith(Constants.R_TAGS))
+			} else if (ref.getName().startsWith(Constants.R_TAGS)) {
 				tags.add("'" + Repository.shortenRefName(ref.getName()) + "'"); //$NON-NLS-1$ //$NON-NLS-2$
-
-			else if (ref.getName().equals(ref.getObjectId().getName()))
-				commits.add("'" + ref.getName() + "'"); //$NON-NLS-1$ //$NON-NLS-2$
-
-			else
-				others.add(ref.getName());
+			} else {
+				ObjectId objectId = ref.getObjectId();
+				if (objectId != null && ref.getName().equals(objectId.getName())) {
+					commits.add("'" + ref.getName() + "'"); //$NON-NLS-1$ //$NON-NLS-2$
+				} else {
+					others.add(ref.getName());
+				}
+			}
 		}
 
 		List<String> listings = new ArrayList<String>();
 
 		if (!branches.isEmpty())
-			listings.add(joinNames(branches, "branch", "branches"));
+			listings.add(joinNames(branches, "branch", "branches")); //$NON-NLS-1$//$NON-NLS-2$
 
 		if (!remoteBranches.isEmpty())
-			listings.add(joinNames(remoteBranches, "remote-tracking branch",
-					"remote-tracking branches"));
+			listings.add(joinNames(remoteBranches, "remote-tracking branch", //$NON-NLS-1$
+					"remote-tracking branches")); //$NON-NLS-1$
 
 		if (!tags.isEmpty())
-			listings.add(joinNames(tags, "tag", "tags"));
+			listings.add(joinNames(tags, "tag", "tags")); //$NON-NLS-1$ //$NON-NLS-2$
 
 		if (!commits.isEmpty())
-			listings.add(joinNames(commits, "commit", "commits"));
+			listings.add(joinNames(commits, "commit", "commits")); //$NON-NLS-1$ //$NON-NLS-2$
 
 		if (!others.isEmpty())
-			listings.add(StringUtils.join(others, ", ", " and ")); //$NON-NLS-1$
+			listings.add(StringUtils.join(others, ", ", " and ")); //$NON-NLS-1$ //$NON-NLS-2$
 
 		sb.append(StringUtils.join(listings, ", ")); //$NON-NLS-1$
 
 		String targetName = target.getLeaf().getName();
 		if (!targetName.equals(Constants.R_HEADS + Constants.MASTER)) {
 			String targetShortName = Repository.shortenRefName(targetName);
-			sb.append(" into " + targetShortName);
+			sb.append(" into " + targetShortName); //$NON-NLS-1$
 		}
 
 		return sb.toString();

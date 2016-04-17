@@ -1,47 +1,39 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <component id="org.eclipse.jgit" version="2">
-    <resource path="META-INF/MANIFEST.MF">
-        <filter comment="minor addition" id="924844039">
+    <resource path="src/org/eclipse/jgit/attributes/AttributesNode.java" type="org.eclipse.jgit.attributes.AttributesNode">
+        <filter comment="moved to new AttributesManager" id="338792546">
             <message_arguments>
-                <message_argument value="3.4.0"/>
-                <message_argument value="3.4.0"/>
+                <message_argument value="org.eclipse.jgit.attributes.AttributesNode"/>
+                <message_argument value="getAttributes(String, boolean, Attributes)"/>
             </message_arguments>
         </filter>
     </resource>
-    <resource path="src/org/eclipse/jgit/lib/ObjectInserter.java" type="org.eclipse.jgit.lib.ObjectInserter">
-        <filter id="336695337">
+    <resource path="src/org/eclipse/jgit/attributes/AttributesRule.java" type="org.eclipse.jgit.attributes.AttributesRule">
+        <filter comment="used only in tests: bean naming" id="338792546">
             <message_arguments>
-                <message_argument value="org.eclipse.jgit.lib.ObjectInserter"/>
-                <message_argument value="newReader()"/>
+                <message_argument value="org.eclipse.jgit.attributes.AttributesRule"/>
+                <message_argument value="dirOnly()"/>
             </message_arguments>
         </filter>
     </resource>
-    <resource path="src/org/eclipse/jgit/merge/ResolveMerger.java" type="org.eclipse.jgit.merge.ResolveMerger">
-        <filter comment="Doesn't break consumers. Breaking providers is allowed also in minor versions." id="338792546">
+    <resource path="src/org/eclipse/jgit/dircache/DirCacheCheckout.java" type="org.eclipse.jgit.dircache.DirCacheCheckout">
+        <filter comment="add eol stream type conversion" id="338792546">
             <message_arguments>
-                <message_argument value="org.eclipse.jgit.merge.ResolveMerger"/>
-                <message_argument value="mergeTreeWalk(TreeWalk)"/>
+                <message_argument value="org.eclipse.jgit.dircache.DirCacheCheckout"/>
+                <message_argument value="checkoutEntry(Repository, DirCacheEntry, ObjectReader, boolean)"/>
             </message_arguments>
         </filter>
-        <filter comment="Doesn't break consumers. Breaking providers is allowed also in minor versions." id="338792546">
+        <filter comment="add eol stream type conversion" id="338792546">
             <message_arguments>
-                <message_argument value="org.eclipse.jgit.merge.ResolveMerger"/>
-                <message_argument value="mergeTrees(AbstractTreeIterator, RevTree, RevTree)"/>
+                <message_argument value="org.eclipse.jgit.dircache.DirCacheCheckout"/>
+                <message_argument value="checkoutEntry(Repository, DirCacheEntry, ObjectReader, boolean, String)"/>
             </message_arguments>
         </filter>
-        <filter comment="Doesn't break consumers. Breaking providers is allowed also in minor versions." id="338792546">
+        <filter comment="add eol stream type conversion" id="1141899266">
             <message_arguments>
-                <message_argument value="org.eclipse.jgit.merge.ResolveMerger"/>
-                <message_argument value="processEntry(CanonicalTreeParser, CanonicalTreeParser, CanonicalTreeParser, DirCacheBuildIterator, WorkingTreeIterator)"/>
-            </message_arguments>
-        </filter>
-    </resource>
-    <resource path="src/org/eclipse/jgit/transport/GitProtocolConstants.java" type="org.eclipse.jgit.transport.GitProtocolConstants">
-        <filter id="388194388">
-            <message_arguments>
-                <message_argument value="org.eclipse.jgit.transport.GitProtocolConstants"/>
-                <message_argument value="CAPABILITY_ATOMIC"/>
-                <message_argument value="atomic-push"/>
+                <message_argument value="4.2"/>
+                <message_argument value="4.3"/>
+                <message_argument value="checkoutEntry(Repository, DirCacheEntry, ObjectReader, boolean, DirCacheCheckout.CheckoutMetadata)"/>
             </message_arguments>
         </filter>
     </resource>

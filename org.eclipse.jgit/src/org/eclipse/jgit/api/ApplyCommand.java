@@ -47,6 +47,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.StandardCopyOption;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -141,9 +142,13 @@ public class ApplyCommand extends GitCommand<ApplyResult> {
 				case RENAME:
 					f = getFile(fh.getOldPath(), false);
 					File dest = getFile(fh.getNewPath(), false);
-					if (!f.renameTo(dest))
+					try {
+						FileUtils.rename(f, dest,
+								StandardCopyOption.ATOMIC_MOVE);
+					} catch (IOException e) {
 						throw new PatchApplyException(MessageFormat.format(
-								JGitText.get().renameFileFailed, f, dest));
+								JGitText.get().renameFileFailed, f, dest), e);
+					}
 					break;
 				case COPY:
 					f = getFile(fh.getOldPath(), false);
@@ -196,10 +201,12 @@ public class ApplyCommand extends GitCommand<ApplyResult> {
 			oldLines.add(rt.getString(i));
 		List<String> newLines = new ArrayList<String>(oldLines);
 		for (HunkHeader hh : fh.getHunks()) {
-			StringBuilder hunk = new StringBuilder();
-			for (int j = hh.getStartOffset(); j < hh.getEndOffset(); j++)
-				hunk.append((char) hh.getBuffer()[j]);
-			RawText hrt = new RawText(hunk.toString().getBytes());
+
+			byte[] b = new byte[hh.getEndOffset() - hh.getStartOffset()];
+			System.arraycopy(hh.getBuffer(), hh.getStartOffset(), b, 0,
+					b.length);
+			RawText hrt = new RawText(b);
+
 			List<String> hunkLines = new ArrayList<String>(hrt.size());
 			for (int i = 0; i < hrt.size(); i++)
 				hunkLines.add(hrt.getString(i));
