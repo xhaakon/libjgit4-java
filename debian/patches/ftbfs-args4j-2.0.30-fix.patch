@@ -6,34 +6,74 @@ Setting multiValued was removed from @Option in args4j 2.0.23
 as it had no effect.
 
 Added 'hidden' argument to OptionDef constructor.
----
- org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java    |  2 +-
- org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java      | 10 +++++-----
- org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java        |  2 +-
- org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java    |  2 +-
- org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java      |  2 +-
- .../src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java           |  2 +-
- org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java        |  2 +-
- org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java      |  2 +-
- .../src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java         |  4 ++--
- .../src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java      |  6 +++---
- .../src/org/eclipse/jgit/pgm/opt/CmdLineParser.java            |  2 +-
- 11 files changed, 18 insertions(+), 18 deletions(-)
 
+org.kohsuke.args4j.CmdLineParser.getOptions() was added, no need
+to introduce own private version.
+
+Fields args4j assigns into can't be final anymore.
+
+Fix help string tests.
+---
+ .../tst/org/eclipse/jgit/pgm/ResetTest.java          |  2 +-
+ .../tst/org/eclipse/jgit/pgm/StatusTest.java         |  2 +-
+ .../src/org/eclipse/jgit/pgm/Checkout.java           |  2 +-
+ .../src/org/eclipse/jgit/pgm/Daemon.java             | 10 +++++-----
+ .../src/org/eclipse/jgit/pgm/Diff.java               |  2 +-
+ .../src/org/eclipse/jgit/pgm/DiffTree.java           |  2 +-
+ .../src/org/eclipse/jgit/pgm/LsTree.java             |  2 +-
+ .../src/org/eclipse/jgit/pgm/Reset.java              |  2 +-
+ .../src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java |  4 ++--
+ .../src/org/eclipse/jgit/pgm/Show.java               |  2 +-
+ .../src/org/eclipse/jgit/pgm/Status.java             |  2 +-
+ .../org/eclipse/jgit/pgm/debug/DiffAlgorithms.java   |  4 ++--
+ .../eclipse/jgit/pgm/debug/TextHashFunctions.java    |  6 +++---
+ .../src/org/eclipse/jgit/pgm/opt/CmdLineParser.java  | 20 +-------------------
+ 14 files changed, 22 insertions(+), 40 deletions(-)
+
+diff --git a/org.eclipse.jgit.pgm.test/tst/org/eclipse/jgit/pgm/ResetTest.java b/org.eclipse.jgit.pgm.test/tst/org/eclipse/jgit/pgm/ResetTest.java
+index 16c5889..46dbc85 100644
+--- a/org.eclipse.jgit.pgm.test/tst/org/eclipse/jgit/pgm/ResetTest.java
++++ b/org.eclipse.jgit.pgm.test/tst/org/eclipse/jgit/pgm/ResetTest.java
+@@ -66,7 +66,7 @@ public void setUp() throws Exception {
+ 	public void testPathOptionHelp() throws Exception {
+ 		String[] result = execute("git reset -h");
+ 		assertTrue("Unexpected argument: " + result[1],
+-				result[1].endsWith("[-- path ... ...]"));
++				result[1].endsWith("[-- path ...]"));
+ 	}
+ 
+ 	@Test
+diff --git a/org.eclipse.jgit.pgm.test/tst/org/eclipse/jgit/pgm/StatusTest.java b/org.eclipse.jgit.pgm.test/tst/org/eclipse/jgit/pgm/StatusTest.java
+index 368047c..cc68da2 100644
+--- a/org.eclipse.jgit.pgm.test/tst/org/eclipse/jgit/pgm/StatusTest.java
++++ b/org.eclipse.jgit.pgm.test/tst/org/eclipse/jgit/pgm/StatusTest.java
+@@ -60,7 +60,7 @@
+ 	public void testPathOptionHelp() throws Exception {
+ 		String[] result = execute("git status -h");
+ 		assertTrue("Unexpected argument: " + result[1],
+-				result[1].endsWith("[-- path ... ...]"));
++				result[1].endsWith("[-- path ...]"));
+ 	}
+ 
+ 	@Test
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java
+index 94517db..dbf793a 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Checkout.java
-@@ -78,7 +78,7 @@
+@@ -77,7 +77,7 @@
+ 	@Argument(required = false, index = 0, metaVar = "metaVar_name", usage = "usage_checkout")
  	private String name;
  
- 	@Argument(index = 1)
--	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = StopOptionHandler.class)
-+	@Option(name = "--", metaVar = "metaVar_paths", handler = StopOptionHandler.class)
+-	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = RestOfArgumentsHandler.class)
++	@Option(name = "--", metaVar = "metaVar_paths", handler = RestOfArgumentsHandler.class)
  	private List<String> paths = new ArrayList<String>();
  
  	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java
+index 03f3fac..0f37c61 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Daemon.java
-@@ -75,16 +75,16 @@
+@@ -86,16 +86,16 @@
  	@Option(name = "--timeout", metaVar = "metaVar_seconds", usage = "usage_abortConnectionIfNoActivity")
  	int timeout = -1;
  
@@ -54,13 +94,15 @@ Added 'hidden' argument to OptionDef constructor.
  	final List<String> forbidOverride = new ArrayList<String>();
  
  	@Option(name = "--export-all", usage = "usage_exportWithoutGitDaemonExportOk")
-@@ -159,4 +159,4 @@
- 			throw die(MessageFormat.format(CLIText.get().serviceNotSupported, n));
- 		return svc;
+@@ -204,4 +204,4 @@ public ReceivePack create(DaemonClient req, Repository repo)
+ 			}
+ 		});
  	}
 -}
 \ No newline at end of file
 +}
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java
+index 61a385d..16284d5 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Diff.java
 @@ -89,7 +89,7 @@
@@ -72,9 +114,11 @@ Added 'hidden' argument to OptionDef constructor.
  	private TreeFilter pathFilter = TreeFilter.ALL;
  
  	// BEGIN -- Options shared with Log
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java
+index 32adf6d..ecf8d60 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/DiffTree.java
-@@ -69,7 +69,7 @@
+@@ -69,7 +69,7 @@ void tree_0(final AbstractTreeIterator c) {
  	@Argument(index = 1, metaVar = "metaVar_treeish", required = true)
  	private final List<AbstractTreeIterator> trees = new ArrayList<AbstractTreeIterator>();
  
@@ -83,6 +127,8 @@ Added 'hidden' argument to OptionDef constructor.
  	private TreeFilter pathFilter = TreeFilter.ALL;
  
  	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java
+index 872ea67..db7844f 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/LsTree.java
 @@ -67,7 +67,7 @@
@@ -94,17 +140,37 @@ Added 'hidden' argument to OptionDef constructor.
  	private List<String> paths = new ArrayList<String>();
  
  	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Reset.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Reset.java
+index 9cee37b..4c19883 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Reset.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Reset.java
+@@ -69,7 +69,7 @@
+ 	private String commit;
+ 
+ 	@Argument(required = false, index = 1, metaVar = "metaVar_paths")
+-	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = RestOfArgumentsHandler.class)
++	@Option(name = "--", metaVar = "metaVar_paths", handler = RestOfArgumentsHandler.class)
+ 	private List<String> paths = new ArrayList<>();
+ 
+ 	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
+index d6063c3..23e66a2 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/RevWalkTextBuiltin.java
-@@ -126,7 +126,7 @@
+@@ -124,9 +124,9 @@ void enableBoundary(final boolean on) {
+ 	private String followPath;
+ 
  	@Argument(index = 0, metaVar = "metaVar_commitish")
- 	private final List<RevCommit> commits = new ArrayList<RevCommit>();
+-	private final List<RevCommit> commits = new ArrayList<RevCommit>();
++	private List<RevCommit> commits = new ArrayList<RevCommit>();
  
 -	@Option(name = "--", metaVar = "metaVar_path", multiValued = true, handler = PathTreeFilterHandler.class)
 +	@Option(name = "--", metaVar = "metaVar_path", handler = PathTreeFilterHandler.class)
  	protected TreeFilter pathFilter = TreeFilter.ALL;
  
  	private final List<RevFilter> revLimiter = new ArrayList<RevFilter>();
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java
+index c5986b0..9b26187 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Show.java
 @@ -87,7 +87,7 @@
@@ -116,20 +182,24 @@ Added 'hidden' argument to OptionDef constructor.
  	protected TreeFilter pathFilter = TreeFilter.ALL;
  
  	// BEGIN -- Options shared with Diff
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java
+index 6a63221..f965eae 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Status.java
-@@ -75,7 +75,7 @@
- 	@Option(name = "--porcelain", usage = "usage_machineReadableOutput")
- 	protected boolean porcelain;
+@@ -85,7 +85,7 @@
+ 	protected String untrackedFilesMode = "all"; // default value //$NON-NLS-1$
  
--	@Option(name = "--", metaVar = "metaVar_path", multiValued = true)
-+	@Option(name = "--", metaVar = "metaVar_path")
+ 	@Argument(required = false, index = 0, metaVar = "metaVar_paths")
+-	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = RestOfArgumentsHandler.class)
++	@Option(name = "--", metaVar = "metaVar_paths", handler = RestOfArgumentsHandler.class)
  	protected List<String> filterPaths;
  
  	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java
+index 05d094f..27cac2d 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/DiffAlgorithms.java
-@@ -111,13 +111,13 @@
+@@ -111,13 +111,13 @@ DiffAlgorithm create() {
  	//
  	//
  
@@ -145,9 +215,11 @@ Added 'hidden' argument to OptionDef constructor.
  	List<File> gitDirs = new ArrayList<File>();
  
  	@Option(name = "--count", metaVar = "LIMIT", usage = "Number of file revisions to be compared")
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java
+index 28d92ae..22050f6 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/debug/TextHashFunctions.java
-@@ -250,16 +250,16 @@
+@@ -250,16 +250,16 @@ public int fold(int hash, int bits) {
  	//
  	//
  
@@ -167,10 +239,12 @@ Added 'hidden' argument to OptionDef constructor.
  	List<File> gitDirs = new ArrayList<File>();
  
  	@Override
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
+index b531ba6..01ef76b 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/opt/CmdLineParser.java
-@@ -184,7 +184,7 @@
- 	static class MyOptionDef extends OptionDef {
+@@ -267,7 +267,7 @@ public RevWalk getRevWalkGently() {
+ 	class MyOptionDef extends OptionDef {
  
  		public MyOptionDef(OptionDef o) {
 -			super(o.usage(), o.metaVar(), o.required(), o.handler(), o
@@ -178,3 +252,28 @@ Added 'hidden' argument to OptionDef constructor.
  					.isMultiValued());
  		}
  
+@@ -300,24 +300,6 @@ protected OptionHandler createOptionHandler(OptionDef o, Setter setter) {
+ 
+ 	}
+ 
+-	@SuppressWarnings("unchecked")
+-	private List<OptionHandler> getOptions() {
+-		List<OptionHandler> options = null;
+-		try {
+-			Field field = org.kohsuke.args4j.CmdLineParser.class
+-					.getDeclaredField("options"); //$NON-NLS-1$
+-			field.setAccessible(true);
+-			options = (List<OptionHandler>) field.get(this);
+-		} catch (NoSuchFieldException | SecurityException
+-				| IllegalArgumentException | IllegalAccessException e) {
+-			// ignore
+-		}
+-		if (options == null) {
+-			return Collections.emptyList();
+-		}
+-		return options;
+-	}
+-
+ 	@Override
+ 	public void printSingleLineUsage(Writer w, ResourceBundle rb) {
+ 		List<OptionHandler> options = getOptions();
