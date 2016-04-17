@@ -50,7 +50,7 @@ import java.io.InputStream;
 import org.eclipse.jgit.diff.RawText;
 
 /**
- * An OutputStream that expands LF to CRLF.
+ * An InputStream that expands LF to CRLF.
  *
  * Existing CRLF are not expanded to CRCRLF, but retained as is.
  *

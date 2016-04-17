@@ -82,38 +82,42 @@ public class RepoCommandTest extends RepositoryTestCase {
 		super.setUp();
 
 		defaultDb = createWorkRepository();
-		Git git = new Git(defaultDb);
-		JGitTestUtil.writeTrashFile(defaultDb, "hello.txt", "branch world");
-		git.add().addFilepattern("hello.txt").call();
-		oldCommitId = git.commit().setMessage("Initial commit").call().getId();
-		git.checkout().setName(BRANCH).setCreateBranch(true).call();
-		git.checkout().setName("master").call();
-		git.tag().setName(TAG).call();
-		JGitTestUtil.writeTrashFile(defaultDb, "hello.txt", "master world");
-		git.add().addFilepattern("hello.txt").call();
-		git.commit().setMessage("Second commit").call();
-		addRepoToClose(defaultDb);
+		try (Git git = new Git(defaultDb)) {
+			JGitTestUtil.writeTrashFile(defaultDb, "hello.txt", "branch world");
+			git.add().addFilepattern("hello.txt").call();
+			oldCommitId = git.commit().setMessage("Initial commit").call().getId();
+			git.checkout().setName(BRANCH).setCreateBranch(true).call();
+			git.checkout().setName("master").call();
+			git.tag().setName(TAG).call();
+			JGitTestUtil.writeTrashFile(defaultDb, "hello.txt", "master world");
+			git.add().addFilepattern("hello.txt").call();
+			git.commit().setMessage("Second commit").call();
+			addRepoToClose(defaultDb);
+		}
 
 		notDefaultDb = createWorkRepository();
-		git = new Git(notDefaultDb);
-		JGitTestUtil.writeTrashFile(notDefaultDb, "world.txt", "hello");
-		git.add().addFilepattern("world.txt").call();
-		git.commit().setMessage("Initial commit").call();
-		addRepoToClose(notDefaultDb);
+		try (Git git = new Git(notDefaultDb)) {
+			JGitTestUtil.writeTrashFile(notDefaultDb, "world.txt", "hello");
+			git.add().addFilepattern("world.txt").call();
+			git.commit().setMessage("Initial commit").call();
+			addRepoToClose(notDefaultDb);
+		}
 
 		groupADb = createWorkRepository();
-		git = new Git(groupADb);
-		JGitTestUtil.writeTrashFile(groupADb, "a.txt", "world");
-		git.add().addFilepattern("a.txt").call();
-		git.commit().setMessage("Initial commit").call();
-		addRepoToClose(groupADb);
+		try (Git git = new Git(groupADb)) {
+			JGitTestUtil.writeTrashFile(groupADb, "a.txt", "world");
+			git.add().addFilepattern("a.txt").call();
+			git.commit().setMessage("Initial commit").call();
+			addRepoToClose(groupADb);
+		}
 
 		groupBDb = createWorkRepository();
-		git = new Git(groupBDb);
-		JGitTestUtil.writeTrashFile(groupBDb, "b.txt", "world");
-		git.add().addFilepattern("b.txt").call();
-		git.commit().setMessage("Initial commit").call();
-		addRepoToClose(groupBDb);
+		try (Git git = new Git(groupBDb)) {
+			JGitTestUtil.writeTrashFile(groupBDb, "b.txt", "world");
+			git.add().addFilepattern("b.txt").call();
+			git.commit().setMessage("Initial commit").call();
+			addRepoToClose(groupBDb);
+		}
 
 		resolveRelativeUris();
 	}
@@ -745,6 +749,59 @@ public class RepoCommandTest extends RepositoryTestCase {
 						c.getString("submodule", "with-long-branch", "branch"));
 			}
 		}
+	}
+
+	@Test
+	public void testRemoteRevision() throws Exception {
+		StringBuilder xmlContent = new StringBuilder();
+		xmlContent.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+			.append("<manifest>")
+			.append("<remote name=\"remote1\" fetch=\".\" />")
+			.append("<remote name=\"remote2\" fetch=\".\" revision=\"")
+			.append(BRANCH)
+			.append("\" />")
+			.append("<default remote=\"remote1\" revision=\"master\" />")
+			.append("<project path=\"foo\" remote=\"remote2\" name=\"")
+			.append(defaultUri)
+			.append("\" />")
+			.append("</manifest>");
+		writeTrashFile("manifest.xml", xmlContent.toString());
+		RepoCommand command = new RepoCommand(db);
+		command.setPath(db.getWorkTree().getAbsolutePath() + "/manifest.xml")
+			.setURI(rootUri)
+			.call();
+		File hello = new File(db.getWorkTree(), "foo/hello.txt");
+		BufferedReader reader = new BufferedReader(new FileReader(hello));
+		String content = reader.readLine();
+		reader.close();
+		assertEquals("submodule content should be as expected",
+				"branch world", content);
+	}
+
+	@Test
+	public void testDefaultRemoteRevision() throws Exception {
+		StringBuilder xmlContent = new StringBuilder();
+		xmlContent.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+			.append("<manifest>")
+			.append("<remote name=\"remote1\" fetch=\".\" revision=\"")
+			.append(BRANCH)
+			.append("\" />")
+			.append("<default remote=\"remote1\" />")
+			.append("<project path=\"foo\" name=\"")
+			.append(defaultUri)
+			.append("\" />")
+			.append("</manifest>");
+		writeTrashFile("manifest.xml", xmlContent.toString());
+		RepoCommand command = new RepoCommand(db);
+		command.setPath(db.getWorkTree().getAbsolutePath() + "/manifest.xml")
+			.setURI(rootUri)
+			.call();
+		File hello = new File(db.getWorkTree(), "foo/hello.txt");
+		BufferedReader reader = new BufferedReader(new FileReader(hello));
+		String content = reader.readLine();
+		reader.close();
+		assertEquals("submodule content should be as expected",
+				"branch world", content);
 	}
 
 	private void resolveRelativeUris() {

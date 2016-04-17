@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-   Copyright (C) 2009, 2013, Matthias Sohn <matthias.sohn@sap.com>
+   Copyright (C) 2009, 2015, Matthias Sohn <matthias.sohn@sap.com>
    and other copyright owners as documented in the project's IP log.
 
    This program and the accompanying materials are made available
@@ -53,7 +53,7 @@
 
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>jgit.tycho.parent</artifactId>
-  <version>4.2.0.201601211800-r</version>
+  <version>4.3.0.201604071810-r</version>
   <packaging>pom</packaging>
 
   <name>JGit Tycho Parent</name>
@@ -61,6 +61,7 @@
   <properties>
     <tycho-version>0.23.0</tycho-version>
     <tycho-extras-version>${tycho-version}</tycho-extras-version>
+    <target-platform>jgit-4.5</target-platform>
   </properties>
 
   <pluginRepositories>
@@ -78,6 +79,7 @@
     <module>org.eclipse.jgit.target</module>
     <module>org.eclipse.jgit.feature</module>
     <module>org.eclipse.jgit.http.apache.feature</module>
+    <module>org.eclipse.jgit.lfs.feature</module>
     <module>org.eclipse.jgit.pgm.feature</module>
     <module>org.eclipse.jgit.source.feature</module>
     <module>org.eclipse.jgit.pgm.source.feature</module>
@@ -226,43 +228,6 @@
   </build>
 
   <profiles>
-    <profile>
-      <id>platform-kepler</id>
-      <activation>
-        <property>
-          <name>platform-version-name</name>
-          <value>kepler</value>
-        </property>
-      </activation>
-      <properties>
-        <target-platform>jgit-4.3</target-platform>
-      </properties>
-    </profile>
-    <profile>
-      <id>platform-luna</id>
-      <activation>
-        <property>
-          <name>platform-version-name</name>
-          <value>luna</value>
-        </property>
-      </activation>
-      <properties>
-        <target-platform>jgit-4.4</target-platform>
-      </properties>
-    </profile>
-    <profile>
-      <id>platform-mars</id>
-      <activation>
-        <activeByDefault>true</activeByDefault>
-        <property>
-          <name>platform-version-name</name>
-          <value>mars</value>
-        </property>
-      </activation>
-      <properties>
-        <target-platform>jgit-4.5</target-platform>
-      </properties>
-    </profile>
     <profile>
       <id>eclipse-sign</id>
       <build>

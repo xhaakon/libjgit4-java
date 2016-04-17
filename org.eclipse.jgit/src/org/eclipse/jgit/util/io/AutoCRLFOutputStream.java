@@ -50,8 +50,11 @@ import org.eclipse.jgit.diff.RawText;
 
 /**
  * An OutputStream that expands LF to CRLF.
- * <p>
+ *
  * Existing CRLF are not expanded to CRCRLF, but retained as is.
+ *
+ * A binary check on the first 8000 bytes is performed and in case of binary
+ * files, canonicalization is turned off (for the complete file).
  */
 public class AutoCRLFOutputStream extends OutputStream {
 
@@ -67,13 +70,26 @@ public class AutoCRLFOutputStream extends OutputStream {
 
 	private int binbufcnt = 0;
 
+	private boolean detectBinary;
+
 	private boolean isBinary;
 
 	/**
 	 * @param out
 	 */
 	public AutoCRLFOutputStream(OutputStream out) {
+		this(out, true);
+	}
+
+	/**
+	 * @param out
+	 * @param detectBinary
+	 *            whether binaries should be detected
+	 * @since 4.3
+	 */
+	public AutoCRLFOutputStream(OutputStream out, boolean detectBinary) {
 		this.out = out;
+		this.detectBinary = detectBinary;
 	}
 
 	@Override
@@ -141,7 +157,10 @@ public class AutoCRLFOutputStream extends OutputStream {
 	}
 
 	private void decideMode() throws IOException {
-		isBinary = RawText.isBinary(binbuf, binbufcnt);
+		if (detectBinary) {
+			isBinary = RawText.isBinary(binbuf, binbufcnt);
+			detectBinary = false;
+		}
 		int cachedLen = binbufcnt;
 		binbufcnt = binbuf.length + 1; // full!
 		write(binbuf, 0, cachedLen);

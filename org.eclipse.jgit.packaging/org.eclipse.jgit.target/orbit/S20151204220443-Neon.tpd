@@ -1,7 +1,7 @@
-target "R20150821153341-Mars" with source configurePhase
+target "S20151204220443-Neon" with source configurePhase
 // see http://download.eclipse.org/tools/orbit/downloads/
 
-location "http://download.eclipse.org/tools/orbit/downloads/drops/R20150821153341/repository/" {
+location "http://download.eclipse.org/tools/orbit/downloads/drops/S20151204220443/repository/" {
 	org.apache.ant [1.9.4.v201504302020,1.9.4.v201504302020]
 	org.apache.ant.source [1.9.4.v201504302020,1.9.4.v201504302020]
 	org.apache.commons.compress [1.6.0.v201310281400,1.6.0.v201310281400]
@@ -10,8 +10,8 @@ location "http://download.eclipse.org/tools/orbit/downloads/drops/R2015082115334
 	org.apache.commons.logging.source [1.1.1.v201101211721,1.1.1.v201101211721]
 	org.apache.httpcomponents.httpcore [4.3.3.v201411290715,4.3.3.v201411290715]
 	org.apache.httpcomponents.httpcore.source [4.3.3.v201411290715,4.3.3.v201411290715]
-	org.apache.httpcomponents.httpclient [4.3.6.v201411290715,4.3.6.v201411290715]
-	org.apache.httpcomponents.httpclient.source [4.3.6.v201411290715,4.3.6.v201411290715]
+	org.apache.httpcomponents.httpclient [4.3.6.v201511171540,4.3.6.v201511171540]
+	org.apache.httpcomponents.httpclient.source [4.3.6.v201511171540,4.3.6.v201511171540]
 	org.apache.log4j [1.2.15.v201012070815,1.2.15.v201012070815]
 	org.apache.log4j.source [1.2.15.v201012070815,1.2.15.v201012070815]
 	org.kohsuke.args4j [2.0.21.v201301150030,2.0.21.v201301150030]
@@ -24,6 +24,7 @@ location "http://download.eclipse.org/tools/orbit/downloads/drops/R2015082115334
 	org.objenesis.source [1.0.0.v201505121915,1.0.0.v201505121915]
 	org.mockito [1.8.4.v201303031500,1.8.4.v201303031500]
 	org.mockito.source [1.8.4.v201303031500,1.8.4.v201303031500]
+	com.google.gson [2.2.4.v201311231704,2.2.4.v201311231704]
 	com.jcraft.jsch [0.1.53.v201508180515,0.1.53.v201508180515]
 	com.jcraft.jsch.source [0.1.53.v201508180515,0.1.53.v201508180515]
 	org.junit [4.11.0.v201303080030,4.11.0.v201303080030]

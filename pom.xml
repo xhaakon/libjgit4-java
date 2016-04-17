@@ -51,7 +51,7 @@
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>org.eclipse.jgit-parent</artifactId>
   <packaging>pom</packaging>
-  <version>4.2.0.201601211800-r</version>
+  <version>4.3.0.201604071810-r</version>
 
   <name>JGit - Parent</name>
   <url>${jgit-url}</url>
@@ -192,7 +192,7 @@
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <bundle-manifest>${project.build.directory}/META-INF/MANIFEST.MF</bundle-manifest>
 
-    <jgit-last-release-version>4.1.0.201509280440-r</jgit-last-release-version>
+    <jgit-last-release-version>4.2.0.201601211800-r</jgit-last-release-version>
     <jsch-version>0.1.53</jsch-version>
     <javaewah-version>0.7.9</javaewah-version>
     <junit-version>4.11</junit-version>
@@ -208,6 +208,7 @@
     <log4j-version>1.2.15</log4j-version>
     <maven-javadoc-plugin-version>2.10.1</maven-javadoc-plugin-version>
     <tycho-extras-version>0.23.0</tycho-extras-version>
+    <gson-version>2.2.4</gson-version>
 
     <!-- Properties to enable jacoco code coverage analysis -->
     <sonar.core.codeCoveragePlugin>jacoco</sonar.core.codeCoveragePlugin>
@@ -632,6 +633,12 @@
           </exclusion>
         </exclusions>
       </dependency>
+
+      <dependency>
+        <groupId>com.google.code.gson</groupId>
+        <artifactId>gson</artifactId>
+        <version>${gson-version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -767,6 +774,8 @@
     <module>org.eclipse.jgit.http.apache</module>
     <module>org.eclipse.jgit.http.server</module>
     <module>org.eclipse.jgit.pgm</module>
+    <module>org.eclipse.jgit.lfs</module>
+    <module>org.eclipse.jgit.lfs.server</module>
     <module>org.eclipse.jgit.junit</module>
     <module>org.eclipse.jgit.junit.http</module>
 
@@ -774,6 +783,8 @@
     <module>org.eclipse.jgit.ant.test</module>
     <module>org.eclipse.jgit.http.test</module>
     <module>org.eclipse.jgit.pgm.test</module>
+    <module>org.eclipse.jgit.lfs.test</module>
+    <module>org.eclipse.jgit.lfs.server.test</module>
   </modules>
 
 </project>
